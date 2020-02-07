@@ -21,7 +21,7 @@ end
 nx = 1
 ny = 1
 n_in = 2
-n_hidden = 128
+n_hidden = 256
 batchsize = 100
 depth = 10
 AN = Array{ActNorm}(undef, depth)
@@ -68,15 +68,15 @@ function loss(X)
     return f, ΔX
 end
 
-ntrain = 500
-X = sample_banana(ntrain)
+# Training
 maxiter = 5000
 opt = Flux.ADAM(1f-5)
 fval = zeros(Float32, maxiter)
+
 for j=1:maxiter
 
     # Evaluate objective and gradients
-    #idx = randperm(ntrain)[1:batchsize]
+    X = sample_banana(batchsize)
     fval[j] = loss(X)[1]
     mod(j, 1) == 0 && (print("Iteration: ", j, "; f = ", fval[j], "\n"))
 
