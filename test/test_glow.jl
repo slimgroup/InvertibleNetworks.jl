@@ -5,11 +5,11 @@
 using InvertibleNetworks, LinearAlgebra, Test
 
 # Define network
-nx = 32
-ny = 32
+nx = 28
+ny = 28
 n_in = 3
-n_hidden = 16
-batchsize = 4
+n_hidden = 8
+batchsize = 2
 L = 2
 K = 2
 

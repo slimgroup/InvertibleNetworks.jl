@@ -9,8 +9,8 @@ batchsize = 1
 maxiter = 2
 
 # Observed data
-nrec = 200
-nt = 400
+nrec = 28
+nt = 28
 d = randn(Float32, nt, nrec, batchsize)
 
 # Modeling/imaging operator
