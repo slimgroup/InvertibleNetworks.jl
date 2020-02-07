@@ -11,8 +11,8 @@ d = 4
 n_in = 10
 n_out = 20
 
-X = glorot_uniform(64, 64, n_in, 1)
-Y = glorot_uniform(16, 16, n_out, 1)
+X = glorot_uniform(32, 32, n_in, 1)
+Y = glorot_uniform(8, 8, n_out, 1)
 W = glorot_uniform(d, d, n_in, n_out)
 
 # Convolution using NNlib functions

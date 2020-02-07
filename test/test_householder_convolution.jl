@@ -10,8 +10,8 @@ using InvertibleNetworks, LinearAlgebra, Test
 # Dimensions
 nx = 28
 ny = 28
-k = 10
-batchsize = 1
+k = 4
+batchsize = 2
 
 # Variables
 v1 = glorot_uniform(k)

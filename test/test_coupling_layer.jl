@@ -5,12 +5,12 @@
 using InvertibleNetworks, LinearAlgebra, Test
 
 # Input
-nx = 32
-ny = 32
-k = 20
-n_in = 10
-n_hidden = 20
-batchsize = 4
+nx = 28
+ny = 28
+k = 8
+n_in = 4
+n_hidden = 8
+batchsize = 2
 k1 = 4
 k2 = 3
 

@@ -4,9 +4,9 @@
 using InvertibleNetworks, LinearAlgebra, Test, Statistics
 
 # Input
-nx = 64
-ny = 64
-k = 10
+nx = 28
+ny = 28
+k = 4
 batchsize = 2
 
 # Input image: nx x ny x k x batchsize
@@ -47,7 +47,7 @@ function loss(AN, X, Y)
     # Residual and function value
     ΔY = Y_ - Y
     f = .5f0/batchsize*norm(ΔY)^2
-    AN.logdet == true && (f -= lgdet)
+    AN.logdet == true && (f -= lgdet/batchsize)
 
     # Back propagation
     ΔX, X_ = AN.backward(ΔY./batchsize, Y)

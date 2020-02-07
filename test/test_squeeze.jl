@@ -1,7 +1,7 @@
 
 using InvertibleNetworks, Test, LinearAlgebra
 
-X = randn(Float32, 24, 24, 2, 10)
+X = randn(Float32, 28, 28, 2, 4)
 
 # Squeeze and unsqueeze
 @test isapprox(norm(X - unsqueeze(squeeze(X; pattern="column"); pattern="column")), 0f0; atol=1f-6)
