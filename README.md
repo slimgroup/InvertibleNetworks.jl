@@ -10,15 +10,15 @@ Building blocks for invertible neural networks in the Julia programming language
 
 ## Building blocks
 
-- 1x1 Convolutions using Householder transformations ([example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/convolution_1x1.jl))
+- 1x1 Convolutions using Householder transformations ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/convolution_1x1.jl))
 
-- Residual block for pixel shuffeling (Putzky and Welling, 2019) ([example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/residual_block.jl))
+- Residual block for pixel shuffeling (Putzky and Welling, 2019) ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/residual_block.jl))
 
-- Invertible coupling layer from Putzky and Welling (2019) ([example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/invertible_layer.jl))
+- Invertible coupling layer from Putzky and Welling (2019) ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/invertible_layer.jl))
 
-- Invertible coupling layer from Dinh et al. (2017) ([example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/coupling_layer.jl))
+- Invertible coupling layer from Dinh et al. (2017) ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/coupling_layer.jl))
 
-- Activation normalization (Kingma and Dhariwal, 2018) ([example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/activation_normalization.jl))
+- Activation normalization (Kingma and Dhariwal, 2018) ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/activation_normalization.jl))
 
 - Various activation functions (Sigmoid, ReLU, leaky ReLU, GaLU)
 
@@ -29,11 +29,11 @@ Building blocks for invertible neural networks in the Julia programming language
 
 ## Applications
 
-- Invertible recurrent inference machines (Putzky and Welling, 2019) ([generic example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/loop_unrolling.jl), [seismic example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/i-rim_seismic.jl))
+- Invertible recurrent inference machines (Putzky and Welling, 2019) ([generic example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/loop_unrolling.jl), [seismic example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/i-rim_seismic.jl))
 
-- Generative models with maximum likelihood via the change of variable formula ([example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/generative_model_change_of_variable.jl))
+- Generative models with maximum likelihood via the change of variable formula ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/generative_model_change_of_variable.jl))
 
-- Glow: Generative flow with invertible 1x1 convolutions (Kingma and Dhariwal, 2018) ([generic example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/glow_likelihood_logdet.jl), [source](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/src/invertible_network_glow.jl))
+- Glow: Generative flow with invertible 1x1 convolutions (Kingma and Dhariwal, 2018) ([generic example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/glow_likelihood_logdet.jl), [source](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/src/invertible_network_glow.jl))
 
 ## To Do
 
