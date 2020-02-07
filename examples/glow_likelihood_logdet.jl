@@ -37,3 +37,4 @@ Params = get_params(G)
 for p in Params
     update!(opt, p.data, p.grad)
 end
+clear_grad!(G)

@@ -29,7 +29,7 @@ Building blocks for invertible neural networks in the Julia programming language
 
 ## Applications
 
-- Invertible recurrent inference machines (Putzky and Welling, 2019) ([generic example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/loop_unrolling.jl), [seismic example](https://github.gatech.edu/pwitte3/InvertibleNetworks/blob/master/examples/i-rim_seismic.jl))
+- Invertible recurrent inference machines (Putzky and Welling, 2019) ([generic example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/loop_unrolling.jl), [seismic example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/i-rim_seismic.jl))
 
 - Generative models with maximum likelihood via the change of variable formula ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/generative_model_change_of_variable.jl))
 
