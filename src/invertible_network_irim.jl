@@ -32,11 +32,11 @@ export NetworkLoop
 
  *Usage:*
 
- - Forward mode: `Y = L.forward(X)`
+ - Forward mode: `η_out, s_out = L.forward(η_in, s_in, A, d)`
 
- - Inverse mode: `X = L.inverse(Y)`
+ - Inverse mode: `η_in, s_in = L.inverse(η_out, s_out, A, d)`
 
- - Backward mode: `ΔX, X = L.backward(ΔY, Y)`
+ - Backward mode: `Δη_in, Δs_in, η_in, s_in = L.backward(Δη_out, Δs_out, η_out, s_out, A, d)`
 
  *Trainable parameters:*
 

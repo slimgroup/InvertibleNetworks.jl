@@ -29,7 +29,7 @@ export NetworkGlow
 
  *Usage:*
 
- - Forward mode: `Y = G.forward(X)`
+ - Forward mode: `Y, logdet = G.forward(X)`
 
  - Backward mode: `ΔX, X = G.backward(ΔY, Y)`
 
