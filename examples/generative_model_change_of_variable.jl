@@ -5,6 +5,8 @@
 using LinearAlgebra, InvertibleNetworks, PyPlot, Flux, Random
 import Flux.Optimise.update!
 
+# Random seed
+Random.seed!(10)
 
 # Target distribution
 function sample_banana(batchsize; c=[1f0, 4f0])
@@ -21,7 +23,7 @@ end
 nx = 1
 ny = 1
 n_in = 2
-n_hidden = 256
+n_hidden = 128
 batchsize = 100
 depth = 10
 AN = Array{ActNorm}(undef, depth)
@@ -62,15 +64,16 @@ end
 
 # Loss
 function loss(X)
-    Y_, logdet = forward(X)
-    f = .5f0/batchsize*norm(Y_)^2 - logdet
-    ΔX = backward(1f0/batchsize*Y_, Y_)[1]
+    Y, logdet = forward(X)
+    f = log_likelihood(Y) - logdet
+    ΔY = ∇log_likelihood(Y)
+    ΔX = backward(ΔY, Y)[1]
     return f, ΔX
 end
 
 # Training
-maxiter = 5000
-opt = Flux.ADAM(1f-5)
+maxiter = 1000
+opt = Flux.ADAM(1f-3)
 fval = zeros(Float32, maxiter)
 
 for j=1:maxiter
@@ -78,7 +81,7 @@ for j=1:maxiter
     # Evaluate objective and gradients
     X = sample_banana(batchsize)
     fval[j] = loss(X)[1]
-    mod(j, 1) == 0 && (print("Iteration: ", j, "; f = ", fval[j], "\n"))
+    mod(j, 10) == 0 && (print("Iteration: ", j, "; f = ", fval[j], "\n"))
 
     # Update params
     for p in Params
@@ -90,8 +93,8 @@ end
 ####################################################################################################
 
 # Testing
-test_size = 1000
-#X = sample_banana(test_size)
+test_size = 500
+X = sample_banana(test_size)
 Y_ = forward(X)[1]
 Y = randn(Float32, 1, 1, 2, test_size)
 X_ = backward(Y, Y)[2]

@@ -47,7 +47,7 @@ function loss(AN, X, Y)
     # Residual and function value
     ΔY = Y_ - Y
     f = .5f0/batchsize*norm(ΔY)^2
-    AN.logdet == true && (f -= lgdet/batchsize)
+    AN.logdet == true && (f -= lgdet)
 
     # Back propagation
     ΔX, X_ = AN.backward(ΔY./batchsize, Y)
