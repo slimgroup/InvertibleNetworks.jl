@@ -27,7 +27,8 @@ See also: [`mse`](@ref)
 
 
 ###################################################################################################
-# Negative log-likelihood
+# Log-likelihood
+
 """
     f = log_likelihood(X; μ=0f0, σ=1f0)
 
@@ -35,7 +36,7 @@ Log-likelihood of X for a Gaussian distribution with given mean μ and variance 
 
 See also: [`∇log_likelihood`](@ref)
 """
-log_likelihood(X; μ=0f0, σ=1f0) = -1f0/prod(size(X))*sum(log(1f0/(σ*sqrt(2f0*pi))) .- .5f0*((X .- μ)/σ).^2)
+log_likelihood(X; μ=0f0, σ=1f0) = 1f0/prod(size(X))*sum(log(1f0/(σ*sqrt(2f0*pi))) .- .5f0*((X .- μ)/σ).^2)
 
 
 """
@@ -45,4 +46,4 @@ Gradient of the log-likelihood function with respect to the input tensor X.
 
 See also: [`log_likelihood`](@ref)
 """
-∇log_likelihood(X; μ=0f0, σ=1f0) = 1f0/prod(size(X))*(X .- μ)/σ^2
+∇log_likelihood(X; μ=0f0, σ=1f0) = -1f0/prod(size(X))*(X .- μ)/σ^2
