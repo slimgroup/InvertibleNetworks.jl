@@ -65,8 +65,8 @@ end
 # Loss
 function loss(X)
     Y, logdet = forward(X)
-    f = log_likelihood(Y) - logdet
-    ΔY = ∇log_likelihood(Y)
+    f = -log_likelihood(Y) - logdet
+    ΔY = -∇log_likelihood(Y)
     ΔX = backward(ΔY, Y)[1]
     return f, ΔX
 end
