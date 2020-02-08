@@ -48,8 +48,8 @@ function loss(L, X, Y)
     Y_, logdet = L.forward(X)
     ΔY = Y_ - Y
     
-    f = .5f0*norm(ΔY)^2 - logdet
-    ΔX = L.backward(ΔY, Y_)[1]
+    f = .5f0/batchsize*norm(ΔY)^2 - logdet
+    ΔX = L.backward(ΔY/batchsize, Y_)[1]
 
     # Pass back gradients w.r.t. input X and from the residual block and 1x1 conv. layer
     return f, ΔX, L.C.v1.grad, L.C.v2.grad, L.C.v3.grad, L.RB.W1.grad, L.RB.W2.grad, L.RB.W3.grad

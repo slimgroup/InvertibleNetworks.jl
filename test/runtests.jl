@@ -8,6 +8,7 @@ test_suite = "layers"   # "all", "layers" or "networks"
 
 if test_suite == "all" || test_suite == "layers"
     @testset "Test individual layers" begin
+        include("test_objectives.jl")
         include("test_householder_convolution.jl")
         include("test_residual_block.jl")
         include("test_nnlib_convolution.jl")

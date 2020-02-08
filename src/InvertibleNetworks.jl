@@ -19,6 +19,7 @@ channels_out(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P
 
 # Basic building blocks
 include("parameter.jl")
+include("objective_functions.jl")
 include("dimensionality_operations.jl")
 include("activation_functions.jl")
 include("residual_block.jl")
