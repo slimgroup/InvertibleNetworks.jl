@@ -6,7 +6,7 @@ using LinearAlgebra, InvertibleNetworks, PyPlot, Flux, Random
 import Flux.Optimise.update!
 
 # Random seed
-Random.seed!(10)
+Random.seed!(11)
 
 # Target distribution
 function sample_banana(batchsize; c=[1f0, 4f0])
@@ -24,7 +24,7 @@ nx = 1
 ny = 1
 n_in = 2
 n_hidden = 128
-batchsize = 100
+batchsize = 20
 depth = 10
 AN = Array{ActNorm}(undef, depth)
 L = Array{CouplingLayer}(undef, depth)
