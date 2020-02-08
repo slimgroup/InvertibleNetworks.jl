@@ -24,6 +24,8 @@ Building blocks for invertible neural networks in the Julia programming language
 
 - Various activation functions (Sigmoid, ReLU, leaky ReLU, GaLU)
 
+- Objective and misfit functions (mean squared error, log-likelihood)
+
 - Dimensionality manipulation: squeeze/unsqueeze (column, patch, checkerboard), split/cat
 
 - Squeeze/unsqueeze using the wavelet transform
