@@ -23,6 +23,7 @@ include("objective_functions.jl")
 include("dimensionality_operations.jl")
 include("activation_functions.jl")
 include("residual_block.jl")
+include("test_distributions.jl")
 
 # Invertible layers
 include("actnorm.jl")
