@@ -8,14 +8,6 @@ import Flux.Optimise.update!
 # Random seed
 Random.seed!(11)
 
-# Target distribution
-function sample_banana(batchsize; c=[1f0, 4f0])
-    x = randn(Float32, 2, batchsize)
-    y = zeros(Float32, 1, 1, 2, batchsize)
-    y[1,1,1,:] = x[1,:] ./ c[1]
-    y[1,1,2,:] = x[2,:].*c[1] + c[1].*c[2].*(x[1,:].^2 .+ c[1]^2)
-    return y
-end
 
 ####################################################################################################
 
