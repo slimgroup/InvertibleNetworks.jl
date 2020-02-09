@@ -23,9 +23,9 @@ end
 nx = 1
 ny = 1
 n_in = 2
-n_hidden = 128
+n_hidden = 64
 batchsize = 20
-depth = 10
+depth = 4
 AN = Array{ActNorm}(undef, depth)
 L = Array{CouplingLayer}(undef, depth)
 Params = Array{Parameter}(undef, 0)
@@ -99,8 +99,13 @@ Y_ = forward(X)[1]
 Y = randn(Float32, 1, 1, 2, test_size)
 X_ = backward(Y, Y)[2]
 
+# Plot
 figure(figsize=[8,8])
-subplot(2,2,1); plot(X[1, 1, 1, :], X[1, 1, 2, :], "."); title(L"Data space: $x \sim \hat{p}_X$")
-subplot(2,2,2); plot(Y_[1, 1, 1, :], Y_[1, 1, 2, :], "g."); title(L"Latent space: $z = f(x)$")
-subplot(2,2,3); plot(X_[1, 1, 1, :], X_[1, 1, 2, :], "g."); title(L"Data space: $x = f^{-1}(z)$")
-subplot(2,2,4); plot(Y[1, 1, 1, :], Y[1, 1, 2, :], "."); title(L"Latent space: $z \sim \hat{p}_Z$")
+ax1 = subplot(2,2,1); plot(X[1, 1, 1, :], X[1, 1, 2, :], "."); title(L"Data space: $x \sim \hat{p}_X$")
+ax1.set_xlim([-3.5,3.5]); ax1.set_ylim([0,50])
+ax2 = subplot(2,2,2); plot(Y_[1, 1, 1, :], Y_[1, 1, 2, :], "g."); title(L"Latent space: $z = f(x)$")
+ax2.set_xlim([-3.5, 3.5]); ax2.set_ylim([-3.5, 3.5])
+ax3 = subplot(2,2,3); plot(X_[1, 1, 1, :], X_[1, 1, 2, :], "g."); title(L"Data space: $x = f^{-1}(z)$")
+ax3.set_xlim([-3.5,3.5]); ax3.set_ylim([0,50])
+ax4 = subplot(2,2,4); plot(Y[1, 1, 1, :], Y[1, 1, 2, :], "."); title(L"Latent space: $z \sim \hat{p}_Z$")
+ax4.set_xlim([-3.5, 3.5]); ax4.set_ylim([-3.5, 3.5])
