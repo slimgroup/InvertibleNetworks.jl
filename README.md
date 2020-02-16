@@ -14,11 +14,13 @@ Building blocks for invertible neural networks in the Julia programming language
 
 - 1x1 Convolutions using Householder transformations ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/convolution_1x1.jl))
 
-- Residual block for pixel shuffeling (Putzky and Welling, 2019) ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/residual_block.jl))
-
-- Invertible coupling layer from Putzky and Welling (2019) ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/invertible_layer.jl))
+- Residual block ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/residual_block.jl))
 
 - Invertible coupling layer from Dinh et al. (2017) ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/coupling_layer.jl))
+
+- Invertible hyperbolic layer from Lensink et al. (2019) ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/hyperbolic_layer.jl))
+
+- Invertible coupling layer from Putzky and Welling (2019) ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/invertible_layer.jl))
 
 - Activation normalization (Kingma and Dhariwal, 2018) ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/activation_normalization.jl))
 
@@ -56,6 +58,8 @@ This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl),
  - Laurent Dinh, Jascha Sohl-Dickstein and Samy Bengio, "Density estimation using Real NVP",  International Conference on Learning Representations, 2017, https://arxiv.org/abs/1605.08803
 
  - Diederik P. Kingma and Prafulla Dhariwal, "Glow: Generative Flow with Invertible 1x1 Convolutions", Conference on Neural Information Processing Systems, 2018. https://arxiv.org/abs/1807.03039
+
+ - Keegan Lensink, Eldad Haber and Bas Peters, "Fully Hyperbolic Convolutional Neural Networks", arXiv Computer Vision and Pattern Recognition, 2019. https://arxiv.org/abs/1905.10484
 
  - Patrick Putzky and Max Welling, "Invert to learn to invert", Advances in Neural Information Processing Systems, 2019. https://arxiv.org/pdf/1911.10914.pdf
 
