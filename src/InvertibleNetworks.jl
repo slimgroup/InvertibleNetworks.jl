@@ -30,6 +30,7 @@ include("actnorm.jl")
 include("conv1x1.jl")
 include("invertible_layer_irim.jl")
 include("invertible_layer_glow.jl")
+include("invertible_layer_hyperbolic.jl")
 
 # Invertible network architectures
 include("invertible_network_irim.jl")   # Putzky and Welling (2019)
