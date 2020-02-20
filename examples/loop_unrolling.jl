@@ -16,12 +16,12 @@ batchsize = 2
 maxiter = 2
 
 # Observed data
-nrec = 50
-nt = 100
+nrec = 20
+nt = 50
 d = randn(Float32, nt*nrec, batchsize)
 
-# Modeling/imaging operator (can be JUDI operator or explicit matrix)
-J = randn(Float32, nt*nrec, nx*ny)
+# Modeling/imaging operator (can be JOLI/JUDI operator or explicit matrix)
+J = joMatrix(randn(Float32, nt*nrec, nx*ny))
 
 # Link function
 Ψ(η) = identity(η)
@@ -44,8 +44,8 @@ s_in = randn(Float32, nx, ny, n_in-1, batchsize)
 Δη_inv, Δs_inv, η_inv, s_inv = L.backward(Δη, Δs, η_out, s_out, J, d)
 
 # Check invertibility
-@test isapprox(norm(η_inv - η_in)/norm(η_inv), 0f0, atol=1e-6)
-@test isapprox(norm(s_inv - s_in)/norm(s_inv), 0f0, atol=1e-6)
+@test isapprox(norm(η_inv - η_in)/norm(η_inv), 0f0, atol=1e-5)
+@test isapprox(norm(s_inv - s_in)/norm(s_inv), 0f0, atol=1e-5)
 
 # Update using Flux optimizer
 opt = Flux.ADAM()
