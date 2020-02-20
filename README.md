@@ -7,7 +7,7 @@ Building blocks for invertible neural networks in the Julia programming language
 ## Installation
 
 ```
-] dev https://github.gatech.edu/pwitte3/InvertibleNetworks
+] dev https://github.com/slimgroup/InvertibleNetworks.jl
 ```
 
 ## Building blocks
