@@ -48,6 +48,7 @@ Create an invertible hyperbolic coupling layer.
 struct HyperbolicLayer
     W::Parameter
     b::Parameter
+    α::Float32
     cdims::DenseConvDims
     action::String
     forward::Function
@@ -57,7 +58,7 @@ end
 
 # Constructor
 function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, kernel::Int64, 
-    stride::Int64, pad::Int64; action="same")
+    stride::Int64, pad::Int64; action="same", α=1f0)
 
     # Set ouput/hidden dimensions
     if action == "same"
@@ -78,16 +79,16 @@ function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, ke
     cdims = DenseConvDims((nx, ny, n_out, batchsize), (kernel, kernel, n_out, n_out); 
         stride=(stride, stride), padding=(pad, pad))
 
-    return HyperbolicLayer(W, b, cdims, action,
-        (X_prev, X_curr) -> hyperbolic_forward(X_prev, X_curr, W, b, cdims, action),
-        (X_curr, X_new) -> hyperbolic_inverse(X_curr, X_new, W, b, cdims, action),
-        (ΔX_curr, ΔX_new, X_curr, X_new) -> hyperbolic_backward(ΔX_curr, ΔX_new, X_curr, X_new, W, b, cdims, action)
+    return HyperbolicLayer(W, b, α, cdims, action,
+        (X_prev, X_curr) -> hyperbolic_forward(X_prev, X_curr, W, b, α, cdims, action),
+        (X_curr, X_new) -> hyperbolic_inverse(X_curr, X_new, W, b, α, cdims, action),
+        (ΔX_curr, ΔX_new, X_curr, X_new) -> hyperbolic_backward(ΔX_curr, ΔX_new, X_curr, X_new, W, b, α, cdims, action)
         )
 end
 
 # Constructor for given weights
 function HyperbolicLayer(W::Array{Float32, 4}, b::Array{Float32, 1}, nx::Int64, ny::Int64, 
-    batchsize::Int64, stride::Int64, pad::Int64; action="same")
+    batchsize::Int64, stride::Int64, pad::Int64; action="same", α=1f0)
 
     kernel, n_in = size(W)[2:3]
 
@@ -110,15 +111,15 @@ function HyperbolicLayer(W::Array{Float32, 4}, b::Array{Float32, 1}, nx::Int64, 
     cdims = DenseConvDims((nx, ny, n_out, batchsize), (kernel, kernel, n_out, n_out); 
         stride=(stride, stride), padding=(pad, pad))
 
-    return HyperbolicLayer(W, b, cdims, action,
-        (X_prev, X_curr) -> hyperbolic_forward(X_prev, X_curr, W, b, cdims, action),
-        (X_curr, X_new) -> hyperbolic_inverse(X_curr, X_new, W, b, cdims, action),
-        (ΔX_curr, ΔX_new, X_curr, X_new) -> hyperbolic_backward(ΔX_curr, ΔX_new, X_curr, X_new, W, b, cdims, action)
+    return HyperbolicLayer(W, b, α, cdims, action,
+        (X_prev, X_curr) -> hyperbolic_forward(X_prev, X_curr, W, b, α, cdims, action),
+        (X_curr, X_new) -> hyperbolic_inverse(X_curr, X_new, W, b, α, cdims, action),
+        (ΔX_curr, ΔX_new, X_curr, X_new) -> hyperbolic_backward(ΔX_curr, ΔX_new, X_curr, X_new, W, b, α, cdims, action)
         )
 end
 
 # Forward pass
-function hyperbolic_forward(X_prev_in, X_curr_in, W, b, cdims, action)
+function hyperbolic_forward(X_prev_in, X_curr_in, W, b, α, cdims, action)
 
     # Change dimensions
     if action == "same"
@@ -140,13 +141,13 @@ function hyperbolic_forward(X_prev_in, X_curr_in, W, b, cdims, action)
     X_convT = ∇conv_data(X_relu, W.data, cdims)
 
     # Update
-    X_new = 2f0*X_curr - X_prev + X_convT
+    X_new = 2f0*X_curr - X_prev + α*X_convT
 
     return X_curr, X_new
 end
 
 # Inverse pass
-function hyperbolic_inverse(X_curr, X_new, W, b, cdims, action; save=false)
+function hyperbolic_inverse(X_curr, X_new, W, b, α, cdims, action; save=false)
 
     # Symmetric convolution w/ relu activation
     X_conv = conv(X_curr, W.data, cdims) .+ reshape(b.data, 1, 1, :, 1)
@@ -154,7 +155,7 @@ function hyperbolic_inverse(X_curr, X_new, W, b, cdims, action; save=false)
     X_convT = ∇conv_data(X_relu, W.data, cdims)
 
     # Update
-    X_prev = 2*X_curr - X_new + X_convT
+    X_prev = 2*X_curr - X_new + α*X_convT
 
     # Change dimensions
     if action == "same"
@@ -178,15 +179,15 @@ function hyperbolic_inverse(X_curr, X_new, W, b, cdims, action; save=false)
 end
 
 # Backward pass
-function hyperbolic_backward(ΔX_curr, ΔX_new, X_curr, X_new, W, b, cdims, action)
+function hyperbolic_backward(ΔX_curr, ΔX_new, X_curr, X_new, W, b, α, cdims, action)
 
     # Recompute forward states
-    X_prev_in, X_curr_in, X_conv, X_relu = hyperbolic_inverse(X_curr, X_new, W, b, cdims, action; save=true)
+    X_prev_in, X_curr_in, X_conv, X_relu = hyperbolic_inverse(X_curr, X_new, W, b, α, cdims, action; save=true)
 
     # Backpropagate data residual and compute gradients
     ΔX_convT = copy(ΔX_new)
-    ΔX_relu = conv(ΔX_convT, W.data, cdims)
-    ΔW = ∇conv_filter(ΔX_convT, X_relu, cdims)
+    ΔX_relu = α*conv(ΔX_convT, W.data, cdims)
+    ΔW = α*∇conv_filter(ΔX_convT, X_relu, cdims)
     
     ΔX_conv = ReLUgrad(ΔX_relu, X_conv)
     ΔX_curr += ∇conv_data(ΔX_conv, W.data, cdims)
