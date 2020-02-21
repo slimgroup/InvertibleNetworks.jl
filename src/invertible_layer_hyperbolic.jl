@@ -5,11 +5,11 @@
 export HyperbolicLayer
 
 """
-    HyperbolicLayer(nx, ny, n_in, batchsize, kernel, stride, pad; action="same")
+    HyperbolicLayer(nx, ny, n_in, batchsize, kernel, stride, pad; action="same", α=1f0, n_hidden=n_in)
 
 or 
 
-    HyperbolicLayer(W, b, nx, ny, batchsize, stride, pad; action="same")
+    HyperbolicLayer(W, b, nx, ny, batchsize, stride, pad; action="same", α=1f0)
 
 Create an invertible hyperbolic coupling layer.
 
@@ -24,6 +24,10 @@ Create an invertible hyperbolic coupling layer.
 
  - `W`, `b`: Convolutional weight and bias. `W` has dimensions of `(kernel, kernel, n_in, n_in)`.
    `b` has dimensions of `n_in`.
+
+ - `α`: Step size for second time derivative. Default is 1.
+
+ - `n_hidden`: Number of hidden units. Default is the number of input channels.
 
 *Output*:
  
