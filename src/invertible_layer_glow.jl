@@ -163,5 +163,5 @@ function get_params(L::CouplingLayer)
 end
 
 # Logdet (correct?)
-coupling_logdet_forward(S) = sum(log.(abs.(S))) ./ prod(size(S))
-coupling_logdet_backward(S) = 1f0 ./ S ./ prod(size(S))
+coupling_logdet_forward(S) = sum(log.(abs.(S)))
+coupling_logdet_backward(S) = 1f0./S

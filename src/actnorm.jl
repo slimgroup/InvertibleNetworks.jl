@@ -75,7 +75,7 @@ function actnorm_forward(X, k, s, b, logdet)
     Y = X .* reshape(s.data, 1, 1, :, 1) .+ reshape(b.data, 1, 1, :, 1)
     
     # If logdet true, return as second ouput argument
-    logdet == true ? (return Y, logdet_forward(s)) : (return Y)
+    logdet == true ? (return Y, logdet_forward(nx, ny, s)) : (return Y)
 end
 
 # Inverse pass: Input Y, Output X
@@ -90,7 +90,7 @@ function actnorm_backward(ΔY, Y, k, s, b, logdet)
     X = actnorm_inverse(Y, k, s, b)
     ΔX = ΔY .* reshape(s.data, 1, 1, :, 1)
     Δs = sum(ΔY .* X, dims=(1,2,4))[1,1,:,1]
-    logdet == true && (Δs -= logdet_backward(s))
+    logdet == true && (Δs -= logdet_backward(nx, ny, s))
     Δb = sum(ΔY, dims=(1,2,4))[1,1,:,1]
     s.grad = Δs
     b.grad = Δb
@@ -107,5 +107,5 @@ end
 get_params(AN::ActNorm) = [AN.s, AN.b]
 
 # Logdet
-logdet_forward(s) = sum(log.(abs.(s.data))) ./ length(s.data)
-logdet_backward(s) = 1f0 ./ s.data ./ length(s.data)
+logdet_forward(nx, ny, s) = nx*ny*sum(log.(abs.(s.data))) 
+logdet_backward(nx, ny, s) = nx*ny ./ s.data
