@@ -5,40 +5,6 @@
 using InvertibleNetworks, LinearAlgebra, Test
 
 
-###############################################################################
-# Test logdet implementation
-
-# Input
-nx = 4
-ny = 4
-nc = 2
-n_hidden = 2
-batchsize = 1
-
-# Coupling layer
-CL = CouplingLayer(nx, ny, nc, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
-X = rand(Float32, nx, ny, nc, batchsize)
-
-# Explicitely compute logdet of Jacobian through probing
-# for small number of dimensions
-J = zeros(Float32, Int(nx*ny*nc), Int(nx*ny*nc))
-for i=1:nc
-    count = 1
-    for j=1:nx
-        for k=1:ny
-            E = zeros(Float32, nx, ny, nc, 1)
-            E[k, j, i] = 1f0
-            Y = CL.forward(X)[1]
-            J[:, (i-1)*nx*ny + count] = vec(CL.backward(E, Y)[1])
-            count += 1
-        end
-    end
-end
-lgdet1 = log(abs(det(J)))
-lgdet2 = CL.forward(X)[2]
-@test isapprox((lgdet1 - lgdet2), 0f0; atol=1f-4)
-
-
 ###################################################################################################
 # Test invertibility
 

@@ -63,12 +63,12 @@ function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, 
     count=1
     for i=1:L
         HL[count] = HyperbolicLayer(Int(nx/2^(i-1)), Int(ny/2^(i-1)), Int(n_in*4^(i-1)), batchsize, k, s, p; 
-            action="down", α=α, n_hidden=Int(n_in*4^(i-1))*hidden_factor)
+            action="down", α=α, hidden_factor=hidden_factor)
         count += 1
         if K > 1
             for j=2:K
                 HL[count] = HyperbolicLayer(Int(nx/2^i), Int(ny/2^i), Int(n_in*4^i), batchsize, k, s, p; 
-                    action="same", α=α, n_hidden=Int(n_in*4^i)*hidden_factor)
+                    action="same", α=α, hidden_factor=hidden_factor)
                 count += 1
             end
         end 
@@ -79,12 +79,12 @@ function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, 
         if K > 1
             for j=2:K
                 HL[count] = HyperbolicLayer(Int(nx/2^i), Int(ny/2^i), Int(n_in*4^i), batchsize, k, s, p;
-                    action="same", α=α, n_hidden=Int(n_in*4^i)*hidden_factor)
+                    action="same", α=α, hidden_factor=hidden_factor)
                 count += 1
             end
         end
         HL[count] = HyperbolicLayer(Int(nx/2^i), Int(ny/2^i), Int(n_in*4^i), batchsize, k, s, p; 
-        action="up", α=α, n_hidden=Int(n_in*4^i)*hidden_factor)
+        action="up", α=α, hidden_factor=hidden_factor)
         count += 1
     end
 

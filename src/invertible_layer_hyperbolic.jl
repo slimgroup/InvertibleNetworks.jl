@@ -5,7 +5,7 @@
 export HyperbolicLayer
 
 """
-    HyperbolicLayer(nx, ny, n_in, batchsize, kernel, stride, pad; action="same", α=1f0, n_hidden=n_in)
+    HyperbolicLayer(nx, ny, n_in, batchsize, kernel, stride, pad; action="same", α=1f0, hidden_factor=1)
 
 or 
 
@@ -27,7 +27,8 @@ Create an invertible hyperbolic coupling layer.
 
  - `α`: Step size for second time derivative. Default is 1.
 
- - `n_hidden`: Number of hidden units. Default is the number of input channels.
+ - `hidden_factor`: Increase the no. of channels by `hidden_factor` in the forward convolution.
+    After applying the transpose convolution, the dimensions are back to the input dimensions.
 
 *Output*:
  
@@ -62,7 +63,7 @@ end
 
 # Constructor
 function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, kernel::Int64, 
-    stride::Int64, pad::Int64; action="same", α=1f0, n_hidden=nothing)
+    stride::Int64, pad::Int64; action="same", α=1f0, hidden_factor=1)
 
     # Set ouput/hidden dimensions
     if action == "same"
@@ -76,7 +77,7 @@ function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, ke
         nx = Int(nx/2)
         ny = Int(ny/2)
     end
-    isnothing(n_hidden) && (n_hidden = n_out)
+    n_hidden = n_out*hidden_factor
 
     W = Parameter(glorot_uniform(kernel, kernel, n_out, n_hidden))
     b = Parameter(zeros(Float32, n_hidden))
