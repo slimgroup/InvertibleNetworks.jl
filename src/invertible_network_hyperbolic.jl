@@ -29,14 +29,15 @@ export NetworkHyperbolic
 
  - Forward mode: `Y, logdet = H.forward(X)`
 
+ - Inverse mode: `X = H.inverse(Y)`
+
  - Backward mode: `ΔX, X = H.backward(ΔY, Y)`
 
  *Trainable parameters:*
 
  - None in `H` itself
 
- - Trainable parameters in activation normalization `G.AN` and hyperbolic layers `G.HL[i,j]`,
-   where `i` and `j` range from `1` to `L` and `K` respectively.
+ - Trainable parameters in activation normalization `H.AN` and hyperbolic layers `H.HL[j]`.
 
  See also: [`ActNorm`](@ref), [`CouplingLayer!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
