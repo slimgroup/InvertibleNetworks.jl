@@ -35,5 +35,6 @@ include("invertible_layer_hyperbolic.jl")
 # Invertible network architectures
 include("invertible_network_irim.jl")   # Putzky and Welling (2019)
 include("invertible_network_glow.jl")   # Dinh et al (2017), Kingma and Dhariwal (2018)
+include("invertible_network_hyperbolic.jl") # Lensink et al. (2019)
 
 end
