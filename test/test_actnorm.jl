@@ -3,22 +3,56 @@
 
 using InvertibleNetworks, LinearAlgebra, Test, Statistics
 
+
+###############################################################################
+# Test logdet implementation
+
+# Input
+nx = 4
+ny = 4
+nc = 3
+batchsize = 1
+X = rand(Float32, nx, ny, nc, batchsize)
+
+# Actnorm and initialize
+AN = ActNorm(nc; logdet=true)
+AN.forward(X)
+
+# Explicitely compute logdet of Jacobian through probing
+# for small number of dimensions
+J = zeros(Float32, Int(nx*ny*nc), Int(nx*ny*nc))
+for i=1:nc
+    count = 1
+    for j=1:nx
+        for k=1:ny
+            E = zeros(Float32, nx, ny, nc, 1)
+            E[k, j, i] = 1f0
+            Y = AN.forward(X)[1]
+            J[:, (i-1)*nx*ny + count] = vec(AN.backward(E, Y)[1])
+            count += 1
+        end
+    end
+end
+lgdet1 = log(abs(det(J)))
+lgdet2 = AN.forward(X)[2]
+@test isapprox((lgdet1 - lgdet2)/lgdet1, 0f0; atol=1f-6)
+
+
+###############################################################################
+# Initialization and invertibility
+
 # Input
 nx = 28
 ny = 28
-k = 4
-batchsize = 2
+nc = 4
+batchsize = 1
+X = rand(Float32, nx, ny, nc, batchsize)
 
-# Input image: nx x ny x k x batchsize
-X = rand(Float32, nx, ny, k, batchsize)
-
-# Activation normalization
-AN = ActNorm(k; logdet=false)
-
-###############################################################################
+# Layer and
+AN = ActNorm(nc)
+Y = AN.forward(X)
 
 # Test initialization
-Y = AN.forward(X)
 @test isapprox(mean(Y), 0f0; atol=1f-6)
 @test isapprox(var(Y), 1f0; atol=1f-3)
 
@@ -29,9 +63,9 @@ Y = AN.forward(X)
 ###############################################################################
 # Gradient Test
 
-AN = ActNorm(k; logdet=true)
-X = randn(Float32, nx, ny, k, batchsize)
-X0 = randn(Float32, nx, ny, k, batchsize)
+AN = ActNorm(nc; logdet=true)
+X = randn(Float32, nx, ny, nc, batchsize)
+X0 = randn(Float32, nx, ny, nc, batchsize)
 dX = X - X0
 Y = AN.forward(X)[1]
 
@@ -62,7 +96,7 @@ end
 maxiter = 6
 print("\nGradient test actnorm\n")
 f0, ΔX = loss(AN, X0, Y)[1:2]
-h = .01f0
+h = .1f0
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 for j=1:maxiter
@@ -78,14 +112,14 @@ end
 
 
 # Gradient test for parameters
-AN0 = ActNorm(k; logdet=true); AN0.forward(X)
+AN0 = ActNorm(nc; logdet=true); AN0.forward(X)
 AN_ini = deepcopy(AN0)
 ds = AN.s.data - AN0.s.data
 db = AN.b.data - AN0.b.data
 maxiter = 6
 print("\nGradient test actnorm\n")
 f0, ΔX, Δs, Δb = loss(AN0, X, Y)
-h = .01f0
+h = .1f0
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 for j=1:maxiter
