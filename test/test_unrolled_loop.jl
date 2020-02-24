@@ -1,16 +1,16 @@
 using InvertibleNetworks, LinearAlgebra, Test
 
 # Input
-nx = 28
-ny = 28
-n_in = 4
-n_hidden = 8
+nx = 16
+ny = 16
+n_in = 2
+n_hidden = 4
 batchsize = 1
 maxiter = 2
 
 # Observed data
-nrec = 28
-nt = 28
+nrec = 14
+nt = 8
 d = randn(Float32, nt, nrec, batchsize)
 
 # Modeling/imaging operator
@@ -31,13 +31,13 @@ s = randn(Float32, nx, ny, n_in-1, batchsize)
 # Test invertibility
 η_, s_ = L.forward(η, s, J, vec(d))
 ηInv, sInv = L.inverse(η_, s_, J, vec(d))
-@test isapprox(norm(ηInv - η)/norm(η), 0f0, atol=1e-6)
-@test isapprox(norm(sInv - s)/norm(sInv), 0f0, atol=1e-6)
+@test isapprox(norm(ηInv - η)/norm(η), 0f0, atol=1e-5)
+@test isapprox(norm(sInv - s)/norm(sInv), 0f0, atol=1e-5)
 
 η_, s_ = L.inverse(η, s, J, vec(d))
 ηInv, sInv = L.forward(η_, s_, J, vec(d))
-@test isapprox(norm(ηInv - η)/norm(η), 0f0, atol=1e-6)
-@test isapprox(norm(sInv - s)/norm(sInv), 0f0, atol=1e-6)
+@test isapprox(norm(ηInv - η)/norm(η), 0f0, atol=1e-5)
+@test isapprox(norm(sInv - s)/norm(sInv), 0f0, atol=1e-5)
 
 ###################################################################################################
 

@@ -4,6 +4,10 @@
 
 using InvertibleNetworks, LinearAlgebra, Test
 
+
+###################################################################################################
+# Test invertibility
+
 # Input
 nx = 28
 ny = 28
@@ -22,17 +26,7 @@ dX = X - X0
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
 RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, fan=true)
-
-C0 = Conv1x1(k)
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, fan=true)
-
-# Invertible layer
 L = CouplingLayer(C, RB; logdet=true)
-L01 = CouplingLayer(C0, RB; logdet=true)
-L02 = CouplingLayer(C, RB0; logdet=true)
-
-###################################################################################################
-# Test invertibility
 
 X_ = L.inverse(L.forward(X)[1])
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
@@ -54,6 +48,11 @@ function loss(L, X, Y)
     return f, ΔX, L.C.v1.grad, L.C.v2.grad, L.C.v3.grad, L.RB.W1.grad, L.RB.W2.grad, L.RB.W3.grad
 end
 
+# Invertible layers
+C0 = Conv1x1(k)
+RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, fan=true)
+L01 = CouplingLayer(C0, RB; logdet=true)
+L02 = CouplingLayer(C, RB0; logdet=true)
 
 # Gradient test w.r.t. input X0
 Y = L.forward(X)[1]
