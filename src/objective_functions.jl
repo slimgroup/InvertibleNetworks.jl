@@ -2,7 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export log_likelihood, ∇log_likelihood, log_likelihood_multi, ∇log_likelihood_multi, mse, ∇mse
+export log_likelihood, ∇log_likelihood, mse, ∇mse
 
 ###################################################################################################
 # Mean squared error
