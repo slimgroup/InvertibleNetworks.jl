@@ -2,7 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export log_likelihood, ∇log_likelihood, mse, ∇mse
+export log_likelihood, ∇log_likelihood, log_likelihood_multi, ∇log_likelihood_multi, mse, ∇mse
 
 ###################################################################################################
 # Mean squared error
@@ -47,3 +47,8 @@ Gradient of the log-likelihood function with respect to the input tensor X.
 See also: [`log_likelihood`](@ref)
 """
 ∇log_likelihood(X; μ=0f0, σ=1f0) = -1f0/prod(size(X))*(X .- μ)/σ^2
+
+
+# Multivariate log likelihood for zero mean and unit variance tensor
+log_likelihood_multi(X) = -.5f0*dot(X, X) / size(X, 4)
+∇log_likelihood_multi(X) = -X / size(X, 4)
