@@ -104,8 +104,8 @@ end
 
 # Forward pass
 function hyperbolic_forward(X, AN, HL)
-    X, logdet = AN.forward(X)
     X = wavelet_squeeze(X)
+    X, logdet = AN.forward(X)
     X_prev, X_curr = tensor_split(X)
     for j=1:length(HL)
         X_prev, X_curr = HL[j].forward(X_prev, X_curr)
@@ -123,6 +123,7 @@ function hyperbolic_inverse(Y, AN, HL)
         Y_curr, Y_new = HL[j].inverse(Y_curr, Y_new)
     end
     Y = tensor_cat(Y_curr, Y_new)
+    Y = AN.inverse(Y)
     Y = wavelet_unsqueeze(Y)
     return Y
 end
@@ -138,6 +139,7 @@ function hyperbolic_backward(ΔY, Y, AN, HL)
     end
     ΔY = tensor_cat(ΔY_curr, ΔY_new)
     Y = tensor_cat(Y_curr, Y_new)
+    ΔY, Y = AN.backward(ΔY, Y)
     ΔY = wavelet_unsqueeze(ΔY)
     Y = wavelet_unsqueeze(Y)
     return ΔY, Y
