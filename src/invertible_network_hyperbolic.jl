@@ -52,40 +52,47 @@ end
 
 # Constructor
 function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, L::Int64, K::Int64; 
-        k=3, s=1, p=1, logdet=true, α=1f0, hidden_factor=1)
+        k=3, s=1, p=1, logdet=true, α=1f0, hidden_factor=1, ncenter=1)
 
-    depth = Int(2*L*K)
+    depth = Int(2*(L-1)*K + ncenter)
     AN = ActNorm(n_in; logdet=logdet)
     HL = Array{HyperbolicLayer}(undef, depth)
     nx = Int(nx/2); ny = Int(ny/2); n_in = Int(n_in*2)  # dimensions after initial wavelet transform
 
     # Downsampling layers
     count=1
-    for i=1:L
-        HL[count] = HyperbolicLayer(Int(nx/2^(i-1)), Int(ny/2^(i-1)), Int(n_in*4^(i-1)), batchsize, k, s, p; 
-            action="down", α=α, hidden_factor=hidden_factor)
-        count += 1
+    for i=1:L-1
         if K > 1
             for j=2:K
-                HL[count] = HyperbolicLayer(Int(nx/2^i), Int(ny/2^i), Int(n_in*4^i), batchsize, k, s, p; 
-                    action="same", α=α, hidden_factor=hidden_factor)
+                HL[count] = HyperbolicLayer(Int(nx/2^(i-1)), Int(ny/2^(i-1)), Int(n_in*4^(i-1)),
+                    batchsize, k, s, p; action="same", α=α, hidden_factor=hidden_factor)
                 count += 1
             end
         end 
+        HL[count] = HyperbolicLayer(Int(nx/2^(i-1)), Int(ny/2^(i-1)), Int(n_in*4^(i-1)), 
+            batchsize, k, s, p; action="down", α=α, hidden_factor=hidden_factor)
+        count += 1
+    end
+    
+    # Middle layers at coarsest scale
+    for i=1:ncenter
+        HL[count] = HyperbolicLayer(Int(nx/2^(L-1)), Int(ny/2^(L-1)), Int(n_in*4^(L-1)), 
+            batchsize, k, s, p; action="same", α=α, hidden_factor=hidden_factor)
+        count += 1
     end
 
     # Upsampling layers
-    for i=L:-1:1
+    for i=L-1:-1:1
+        HL[count] = HyperbolicLayer(Int(nx/2^i), Int(ny/2^i), Int(n_in*4^i), 
+            batchsize, k, s, p; action="up", α=α, hidden_factor=hidden_factor)
+        count += 1
         if K > 1
             for j=2:K
-                HL[count] = HyperbolicLayer(Int(nx/2^i), Int(ny/2^i), Int(n_in*4^i), batchsize, k, s, p;
+                HL[count] = HyperbolicLayer(Int(nx/2^(i-1)), Int(ny/2^(i-1)), Int(n_in*4^(i-1)), batchsize, k, s, p;
                     action="same", α=α, hidden_factor=hidden_factor)
                 count += 1
             end
         end
-        HL[count] = HyperbolicLayer(Int(nx/2^i), Int(ny/2^i), Int(n_in*4^i), batchsize, k, s, p; 
-        action="up", α=α, hidden_factor=hidden_factor)
-        count += 1
     end
 
     return NetworkHyperbolic(AN, HL, logdet, 
