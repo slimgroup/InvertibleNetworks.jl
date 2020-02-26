@@ -47,6 +47,7 @@ struct NetworkGlow <: InvertibleNetwork
     CL::Array{CouplingLayer, 2}
     Z_save::Array{Array, 1}
     forward::Function
+    inverse::Function
     backward::Function
 end
 
@@ -67,6 +68,7 @@ function NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K)
 
     return NetworkGlow(AN, CL, Z_save, 
         X -> glow_forward(X, AN, CL, Z_save, L, K),
+        Y -> glow_inverse(Y, AN, CL, Z_save, L, K),
         (ΔY, Y) -> glow_backward(ΔY, Y, AN, CL, Z_save, L, K)
     )
 end
@@ -87,6 +89,21 @@ function glow_forward(X, AN, CL, Z_save, L, K)
         end
     end
     return X, logdet
+end
+
+# Inverse pass and compute gradients
+function glow_inverse(X, AN, CL, Z_save, L, K)
+    for i=L:-1:1
+        if i < L
+            X = tensor_cat(X, Z_save[i])
+        end
+        for j=K:-1:1
+            X = CL[i, j].inverse(X)
+            X = AN[i, j].inverse(X)
+        end
+        X = unsqueeze(X; pattern="checkerboard")
+    end
+    return X
 end
 
 # Backward pass and compute gradients
