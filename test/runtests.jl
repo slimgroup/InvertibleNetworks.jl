@@ -26,5 +26,6 @@ if test_suite == "all" || test_suite == "networks"
         include("test_unrolled_loop.jl")
         include("test_generator.jl")
         include("test_glow.jl")
+        include("test_hyperbolic_network.jl")
     end
 end

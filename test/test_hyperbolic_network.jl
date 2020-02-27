@@ -38,7 +38,7 @@ function loss(H, X)
     f = -log_likelihood(Y) - logdet
     ΔY = -∇log_likelihood(Y)
     ΔX, X = H.backward(ΔY, Y)
-    return f, ΔX, H.HL[1].W.data, H.AN.s.data
+    return f, ΔX, H.HL[1].W.grad, H.AN.s.grad
 end
 
 # Data
@@ -78,7 +78,7 @@ dW = H.HL[1].W.data - H0.HL[1].W.data
 ds = H.AN.s.data - H0.AN.s.data
 
 f0, ΔX, ΔW, Δs = loss(H0, X)
-h = 0.01f0
+h = 0.1f0
 maxiter = 6
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
