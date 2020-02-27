@@ -18,7 +18,7 @@ X0 = randn(Float32, nx, ny, n_in, batchsize)
 X1 = randn(Float32, nx, ny, n_in, batchsize)
 
 # Layer
-H1 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action="down", α=.1f0, hidden_factor=2)
+H1 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action="down", α=.2f0, hidden_factor=8)
 
 Y0, Y1 = H1.forward(X0, X1)
 X0_, X1_ = H1.inverse(Y0, Y1)
@@ -76,7 +76,7 @@ end
 
 
 # Gradient test for W and b
-H0 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action="down", α=.1f0, hidden_factor=2)
+H0 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action="down", α=.2f0, hidden_factor=8)
 Hini = deepcopy(H0)
 dW = H1.W.data - H0.W.data
 db = H1.b.data - H0.b.data
