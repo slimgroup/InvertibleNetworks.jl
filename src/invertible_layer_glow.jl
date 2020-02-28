@@ -99,7 +99,7 @@ function coupling_layer_forward(X::Array{Float32, 4}, C, RB, logdet)
 
     Y2 = copy(X2)
     logS_T = RB.forward(X2)
-    S = exp.(logS_T[:,:,1:k,:])
+    S = Sigmoid(logS_T[:,:,1:k,:])
     T = logS_T[:, :, k+1:end, :]
     Y1 = S.*X1 + T
     Y = cat(Y1, Y2, dims=3)
@@ -117,7 +117,7 @@ function coupling_layer_inverse(Y::Array{Float32, 4}, C, RB; save=false)
     
     X2 = copy(Y2)
     logS_T = RB.forward(X2)
-    S = exp.(logS_T[:,:,1:k,:])
+    S = Sigmoid(logS_T[:,:,1:k,:])
     T = logS_T[:, :, k+1:end, :]
     X1 = (Y1 - T) ./ S
     X_ = cat(X1, X2; dims=3)
@@ -140,9 +140,9 @@ function coupling_layer_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, C
     ΔT = copy(ΔY1)
     ΔS = ΔY1 .* X1
     logdet == true && (ΔS -= coupling_logdet_backward(S))
-    ΔXa = ΔY1 .* S
-    ΔXb = RB.backward(cat(S.*ΔS, ΔT; dims=3), X2) + ΔY2
-    ΔX_ = cat(ΔXa, ΔXb; dims=3)
+    ΔX1 = ΔY1 .* S
+    ΔX2 = RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), X2) + ΔY2
+    ΔX_ = cat(ΔX1, ΔX2; dims=3)
     
     ΔX = C.inverse((ΔX_, cat(X1, X2; dims=3)))[1]
 
