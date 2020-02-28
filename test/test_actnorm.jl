@@ -67,7 +67,11 @@ AN = ActNorm(nc; logdet=true)
 X = randn(Float32, nx, ny, nc, batchsize)
 X0 = randn(Float32, nx, ny, nc, batchsize)
 dX = X - X0
-Y = AN.forward(X)[1]
+if AN.logdet == true
+    Y = AN.forward(X)[1]
+else
+    Y = AN.forward(X)
+end
 
 function loss(AN, X, Y)
 
@@ -112,14 +116,14 @@ end
 
 
 # Gradient test for parameters
-AN0 = ActNorm(nc; logdet=true); AN0.forward(X)
+AN0 = ActNorm(nc; logdet=true); AN0.forward(X0)
 AN_ini = deepcopy(AN0)
 ds = AN.s.data - AN0.s.data
 db = AN.b.data - AN0.b.data
 maxiter = 6
 print("\nGradient test actnorm\n")
 f0, ΔX, Δs, Δb = loss(AN0, X, Y)
-h = .1f0
+h = .01f0
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 for j=1:maxiter
