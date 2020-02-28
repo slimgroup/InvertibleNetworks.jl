@@ -48,8 +48,9 @@ end
 
 function loss(G, X)
     Y, logdet = G.forward(X)
-    f = .5f0/batchsize*norm(Y)^2 - logdet
-    ΔX, X_ = G.backward(1f0./batchsize*Y, Y)
+    f = -log_likelihood(Y) - logdet
+    ΔY = -∇log_likelihood(Y)
+    ΔX, X_ = G.backward(ΔY, Y)
     return f, ΔX, G.CL[1,1].RB.W1.grad, G.CL[1,1].C.v1.grad
 end
 
