@@ -102,7 +102,7 @@ end
 # Gradient test for bias
 RB0 = ResidualBlock(W1, W2, W3, b01, b02, nx, ny, batchsize)
 f0, ΔX, ΔW1, ΔW2, ΔW3, Δb1, Δb2 = loss(RB0, X, Y)
-h = 0.01f0
+h = 0.1f0
 maxiter = 6
 err5 = zeros(Float32, maxiter)
 err6 = zeros(Float32, maxiter)

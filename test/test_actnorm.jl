@@ -116,14 +116,14 @@ end
 
 
 # Gradient test for parameters
-AN0 = ActNorm(nc; logdet=true); AN0.forward(X0)
+AN0 = ActNorm(nc; logdet=true); AN0.forward(X)
 AN_ini = deepcopy(AN0)
 ds = AN.s.data - AN0.s.data
 db = AN.b.data - AN0.b.data
 maxiter = 6
 print("\nGradient test actnorm\n")
 f0, ΔX, Δs, Δb = loss(AN0, X, Y)
-h = .01f0
+h = .1f0
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 for j=1:maxiter
