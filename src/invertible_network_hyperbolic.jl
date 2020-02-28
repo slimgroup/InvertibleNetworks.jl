@@ -37,12 +37,12 @@ export NetworkHyperbolic
 
  - None in `H` itself
 
- - Trainable parameters in activation normalization `H.AN` and hyperbolic layers `H.HL[j]`.
+ - Trainable parameters in activation normalization `H.AL` and hyperbolic layers `H.HL[j]`.
 
- See also: [`ActNorm`](@ref), [`CouplingLayer!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
+ See also: [`AffineLayer`](@ref), [`CouplingLayer!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct NetworkHyperbolic <: InvertibleNetwork
-    AN::ActNorm
+    AL::AffineLayer
     HL::Array{HyperbolicLayer, 1}
     logdet::Bool
     forward::Function
@@ -55,7 +55,7 @@ function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, 
         k=3, s=1, p=1, logdet=true, α=1f0, hidden_factor=1, ncenter=1)
 
     depth = Int(2*(L-1)*K + ncenter)
-    AN = ActNorm(n_in; logdet=logdet)
+    AL = AffineLayer(Int(nx/4), Int(ny/4), Int(n_in*4); logdet=logdet)
     HL = Array{HyperbolicLayer}(undef, depth)
     nx = Int(nx/2); ny = Int(ny/2); n_in = Int(n_in*2)  # dimensions after initial wavelet transform
 
@@ -95,17 +95,17 @@ function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, 
         end
     end
 
-    return NetworkHyperbolic(AN, HL, logdet, 
-        X -> hyperbolic_forward(X, AN, HL),
-        Y -> hyperbolic_inverse(Y, AN, HL),
-        (ΔY, Y) -> hyperbolic_backward(ΔY, Y, AN, HL)
+    return NetworkHyperbolic(AL, HL, logdet, 
+        X -> hyperbolic_forward(X, AL, HL),
+        Y -> hyperbolic_inverse(Y, AL, HL),
+        (ΔY, Y) -> hyperbolic_backward(ΔY, Y, AL, HL)
     )
 end
 
 # Forward pass
-function hyperbolic_forward(X, AN, HL)
+function hyperbolic_forward(X, AL, HL)
     X = wavelet_squeeze(X)
-    X, logdet = AN.forward(X)
+    X, logdet = AL.forward(X)
     X_prev, X_curr = tensor_split(X)
     for j=1:length(HL)
         X_prev, X_curr = HL[j].forward(X_prev, X_curr)
@@ -116,20 +116,20 @@ function hyperbolic_forward(X, AN, HL)
 end
 
 # Inverse pass
-function hyperbolic_inverse(Y, AN, HL)
+function hyperbolic_inverse(Y, AL, HL)
     Y = wavelet_squeeze(Y)
     Y_curr, Y_new = tensor_split(Y)
     for j=length(HL):-1:1
         Y_curr, Y_new = HL[j].inverse(Y_curr, Y_new)
     end
     Y = tensor_cat(Y_curr, Y_new)
-    Y = AN.inverse(Y)
+    Y = AL.inverse(Y)
     Y = wavelet_unsqueeze(Y)
     return Y
 end
 
 # Backward pass
-function hyperbolic_backward(ΔY, Y, AN, HL)
+function hyperbolic_backward(ΔY, Y, AL, HL)
     ΔY = wavelet_squeeze(ΔY)
     Y = wavelet_squeeze(Y)
     ΔY_curr, ΔY_new = tensor_split(ΔY)
@@ -139,7 +139,7 @@ function hyperbolic_backward(ΔY, Y, AN, HL)
     end
     ΔY = tensor_cat(ΔY_curr, ΔY_new)
     Y = tensor_cat(Y_curr, Y_new)
-    ΔY, Y = AN.backward(ΔY, Y)
+    ΔY, Y = AL.backward(ΔY, Y)
     ΔY = wavelet_unsqueeze(ΔY)
     Y = wavelet_unsqueeze(Y)
     return ΔY, Y
@@ -148,7 +148,7 @@ end
 # Clear gradients
 function clear_grad!(H::NetworkHyperbolic)
     depth = length(H.HL)
-    clear_grad!(H.AN)
+    clear_grad!(H.AL)
     for j=1:depth
         clear_grad!(H.HL[j])
     end
@@ -157,7 +157,7 @@ end
 # Get parameters
 function get_params(H::NetworkHyperbolic)
     depth = length(H.HL)
-    p = get_params(H.AN)
+    p = get_params(H.AL)
     for j=1:depth
         p = cat(p, get_params(H.HL[j]); dims=1)
     end
