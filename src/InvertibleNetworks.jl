@@ -28,6 +28,7 @@ include("test_distributions.jl")
 # Invertible layers
 include("actnorm.jl")
 include("conv1x1.jl")
+include("layer_affine.jl")
 include("invertible_layer_irim.jl")
 include("invertible_layer_glow.jl")
 include("invertible_layer_hyperbolic.jl")
