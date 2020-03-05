@@ -4,7 +4,7 @@
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Test
-using Flux
+using Flux, JOLI
 import Flux.Optimise.update!
 
 # Input
