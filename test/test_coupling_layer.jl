@@ -11,12 +11,12 @@ Random.seed!(11)
 # Test invertibility
 
 # Input
-nx = 28
-ny = 28
-k = 8
-n_in = 4
-n_hidden = 8
-batchsize = 2
+nx = 24
+ny = 24
+k = 4
+n_in = 2
+n_hidden = 4
+batchsize = 1
 k1 = 4
 k2 = 3
 
