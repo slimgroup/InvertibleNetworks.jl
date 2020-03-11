@@ -2,14 +2,14 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export InvertibleLayer
+export CouplingLayerIRIM
 
 """
-    IL = InvertibleLayer(C::Conv1x1, RB::ResidualBlock)
+    IL = CouplingLayerIRIM(C::Conv1x1, RB::ResidualBlock)
 
 or
 
-    IL = InvertibleLayer(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=1, p1=1, p2=0, logdet=false)
+    IL = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=1, p1=1, p2=0, logdet=false)
 
  Create an i-RIM invertible coupling layer based on 1x1 convolutions and a residual block. 
 
@@ -50,7 +50,7 @@ or
 
  See also: [`Conv1x1`](@ref), [`ResidualBlock!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct InvertibleLayer <: NeuralNetLayer
+struct CouplingLayerIRIM <: NeuralNetLayer
     C::Conv1x1
     RB::ResidualBlock
     forward::Function
@@ -59,8 +59,8 @@ struct InvertibleLayer <: NeuralNetLayer
 end
 
 # Constructor from 1x1 convolution and residual block
-function InvertibleLayer(C::Conv1x1, RB::ResidualBlock)
-    return InvertibleLayer(C, RB, 
+function CouplingLayerIRIM(C::Conv1x1, RB::ResidualBlock)
+    return CouplingLayerIRIM(C, RB, 
         X -> inv_layer_forward(X, C, RB),
         Y -> inv_layer_inverse(Y, C, RB),
         (ΔY, Y) -> inv_layer_backward(ΔY, Y, C, RB)
@@ -68,13 +68,13 @@ function InvertibleLayer(C::Conv1x1, RB::ResidualBlock)
 end
 
 # Constructor from input dimensions
-function InvertibleLayer(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=4, k2=3)
+function CouplingLayerIRIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=4, k2=3)
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
     RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2)
 
-    return InvertibleLayer(C, RB, 
+    return CouplingLayerIRIM(C, RB, 
         X -> inv_layer_forward(X, C, RB),
         Y -> inv_layer_inverse(Y, C, RB),
         (ΔY, Y) -> inv_layer_backward(ΔY, Y, C, RB)
@@ -142,13 +142,13 @@ function inv_layer_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, C, RB)
 end
 
 # Clear gradients
-function clear_grad!(L::InvertibleLayer)
+function clear_grad!(L::CouplingLayerIRIM)
     clear_grad!(L.U)
     clear_grad!(L.RB)
 end
 
 # Get parameters
-function get_params(L::InvertibleLayer)
+function get_params(L::CouplingLayerIRIM)
     p1 = get_params(L.C)
     p2 = get_params(L.RB)
     return cat(p1, p2; dims=1)

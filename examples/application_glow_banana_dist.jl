@@ -19,13 +19,13 @@ n_hidden = 64
 batchsize = 20
 depth = 4
 AN = Array{ActNorm}(undef, depth)
-L = Array{CouplingLayer}(undef, depth)
+L = Array{CouplingLayerGlow}(undef, depth)
 Params = Array{Parameter}(undef, 0)
 
 # Create layers
 for j=1:depth
     AN[j] = ActNorm(n_in; logdet=true)
-    L[j] = CouplingLayer(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
+    L[j] = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
 
     # Collect parameters
     global Params = cat(Params, get_params(AN[j]); dims=1)

@@ -38,7 +38,7 @@ function loss(H, X)
     f = -log_likelihood(Y) - logdet
     ΔY = -∇log_likelihood(Y)
     ΔX, X = H.backward(ΔY, Y)
-    return f, ΔX, H.HL[1].W.grad, H.AN.s.grad
+    return f, ΔX, H.HL[1].W.grad, H.AL.s.grad
 end
 
 # Data
@@ -75,7 +75,7 @@ H0.forward(X)   # evaluate to initialize actnorm layer
 Hini = deepcopy(H0)
 
 dW = H.HL[1].W.data - H0.HL[1].W.data
-ds = H.AN.s.data - H0.AN.s.data
+ds = H.AL.s.data - H0.AL.s.data
 
 f0, ΔX, ΔW, Δs = loss(H0, X)
 h = 0.1f0
@@ -86,7 +86,7 @@ err4 = zeros(Float32, maxiter)
 print("\nGradient test invertible layer\n")
 for j=1:maxiter
     H0.HL[1].W.data = Hini.HL[1].W.data + h*dW
-    H0.AN.s.data = Hini.AN.s.data + h*ds
+    H0.AL.s.data = Hini.AL.s.data + h*ds
     f = loss(H0, X)[1]
     err3[j] = abs(f - f0)
     err4[j] = abs(f - f0 - h*dot(dW, ΔW)- h*dot(ds, Δs))

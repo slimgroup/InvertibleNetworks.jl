@@ -28,7 +28,7 @@ dX = X - X0
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
 RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, fan=true)
-L = CouplingLayer(C, RB; logdet=true)
+L = CouplingLayerGlow(C, RB; logdet=true)
 
 X_ = L.inverse(L.forward(X)[1])
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
@@ -53,14 +53,14 @@ end
 # Invertible layers
 C0 = Conv1x1(k)
 RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, fan=true)
-L01 = CouplingLayer(C0, RB; logdet=true)
-L02 = CouplingLayer(C, RB0; logdet=true)
+L01 = CouplingLayerGlow(C0, RB; logdet=true)
+L02 = CouplingLayerGlow(C, RB0; logdet=true)
 
 # Gradient test w.r.t. input X0
 Y = L.forward(X)[1]
 f0, ΔX = loss(L, X0, Y)[1:2]
 h = 0.1f0
-maxiter = 6
+maxiter = 4
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 
@@ -86,7 +86,7 @@ dW3 = L.RB.W3.data - L02.RB.W3.data
 
 f0, ΔX, Δv1, Δv2, Δv3, ΔW1, ΔW2, ΔW3 = loss(L02, X, Y)
 h = 0.1f0
-maxiter = 6
+maxiter = 4
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 
@@ -114,7 +114,7 @@ dv3 = C.v3.data - C0.v3.data
 
 f0, ΔX, Δv1, Δv2, Δv3, ΔW1, ΔW2, ΔW3 = loss(L01, X, Y)
 h = 0.1f0
-maxiter = 6
+maxiter = 4
 err5 = zeros(Float32, maxiter)
 err6 = zeros(Float32, maxiter)
 
