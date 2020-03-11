@@ -2,7 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using LinearAlgebra, InvertibleNetworks, PyPlot, Flux, Test
+using LinearAlgebra, InvertibleNetworks, Flux, Test
 import Flux.Optimise.update!
 
 # Target distribution
@@ -22,15 +22,15 @@ n_hidden = 32
 batchsize = 10
 depth = 2
 AN = Array{ActNorm}(undef, depth)
-L = Array{CouplingLayer}(undef, depth)
+L = Array{CouplingLayerGlow}(undef, depth)
 AN0 = Array{ActNorm}(undef, depth)
-L0 = Array{CouplingLayer}(undef, depth)
+L0 = Array{CouplingLayerGlow}(undef, depth)
 
 for j=1:depth
     AN[j] = ActNorm(n_in; logdet=true)
-    L[j] = CouplingLayer(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
+    L[j] = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
     AN0[j] = ActNorm(n_in; logdet=true)
-    L0[j] = CouplingLayer(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
+    L0[j] = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
 end
 
 # Forward pass
@@ -78,7 +78,7 @@ end
 # Gradient test for input
 f0, g = loss(AN, L, X0)[1:2]
 h = 0.1f0
-maxiter = 6
+maxiter = 4
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 
@@ -103,7 +103,7 @@ ds = AN[1].s.data - AN0[1].s.data
 
 f0, gX, gW, gs = loss(AN0, L0, X)
 h = 0.1f0
-maxiter = 6
+maxiter = 4
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 

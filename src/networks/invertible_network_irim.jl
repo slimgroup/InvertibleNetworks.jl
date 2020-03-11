@@ -45,10 +45,10 @@ export NetworkLoop
  - Trainable parameters in the invertible coupling layers `L.L[i]`, 
    where `i` ranges from `1` to the number of loop iterations.
 
- See also: [`InvertibleLayer`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
+ See also: [`CouplingLayerIRIM`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct NetworkLoop <: InvertibleNetwork
-    L::Array{InvertibleLayer, 1}
+    L::Array{CouplingLayerIRIM, 1}
     Ψ::Function
     forward::Function
     inverse::Function
@@ -57,9 +57,9 @@ end
 
 function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3)
     
-    L = Array{InvertibleLayer}(undef, maxiter)
+    L = Array{CouplingLayerIRIM}(undef, maxiter)
     for j=1:maxiter
-        L[j] = InvertibleLayer(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2)
+        L[j] = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2)
     end
     
     return NetworkLoop(L, Ψ,

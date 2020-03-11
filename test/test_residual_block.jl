@@ -57,8 +57,8 @@ end
 
 # Gradient test w.r.t. input
 f0, ΔX = loss(RB, X0, Y)[1:2]
-h = 0.01f0
-maxiter = 6
+h = 0.1f0
+maxiter = 5
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 
@@ -79,7 +79,7 @@ end
 RB0 = ResidualBlock(W01, W02, W03, b1, b2, nx, ny, batchsize)   # initial weights
 f0, ΔX, ΔW1, ΔW2, ΔW3 = loss(RB0, X, Y)[1:5]
 h = 0.1f0
-maxiter = 6
+maxiter = 5
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 
@@ -103,7 +103,7 @@ end
 RB0 = ResidualBlock(W1, W2, W3, b01, b02, nx, ny, batchsize)
 f0, ΔX, ΔW1, ΔW2, ΔW3, Δb1, Δb2 = loss(RB0, X, Y)
 h = 0.1f0
-maxiter = 6
+maxiter = 5
 err5 = zeros(Float32, maxiter)
 err6 = zeros(Float32, maxiter)
 print("\nGradient test convolutions\n")

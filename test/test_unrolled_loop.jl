@@ -87,8 +87,8 @@ L_ini = deepcopy(L0)
 dv = L.L[1].C.v1.data - L0.L[1].C.v1.data   # just test for 2 parameters
 dW = L.L[1].RB.W1.data - L0.L[1].RB.W1.data
 f0, gη, gs, gv, gW = loss(L0, η, s , η_)
-h = 0.9f0
-maxiter = 6
+h = 0.1f0
+maxiter = 4
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 

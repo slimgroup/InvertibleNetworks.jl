@@ -40,11 +40,11 @@ export NetworkGlow
  - Trainable parameters in activation normalizations `G.AN[i,j]` and coupling layers `G.C[i,j]`,
    where `i` and `j` range from `1` to `L` and `K` respectively.
 
- See also: [`ActNorm`](@ref), [`CouplingLayer!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
+ See also: [`ActNorm`](@ref), [`CouplingLayerGlow!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct NetworkGlow <: InvertibleNetwork
     AN::Array{ActNorm, 2}
-    CL::Array{CouplingLayer, 2}
+    CL::Array{CouplingLayerGlow, 2}
     Z_dims::Array{Tuple, 1}
     forward::Function
     inverse::Function
@@ -55,13 +55,13 @@ end
 function NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K)
 
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
-    CL = Array{CouplingLayer}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
+    CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
     Z_dims = Array{Tuple}(undef, L-1)   # save dimensions for inverse/backward pass
 
     for i=1:L
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = CouplingLayer(Int(nx/2^i), Int(ny/2^i), n_in*4, n_hidden, batchsize; k1=1, k2=3, p1=0, p2=1, logdet=true)
+            CL[i, j] = CouplingLayerGlow(Int(nx/2^i), Int(ny/2^i), n_in*4, n_hidden, batchsize; k1=1, k2=3, p1=0, p2=1, logdet=true)
         end
         n_in *= 2
     end
