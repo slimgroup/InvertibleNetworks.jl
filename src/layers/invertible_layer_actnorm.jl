@@ -80,7 +80,8 @@ end
 
 # Inverse pass: Input Y, Output X
 function actnorm_inverse(Y, k, s, b)
-    X = (Y .- reshape(b.data, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, :, 1)
+    ϵ = randn(Float32, size(s.data)) .* eps(1f0)
+    X = (Y .- reshape(b.data, 1, 1, :, 1)) ./ reshape(s.data + ϵ, 1, 1, :, 1)   # avoid division by 0
     return X
 end
 
