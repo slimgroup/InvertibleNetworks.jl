@@ -78,7 +78,7 @@ end
 # Gradient test for input
 f0, g = loss(AN, L, X0)[1:2]
 h = 0.1f0
-maxiter = 6
+maxiter = 4
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 
@@ -103,7 +103,7 @@ ds = AN[1].s.data - AN0[1].s.data
 
 f0, gX, gW, gs = loss(AN0, L0, X)
 h = 0.1f0
-maxiter = 6
+maxiter = 4
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 
