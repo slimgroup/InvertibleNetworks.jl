@@ -3,15 +3,15 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export CouplingLayer
+export CouplingLayerGlow
 
 
 """
-    CL = CouplingLayer(C::Conv1x1, RB::ResidualBlock; logdet=false)
+    CL = CouplingLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false)
 
 or
 
-    CL = CouplingLayer(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=3, p1=0, p2=1, logdet=false)
+    CL = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=3, p1=0, p2=1, logdet=false)
 
  Create a Real NVP-style invertible coupling layer based on 1x1 convolutions and a residual block. 
 
@@ -54,7 +54,7 @@ or
 
  See also: [`Conv1x1`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct CouplingLayer <: NeuralNetLayer
+struct CouplingLayerGlow <: NeuralNetLayer
     C::Conv1x1
     RB::ResidualBlock
     logdet::Bool
@@ -64,9 +64,9 @@ struct CouplingLayer <: NeuralNetLayer
 end
 
 # Constructor from 1x1 convolution and residual block
-function CouplingLayer(C::Conv1x1, RB::ResidualBlock; logdet=false)
+function CouplingLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false)
     RB.fan == false && throw("Set ResidualBlock.fan == true")
-    return CouplingLayer(C, RB, logdet,
+    return CouplingLayerGlow(C, RB, logdet,
         X -> coupling_layer_forward(X, C, RB, logdet),
         Y -> coupling_layer_inverse(Y, C, RB),
         (ΔY, Y) -> coupling_layer_backward(ΔY, Y, C, RB, logdet)
@@ -74,13 +74,13 @@ function CouplingLayer(C::Conv1x1, RB::ResidualBlock; logdet=false)
 end
 
 # Constructor from input dimensions
-function CouplingLayer(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=1, p1=1, p2=0, logdet=false)
+function CouplingLayerGlow(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=1, p1=1, p2=0, logdet=false)
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
     RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, fan=true)
 
-    return CouplingLayer(C, RB, logdet,
+    return CouplingLayerGlow(C, RB, logdet,
         X -> coupling_layer_forward(X, C, RB, logdet),
         Y -> coupling_layer_inverse(Y, C, RB),
         (ΔY, Y) -> coupling_layer_backward(ΔY, Y, C, RB, logdet)
@@ -119,7 +119,7 @@ function coupling_layer_inverse(Y::Array{Float32, 4}, C, RB; save=false)
     logS_T = RB.forward(X2)
     S = Sigmoid(logS_T[:,:,1:k,:])
     T = logS_T[:, :, k+1:end, :]
-    X1 = (Y1 - T) ./ S
+    X1 = (Y1 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
     X_ = cat(X1, X2; dims=3)
     X = C.inverse(X_)
 
@@ -150,13 +150,13 @@ function coupling_layer_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, C
 end
 
 # Clear gradients
-function clear_grad!(L::CouplingLayer)
+function clear_grad!(L::CouplingLayerGlow)
     clear_grad!(L.C)
     clear_grad!(L.RB)
 end
 
 # Get parameters
-function get_params(L::CouplingLayer)
+function get_params(L::CouplingLayerGlow)
     p1 = get_params(L.C)
     p2 = get_params(L.RB)
     return cat(p1, p2; dims=1)

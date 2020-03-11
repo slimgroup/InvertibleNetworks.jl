@@ -22,15 +22,15 @@ n_hidden = 32
 batchsize = 10
 depth = 2
 AN = Array{ActNorm}(undef, depth)
-L = Array{CouplingLayer}(undef, depth)
+L = Array{CouplingLayerGlow}(undef, depth)
 AN0 = Array{ActNorm}(undef, depth)
-L0 = Array{CouplingLayer}(undef, depth)
+L0 = Array{CouplingLayerGlow}(undef, depth)
 
 for j=1:depth
     AN[j] = ActNorm(n_in; logdet=true)
-    L[j] = CouplingLayer(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
+    L[j] = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
     AN0[j] = ActNorm(n_in; logdet=true)
-    L0[j] = CouplingLayer(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
+    L0[j] = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
 end
 
 # Forward pass

@@ -4,7 +4,7 @@
 
 using InvertibleNetworks, Test
 
-test_suite = "layers"   # "all", "layers" or "networks"
+test_suite = "all"   # "all", "layers" or "networks"
 
 if test_suite == "all" || test_suite == "layers"
     @testset "Test individual layers" begin
@@ -13,8 +13,8 @@ if test_suite == "all" || test_suite == "layers"
         include("test_residual_block.jl")
         include("test_nnlib_convolution.jl")
         include("test_activations.jl")
-        include("test_invertible_layer.jl")
-        include("test_coupling_layer.jl")
+        include("test_coupling_layer_irim.jl")
+        include("test_coupling_layer_glow.jl")
         include("test_hyperbolic_layer.jl")
         include("test_actnorm.jl")
         include("test_squeeze.jl")

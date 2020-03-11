@@ -61,8 +61,8 @@ X0 = rand(Float32, nx, ny, n_in, batchsize)
 dX = X - X0
 
 f0, ΔX = loss(G, X0)[1:2]
-h = 0.01f0
-maxiter = 6
+h = 0.1f0
+maxiter = 4
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 
@@ -89,8 +89,8 @@ dW = G.CL[1,1].RB.W1.data - G0.CL[1,1].RB.W1.data
 dv = G.CL[1,1].C.v1.data - G0.CL[1,1].C.v1.data
 
 f0, ΔX, ΔW, Δv = loss(G0, X)
-h = 0.01f0
-maxiter = 6
+h = 0.1f0
+maxiter = 4
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 
