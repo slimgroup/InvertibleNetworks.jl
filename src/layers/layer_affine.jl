@@ -74,7 +74,7 @@ end
 
 # Inverse pass: Input Y, Output X
 function affine_inverse(Y, s, b)
-    X = (Y .- b.data) ./ s.data
+    X = (Y .- b.data) ./ (s.data + randn(Float32, size(s.data)) .* eps(1f0))   # avoid division by 0
     return X
 end
 
