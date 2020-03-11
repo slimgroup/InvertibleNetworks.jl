@@ -1,4 +1,4 @@
-# Invertible CNN layer from Putzky & Welling (2019)
+# Invertible CNN layer from Dinh et al. (2017)/Kingma & Dhariwal (2019)
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
@@ -20,14 +20,14 @@ X0 = glorot_uniform(nx, ny, k, batchsize)
 
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2)
+RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, fan=true)
 
 # Invertible splitting layer
-L = InvertibleLayer(C, RB)
+L = CouplingLayerGlow(C, RB; logdet=true)   # compute logdet
 
 # Forward + backward
-Y = L.forward(X)
-Y0 = L.forward(X0)
+Y = L.forward(X)[1]
+Y0, logdet = L.forward(X0)
 ΔY = Y0 - Y
 ΔX, X0_ = L.backward(ΔY, Y0)
 

@@ -17,25 +17,25 @@ kernel_size(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,
 channels_in(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_in
 channels_out(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_out
 
-# Basic building blocks
-include("parameter.jl")
-include("objective_functions.jl")
-include("dimensionality_operations.jl")
-include("activation_functions.jl")
-include("residual_block.jl")
-include("test_distributions.jl")
+# Utils
+include("utils/parameter.jl")
+include("utils/objective_functions.jl")
+include("utils/dimensionality_operations.jl")
+include("utils/activation_functions.jl")
+include("utils/test_distributions.jl")
 
-# Invertible layers
-include("actnorm.jl")
-include("conv1x1.jl")
-include("layer_affine.jl")
-include("invertible_layer_irim.jl")
-include("invertible_layer_glow.jl")
-include("invertible_layer_hyperbolic.jl")
+# Single network layers (invertible and non-invertible)
+include("layers/layer_residual_block.jl")
+include("layers/layer_affine.jl")
+include("layers/invertible_layer_actnorm.jl")
+include("layers/invertible_layer_conv1x1.jl")
+include("layers/invertible_layer_irim.jl")
+include("layers/invertible_layer_glow.jl")
+include("layers/invertible_layer_hyperbolic.jl")
 
 # Invertible network architectures
-include("invertible_network_irim.jl")   # Putzky and Welling (2019)
-include("invertible_network_glow.jl")   # Dinh et al (2017), Kingma and Dhariwal (2018)
-include("invertible_network_hyperbolic.jl") # Lensink et al. (2019)
+include("networks/invertible_network_irim.jl")  # i-RIM: Putzky and Welling (2019)
+include("networks/invertible_network_glow.jl")  # Glow: Dinh et al. (2017), Kingma and Dhariwal (2018)
+include("networks/invertible_network_hyperbolic.jl")    # Hyperbolic: Lensink et al. (2019)
 
 end
