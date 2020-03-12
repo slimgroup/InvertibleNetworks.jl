@@ -104,7 +104,7 @@ function coupling_layer_forward(X::Array{Float32, 4}, C, RB, logdet)
     Y1 = S.*X1 + T
     Y = cat(Y1, Y2, dims=3)
     
-    logdet == true ? (return Y, coupling_logdet_forward(S)) : (return Y)
+    logdet == true ? (return Y, glow_logdet_forward(S)) : (return Y)
 end
 
 # Inverse pass: Input Y, Output X
@@ -139,7 +139,7 @@ function coupling_layer_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, C
     ΔY2 = ΔY[:, :, k+1:end, :]
     ΔT = copy(ΔY1)
     ΔS = ΔY1 .* X1
-    logdet == true && (ΔS -= coupling_logdet_backward(S))
+    logdet == true && (ΔS -= glow_logdet_backward(S))
     ΔX1 = ΔY1 .* S
     ΔX2 = RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), X2) + ΔY2
     ΔX_ = cat(ΔX1, ΔX2; dims=3)
@@ -163,5 +163,5 @@ function get_params(L::CouplingLayerGlow)
 end
 
 # Logdet (correct?)
-coupling_logdet_forward(S) = sum(log.(abs.(S))) / size(S, 4)
-coupling_logdet_backward(S) = 1f0./ S / size(S, 4)
+glow_logdet_forward(S) = sum(log.(abs.(S))) / size(S, 4)
+glow_logdet_backward(S) = 1f0./ S / size(S, 4)
