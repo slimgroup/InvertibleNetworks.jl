@@ -33,6 +33,7 @@ include("layers/invertible_layer_basic.jl")
 include("layers/invertible_layer_irim.jl")
 include("layers/invertible_layer_glow.jl")
 include("layers/invertible_layer_hyperbolic.jl")
+include("layers/invertible_layer_hint.jl")
 
 # Invertible network architectures
 include("networks/invertible_network_irim.jl")  # i-RIM: Putzky and Welling (2019)
