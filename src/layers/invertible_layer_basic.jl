@@ -3,15 +3,15 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export CouplingLayer
+export CouplingLayerBasic
 
 
 """
-    CL = CouplingLayer(RB::ResidualBlock; logdet=false)
+    CL = CouplingLayerBasic(RB::ResidualBlock; logdet=false)
 
 or
 
-    CL = CouplingLayer(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=3, p1=0, p2=1, logdet=false)
+    CL = CouplingLayerBasic(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=3, p1=0, p2=1, logdet=false)
 
  Create a Real NVP-style invertible coupling layer with a residual block. 
 
@@ -52,7 +52,7 @@ or
 
  See also: [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct CouplingLayer <: NeuralNetLayer
+struct CouplingLayerBasic <: NeuralNetLayer
     RB::ResidualBlock
     logdet::Bool
     forward::Function
@@ -61,9 +61,9 @@ struct CouplingLayer <: NeuralNetLayer
 end
 
 # Constructor from 1x1 convolution and residual block
-function CouplingLayer(RB::ResidualBlock; logdet=false)
+function CouplingLayerBasic(RB::ResidualBlock; logdet=false)
     RB.fan == false && throw("Set ResidualBlock.fan == true")
-    return CouplingLayer(RB, logdet,
+    return CouplingLayerBasic(RB, logdet,
         (X1, X2) -> coupling_layer_forward(X1, X2, RB, logdet),
         (Y1, Y2) -> coupling_layer_inverse(Y1, Y2, RB),
         (ΔY1, ΔY2, Y1, Y2) -> coupling_layer_backward(ΔY1, ΔY2, Y1, Y2, RB, logdet)
@@ -71,12 +71,12 @@ function CouplingLayer(RB::ResidualBlock; logdet=false)
 end
 
 # Constructor from input dimensions
-function CouplingLayer(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=1, p1=1, p2=0, logdet=false)
+function CouplingLayerBasic(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=1, p1=1, p2=0, logdet=false)
 
     # 1x1 Convolution and residual block for invertible layer
     RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, fan=true)
 
-    return CouplingLayer(RB, logdet,
+    return CouplingLayerBasic(RB, logdet,
         (X1, X2) -> coupling_layer_forward(X1, X2, RB, logdet),
         (Y1, Y2) -> coupling_layer_inverse(Y1, Y2, RB),
         (ΔY1, ΔY2, Y1, Y2) -> coupling_layer_backward(ΔY1, ΔY2, Y1, Y2, RB, logdet)
@@ -89,7 +89,7 @@ function coupling_layer_forward(X1::Array{Float32, 4}, X2::Array{Float32, 4}, RB
     # Coupling layer
     k = size(X1, 3)  
     Y2 = copy(X2)
-    logS_T = RB.forward(X2)
+    logS_T = RB.forward(Y2)
     S = Sigmoid(logS_T[:,:,1:k,:])
     T = logS_T[:, :, k+1:end, :]
     Y1 = S.*X1 + T
@@ -130,10 +130,10 @@ function coupling_layer_backward(ΔY1::Array{Float32, 4}, ΔY2::Array{Float32, 4
 end
 
 # Clear gradients
-clear_grad!(L::CouplingLayer) = clear_grad!(L.RB)
+clear_grad!(L::CouplingLayerBasic) = clear_grad!(L.RB)
 
 # Get parameters
-get_params(L::CouplingLayer) = get_params(L.RB)
+get_params(L::CouplingLayerBasic) = get_params(L.RB)
 
 # Logdet (correct?)
 coupling_logdet_forward(S) = sum(log.(abs.(S))) / size(S, 4)
