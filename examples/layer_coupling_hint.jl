@@ -14,8 +14,12 @@ batchsize = 2
 # Input image
 X = glorot_uniform(nx, ny, n_channel, batchsize)
 
+
+###################################################################################################
+# Basic HINT layer
+
 # Create HINT layer w/o logdet
-HL1 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
+HL1 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=false, permute="none")
 
 # Call forward and inverse  
 Y = HL1.forward(X)
@@ -23,10 +27,26 @@ X_ = HL1.inverse(Y)
 
 @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
 
-# With logdet
-HL2 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true)
+
+###################################################################################################
+# Basic HINT layer w/ logdet
+
+# HINT layer with logdet
+HL2 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true, permute="none")
 
 Y, logdet = HL2.forward(X)
 X_ = HL2.inverse(Y)
+
+@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+
+
+###################################################################################################
+# Basic HINT layer w/ logdet and permutation
+
+# HINT layer with permutation: set to "none", "lower" or "full"
+HL3 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true, permute="lower")
+
+Y, logdet = HL3.forward(X)
+X_ = HL3.inverse(Y)
 
 @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
