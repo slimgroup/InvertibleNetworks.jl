@@ -19,7 +19,7 @@ batchsize = 2
 X = glorot_uniform(nx, ny, n_channel, batchsize)
 
 # Create HINT layer
-HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
+HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower")
 
 # Test 
 Y = HL.forward(X)
@@ -68,8 +68,8 @@ end
 
 # Test for weights
 X = glorot_uniform(nx, ny, n_channel, batchsize)
-HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
-HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
+HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower")
+HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower")
 HLini = deepcopy(HL0)
 dW = HL.CL[1].RB.W1.data - HL0.CL[1].RB.W1.data
 
@@ -96,7 +96,6 @@ end
 
 
 # Test for weights and logdet
-
 function loss_logdet(HL, X)
     Y, logdet = HL.forward(X)
     f = -log_likelihood(Y) - logdet
@@ -106,8 +105,8 @@ function loss_logdet(HL, X)
 end
 
 X = glorot_uniform(nx, ny, n_channel, batchsize)
-HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true)
-HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true)
+HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true, permute="lower")
+HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true, permute="lower")
 HLini = deepcopy(HL0)
 dW = HL.CL[1].RB.W1.data - HL0.CL[1].RB.W1.data
 
