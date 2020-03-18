@@ -5,7 +5,7 @@
 export CouplingLayerHINT
 
 """
-    CL = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=3, p1=1, p2=0)
+    H = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; logdet=false, k1=1, k2=3, p1=1, p2=0)
 
  Create a recursive HINT-style invertible layer based on coupling blocks. 
 
@@ -14,6 +14,8 @@ export CouplingLayerHINT
  - `nx, ny`: spatial dimensions of input
  
  - `n_in`, `n_hidden`: number of input and hidden channels
+
+ - `logdet`: bool to indicate whether to return the log determinant. Default is `false`.
 
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
     operator, `k2` is the kernel size of the second operator.
@@ -42,6 +44,7 @@ export CouplingLayerHINT
 """
 struct CouplingLayerHINT <: NeuralNetLayer
     CL::Array{CouplingLayerBasic, 1}
+    logdet::Bool
     forward::Function
     inverse::Function
     backward::Function
@@ -59,33 +62,41 @@ function get_depth(n_in)
 end
 
 # Constructor from input dimensions
-function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=4, k2=3, p1=0, p2=1)
+function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; logdet=false, k1=4, k2=3, p1=0, p2=1)
 
     # Create basic coupling layers
     n = get_depth(n_in)
     CL = Array{CouplingLayerBasic}(undef, n) 
     for j=1:n
-        CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2)
+        CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true) # always compute logdet
     end
     
-    return CouplingLayerHINT(CL,
-        X -> forward_hint(X, CL),
+    return CouplingLayerHINT(CL, logdet,
+        X -> forward_hint(X, CL; logdet=logdet),
         Y -> inverse_hint(Y, CL),
         (ΔY, Y) -> backward_hint(ΔY, Y, CL)
         )
 end
 
-function forward_hint(X, CL; scale=1)
+function forward_hint(X, CL; scale=1, logdet=false)
     Xa, Xb = tensor_split(X)
     if size(X, 3) > 4
-        Ya = forward_hint(Xa, CL; scale=scale+1)
-        Yb = CL[scale].forward(forward_hint(Xb, CL; scale=scale+1), Xa)[1]
+        # Call function recursively
+        Ya, logdet1 = forward_hint(Xa, CL; scale=scale+1, logdet=logdet)
+        Y_temp, logdet2 = forward_hint(Xb, CL; scale=scale+1, logdet=logdet)
+        Yb, logdet3 = CL[scale].forward(Y_temp, Xa)[[1,3]]
+        logdet_full = logdet1 + logdet2 + logdet3
     else
+        # Finest layer
         Ya = copy(Xa)
-        Yb = CL[scale].forward(Xb, Xa)[1]
+        Yb, logdet_full = CL[scale].forward(Xb, Xa)[[1,3]]
     end
     Y = tensor_cat(Ya, Yb)
-    return Y
+    if scale==1 && logdet==false
+        return Y
+    else
+        return Y, logdet_full
+    end
 end
 
 function inverse_hint(Y, CL; scale=1)
@@ -137,5 +148,3 @@ function get_params(H::CouplingLayerHINT)
     end
     return p
 end
-
-# TO DO: logdet

@@ -10,18 +10,23 @@ ny = 32
 n_channel = 32
 n_hidden = 64
 batchsize = 2
-k1 = 4
-k2 = 3
 
 # Input image
 X = glorot_uniform(nx, ny, n_channel, batchsize)
 
-# Create HINT layer
-HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
+# Create HINT layer w/o logdet
+HL1 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
 
 # Call forward and inverse  
-Y = HL.forward(X)
-X_ = HL.inverse(Y)
+Y = HL1.forward(X)
+X_ = HL1.inverse(Y)
 
 @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
 
+# With logdet
+HL2 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true)
+
+Y, logdet = HL2.forward(X)
+X_ = HL2.inverse(Y)
+
+@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
