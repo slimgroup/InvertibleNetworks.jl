@@ -14,8 +14,6 @@ ny = 16
 n_channel = 8
 n_hidden = 32
 batchsize = 2
-k1 = 4
-k2 = 3
 
 # Input image
 X = glorot_uniform(nx, ny, n_channel, batchsize)
@@ -39,7 +37,6 @@ X0 = glorot_uniform(nx, ny, n_channel, batchsize)
 dX = X - X0
 
 function loss(HL, X)
-
     Y = HL.forward(X)
     f = .5*norm(Y)^2
     ΔY = copy(Y)
@@ -88,6 +85,44 @@ print("\nGradient test weights\n")
 for j=1:maxiter
     HL0.CL[1].RB.W1.data = HLini.CL[1].RB.W1.data + h*dW
     f = loss(HL0, X)[1]
+    err3[j] = abs(f - f0)
+    err4[j] = abs(f - f0 - h*dot(gW, dW))
+    print(err3[j], "; ", err4[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+
+# Test for weights and logdet
+
+function loss_logdet(HL, X)
+    Y, logdet = HL.forward(X)
+    f = -log_likelihood(Y) - logdet
+    ΔY = -∇log_likelihood(Y)
+    ΔX, X_ = HL.backward(ΔY, Y)
+    return f, ΔX, HL.CL[1].RB.W1.grad, X_
+end
+
+X = glorot_uniform(nx, ny, n_channel, batchsize)
+HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true)
+HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true)
+HLini = deepcopy(HL0)
+dW = HL.CL[1].RB.W1.data - HL0.CL[1].RB.W1.data
+
+f0, gX, gW, X_ = loss_logdet(HL0, X)
+@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+
+maxiter = 5
+h = 0.5f0
+err3 = zeros(Float32, maxiter)
+err4 = zeros(Float32, maxiter)
+
+print("\nGradient test weights\n")
+for j=1:maxiter
+    HL0.CL[1].RB.W1.data = HLini.CL[1].RB.W1.data + h*dW
+    f = loss_logdet(HL0, X)[1]
     err3[j] = abs(f - f0)
     err4[j] = abs(f - f0 - h*dot(gW, dW))
     print(err3[j], "; ", err4[j], "\n")
