@@ -68,7 +68,7 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
     n = get_depth(n_in)
     CL = Array{CouplingLayerBasic}(undef, n) 
     for j=1:n
-        CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true) # always compute logdet
+        CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=logdet)
     end
     
     return CouplingLayerHINT(CL, logdet,
@@ -84,12 +84,22 @@ function forward_hint(X, CL; scale=1, logdet=false)
         # Call function recursively
         Ya, logdet1 = forward_hint(Xa, CL; scale=scale+1, logdet=logdet)
         Y_temp, logdet2 = forward_hint(Xb, CL; scale=scale+1, logdet=logdet)
-        Yb, logdet3 = CL[scale].forward(Y_temp, Xa)[[1,3]]
+        if logdet==false
+            Yb = CL[scale].forward(Y_temp, Xa)[1]
+            logdet3 = 0f0
+        else
+            Yb, logdet3 = CL[scale].forward(Y_temp, Xa)[[1,3]]
+        end
         logdet_full = logdet1 + logdet2 + logdet3
     else
         # Finest layer
         Ya = copy(Xa)
-        Yb, logdet_full = CL[scale].forward(Xb, Xa)[[1,3]]
+        if logdet==false
+            Yb = CL[scale].forward(Xb, Xa)[1]
+            logdet_full = 0f0
+        else
+            Yb, logdet_full = CL[scale].forward(Xb, Xa)[[1,3]]
+        end
     end
     Y = tensor_cat(Ya, Yb)
     if scale==1 && logdet==false
