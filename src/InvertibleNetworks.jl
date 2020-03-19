@@ -35,6 +35,10 @@ include("layers/invertible_layer_glow.jl")
 include("layers/invertible_layer_hyperbolic.jl")
 include("layers/invertible_layer_hint.jl")
 
+# Conditional layers
+include("conditional_layers/conditional_layer_hint.jl")
+#include("conditional_layers/conditional_layer_irim.jl")
+
 # Invertible network architectures
 include("networks/invertible_network_irim.jl")  # i-RIM: Putzky and Welling (2019)
 include("networks/invertible_network_glow.jl")  # Glow: Dinh et al. (2017), Kingma and Dhariwal (2018)

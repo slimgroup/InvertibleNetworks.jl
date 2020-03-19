@@ -16,7 +16,7 @@ n_hidden = 32
 batchsize = 2
 
 # Input image
-X = glorot_uniform(nx, ny, n_channel, batchsize)
+X = randn(Float32, nx, ny, n_channel, batchsize)
 
 # Create HINT layer
 HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower")
@@ -32,8 +32,8 @@ X_ = HL.inverse(Y)
 # Gradient test
 
 # Input image
-X = glorot_uniform(nx, ny, n_channel, batchsize)
-X0 = glorot_uniform(nx, ny, n_channel, batchsize)
+X = randn(Float32, nx, ny, n_channel, batchsize)
+X0 = randn(Float32, nx, ny, n_channel, batchsize)
 dX = X - X0
 
 function loss(HL, X)
