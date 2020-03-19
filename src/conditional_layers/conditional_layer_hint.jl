@@ -102,7 +102,6 @@ function forward_hint(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y)
     logdet = logdet1 + logdet2 + logdet3
 
     return Zx, Zy, logdet
-
 end
 
 function inverse_hint(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y)
