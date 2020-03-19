@@ -16,6 +16,7 @@ if test_suite == "all" || test_suite == "layers"
         include("test_coupling_layer_irim.jl")
         include("test_coupling_layer_glow.jl")
         include("test_coupling_layer_hint.jl")
+        include("test_conditional_layer_hint.jl")
         include("test_hyperbolic_layer.jl")
         include("test_actnorm.jl")
         include("test_squeeze.jl")

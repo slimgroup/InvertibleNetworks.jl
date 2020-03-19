@@ -53,7 +53,7 @@ struct CouplingLayerHINT <: NeuralNetLayer
     backward::Function
 end
 
-# Get network depth
+# Get layer depth for recursion
 function get_depth(n_in)
     count = 0
     nc = n_in
@@ -175,6 +175,6 @@ function get_params(H::CouplingLayerHINT)
             p = cat(p, get_params(H.CL[j]); dims=1)
         end
     end
-    typeof(H.C) != nothing && (p = cat(p, get_params(H.C)))
+    typeof(H.C) != nothing && (p = cat(p, get_params(H.C); dims=1))
     return p
 end
