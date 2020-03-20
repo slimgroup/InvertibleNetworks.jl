@@ -90,8 +90,8 @@ end
 
 
 # Test for weights
-X = glorot_uniform(nx, ny, n_channel, batchsize)
-Y = glorot_uniform(nx, ny, n_channel, batchsize)
+X = randn(Float32, nx, ny, n_channel, batchsize)
+Y = randn(Float32, nx, ny, n_channel, batchsize)
 CH = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
 CH0 = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
 CHini = deepcopy(CH0)
