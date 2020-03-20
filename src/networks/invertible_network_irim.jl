@@ -55,11 +55,11 @@ struct NetworkLoop <: InvertibleNetwork
     backward::Function
 end
 
-function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3)
+function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1)
     
     L = Array{CouplingLayerIRIM}(undef, maxiter)
     for j=1:maxiter
-        L[j] = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2)
+        L[j] = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=0, p2=1)
     end
     
     return NetworkLoop(L, Ψ,
