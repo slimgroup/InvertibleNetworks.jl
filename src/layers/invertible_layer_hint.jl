@@ -124,17 +124,6 @@ function forward_hint(X::Array{Float32, 4}, CL, C; scale=1, logdet=false, permut
     end
 end
 
-# Input is tuple (Xa, Xb)
-function forward_hint(Xab::Tuple{Array{Float32,4},Array{Float32,4}}, CL, C; scale=1, logdet=false, permute="none")
-    if scale==1 && logdet==false
-        Y = forward_hint(tensor_cat(Xab[1], Xab[2]), CL, C; scale=scale, logdet=logdet, permute=permute)
-        return tensor_split(Y)
-    else
-        Y, logdet = forward_hint(tensor_cat(Xab[1], Xab[2]), CL, C; scale=scale, logdet=logdet, permute=permute)
-        return tensor_split(Y), logdet
-    end
-end
-
 # Input is tensor Y
 function inverse_hint(Y::Array{Float32, 4}, CL, C; scale=1, permute="none")
     Ya, Yb = tensor_split(Y)
@@ -149,12 +138,6 @@ function inverse_hint(Y::Array{Float32, 4}, CL, C; scale=1, permute="none")
     X = tensor_cat(Xa, Xb)
     permute == "full" && (X = C.inverse(X))
     return X
-end
-
-# Input is tuple (Ya, Yb)
-function inverse_hint(Yab::Tuple{Array{Float32,4},Array{Float32,4}}, CL, C; scale=1, permute="none")
-    X = inverse_hint(tensor_cat(Yab[1], Yab[2]), CL, C; scale=scale, permute=permute)
-    return tensor_split(X)
 end
 
 # Input are two tensors ΔY, Y
@@ -179,12 +162,6 @@ end
 #  Input is tuple single tuple (ΔY, Y)
 backward_hint(Y_tuple::Tuple{Array{Float32,4},Array{Float32,4}}, CL, C; scale=1, permute="none") = 
     backward_hint(Y_tuple[1], Y_tuple[2], CL, C; scale=scale, permute=permute)
-
-# Input is two tuples (ΔYa, ΔYb) and (Ya, Yb)
-function backward_hint(ΔYab::Tuple{Array{Float32,4},Array{Float32,4}}, Yab::Tuple{Array{Float32,4},Array{Float32,4}}, CL, C; scale=1, permute="none")
-    ΔX, X = backward_hint(tensor_cat(ΔYab[1], ΔYab[2]), tensor_cat(Yab[1], Yab[2]), CL, C; scale=scale, permute=permute)
-    return tensor_split(ΔX), tensor_split(X)
-end
 
 # Clear gradients
 function clear_grad!(H::CouplingLayerHINT)
