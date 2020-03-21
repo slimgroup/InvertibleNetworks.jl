@@ -90,7 +90,8 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
         )
 end
 
-function forward_hint(X, CL, C; scale=1, logdet=false, permute="none")
+# Input is tensor X
+function forward_hint(X::Array{Float32, 4}, CL, C; scale=1, logdet=false, permute="none")
     permute == "full" && (X = C.forward(X))
     Xa, Xb = tensor_split(X)
     permute == "lower" && (Xb = C.forward(Xb))
@@ -123,7 +124,19 @@ function forward_hint(X, CL, C; scale=1, logdet=false, permute="none")
     end
 end
 
-function inverse_hint(Y, CL, C; scale=1, permute="none")
+# Input is tuple (Xa, Xb)
+function forward_hint(Xab::Tuple{Array{Float32,4},Array{Float32,4}}, CL, C; scale=1, logdet=false, permute="none")
+    if scale==1 && logdet==false
+        Y = forward_hint(tensor_cat(Xab[1], Xab[2]), CL, C; scale=scale, logdet=logdet, permute=permute)
+        return tensor_split(Y)
+    else
+        Y, logdet = forward_hint(tensor_cat(Xab[1], Xab[2]), CL, C; scale=scale, logdet=logdet, permute=permute)
+        return tensor_split(Y), logdet
+    end
+end
+
+# Input is tensor Y
+function inverse_hint(Y::Array{Float32, 4}, CL, C; scale=1, permute="none")
     Ya, Yb = tensor_split(Y)
     if size(Y, 3) > 4
         Xa = inverse_hint(Ya, CL, C; scale=scale+1)
@@ -138,9 +151,14 @@ function inverse_hint(Y, CL, C; scale=1, permute="none")
     return X
 end
 
-backward_hint(Y_tuple::Tuple, CL, C; scale=1, permute="none") = backward_hint(Y_tuple[1], Y_tuple[2], CL, C; scale=scale, permute=permute)
+# Input is tuple (Ya, Yb)
+function inverse_hint(Yab::Tuple{Array{Float32,4},Array{Float32,4}}, CL, C; scale=1, permute="none")
+    X = inverse_hint(tensor_cat(Yab[1], Yab[2]), CL, C; scale=scale, permute=permute)
+    return tensor_split(X)
+end
 
-function backward_hint(ΔY, Y, CL, C; scale=1, permute="none")
+# Input are two tensors ΔY, Y
+function backward_hint(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, CL, C; scale=1, permute="none")
     Ya, Yb = tensor_split(Y)
     ΔYa, ΔYb = tensor_split(ΔY)
     if size(Y, 3) > 4
@@ -156,6 +174,16 @@ function backward_hint(ΔY, Y, CL, C; scale=1, permute="none")
     X = tensor_cat(Xa, Xb)
     permute == "full" && ((ΔX, X) = C.inverse((ΔX, X)))
     return ΔX, X
+end
+
+#  Input is tuple single tuple (ΔY, Y)
+backward_hint(Y_tuple::Tuple{Array{Float32,4},Array{Float32,4}}, CL, C; scale=1, permute="none") = 
+    backward_hint(Y_tuple[1], Y_tuple[2], CL, C; scale=scale, permute=permute)
+
+# Input is two tuples (ΔYa, ΔYb) and (Ya, Yb)
+function backward_hint(ΔYab::Tuple{Array{Float32,4},Array{Float32,4}}, Yab::Tuple{Array{Float32,4},Array{Float32,4}}, CL, C; scale=1, permute="none")
+    ΔX, X = backward_hint(tensor_cat(ΔYab[1], ΔYab[2]), tensor_cat(Yab[1], Yab[2]), CL, C; scale=scale, permute=permute)
+    return tensor_split(ΔX), tensor_split(X)
 end
 
 # Clear gradients
