@@ -8,14 +8,14 @@ export ConditionalLayerIRIM
     CI = ConditionalLayerIRIM(nx1, nx2, nx_in, nx_hidden, ny1, ny2, ny_in, ny_hidden, batchsize, Op; k1=1, k2=3, p1=1, p2=0)
 
  Create a conditional i-RIM layer based on the HINT architecture.
- 
+
  *Input*: 
 
- - `nx1`, `nx2`: spatial dimensions of both `X`
+ - `nx1`, `nx2`: spatial dimensions of `X`
 
  - `nx_in`, `nx_hidden`: number of input and hidden channels of `X`
 
- - `ny1`, `ny2`: spatial dimensions of both `Y`
+ - `ny1`, `ny2`: spatial dimensions of `Y`
  
  - `ny_in`, `ny_hidden`: number of input and hidden channels of `Y`
 
