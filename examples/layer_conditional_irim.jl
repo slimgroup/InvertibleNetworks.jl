@@ -24,7 +24,7 @@ A = randn(Float32, ny1*ny2, nx1*nx2)
 X = glorot_uniform(nx1, nx2, nx_channel, batchsize)
 Y = glorot_uniform(ny1, ny2, ny_channel, batchsize)
 
-# Conditional HINT layer
+# Conditional i-RIM layer
 CI = ConditionalLayerIRIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
 
 # Forward/inverse
