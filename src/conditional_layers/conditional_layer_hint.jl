@@ -46,9 +46,9 @@ export ConditionalLayerHINT
  See also: [`CouplingLayerBasic`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct ConditionalLayerHINT <: NeuralNetLayer
-    CL_X::CouplingLayerBasic
-    CL_Y::CouplingLayerBasic
-    CL_XY::CouplingLayerBasic
+    CL_X::CouplingLayerHINT
+    CL_Y::CouplingLayerHINT
+    CL_XY::CouplingLayerHINT
     C_X::Conv1x1
     C_Y::Conv1x1
     forward::Function
@@ -62,9 +62,9 @@ end
 function ConditionalLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=4, k2=3, p1=0, p2=1)
 
     # Create basic coupling layers
-    CL_X = CouplingLayerBasic(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
-    CL_Y = CouplingLayerBasic(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
-    CL_XY = CouplingLayerBasic(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
+    CL_X = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true, permute="none")
+    CL_Y = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true, permute="none")
+    CL_XY = CouplingLayerHINT(nx, ny, n_in*2, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true, permute="none")
 
     # Permutation using 1x1 convolution
     C_X = Conv1x1(n_in)
@@ -81,24 +81,18 @@ end
 
 function forward_hint(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y)
 
-    # Permute X and Y
-    Xp = C_X.forward(X)
+    # Y-lane
     Yp = C_Y.forward(Y)
+    Zy, logdet2 = CL_Y.forward(Yp)
 
-    # Split
-    Xa, Xb = tensor_split(Xp)
-    Ya, Yb = tensor_split(Yp)
+    # X-lane: coupling layer
+    Xp = C_X.forward(X)
+    X, logdet1 = CL_X.forward(Xp)
 
-    # Coupling layers
-    Xa, Xb, logdet1 = CL_X.forward(Xa, Xb)
-    Ya, Yb, logdet2 = CL_Y.forward(Ya, Yb)
-
-    # Cat
-    X = tensor_cat(Xa, Xb)
-    Zy = tensor_cat(Ya, Yb)
-
-    # Conditional layer
-    Zx, logdet3 = CL_XY.forward(X, Yp)[[1,3]]
+    # X-lane: conditional layer
+    XY = tensor_cat(X, Yp)
+    Z, logdet3 = CL_XY.forward(XY)
+    Zx = tensor_split(Z)[1]
     logdet = logdet1 + logdet2 + logdet3
 
     return Zx, Zy, logdet
@@ -107,18 +101,16 @@ end
 function inverse_hint(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y)
 
     # Y-lane
-    Ya, Yb = tensor_split(Zy)
-    Ya, Yb = CL_Y.inverse(Ya, Yb)
-    Yp = tensor_cat(Ya, Yb)
-
-    # X-lane
-    X = CL_XY.inverse(Zx, Yp)[1]
-    Xa, Xb = tensor_split(X)
-    Xa, Xb = CL_X.inverse(Xa, Xb)
-    Xp = tensor_cat(Xa, Xb)
-
-    # Undo permutation
+    Yp = CL_Y.inverse(Zy)
     Y = C_Y.inverse(Yp)
+
+    # X-lane: conditional layer
+    ZY = tensor_cat(Zx, Yp)
+    XY = CL_XY.inverse(ZY)
+    X = tensor_split(XY)[1]
+
+    # X-lane: coupling layer
+    Xp = CL_X.inverse(X)
     X = C_X.inverse(Xp)
 
     return X, Y
@@ -127,22 +119,18 @@ end
 function backward_hint(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y)
 
     # Y-lane
-    ΔYa, ΔYb = tensor_split(ΔZy)
-    Ya, Yb = tensor_split(Zy)
-    ΔYa, ΔYb, Ya, Yb = CL_Y.backward(ΔYa, ΔYb, Ya, Yb)
-    ΔYp = tensor_cat(ΔYa, ΔYb)
-    Yp = tensor_cat(Ya, Yb)
-
-    # X-lane
-    ΔX, X = CL_XY.backward(ΔZx, ΔYp, Zx, Yp)[[1,3]]
-    ΔXa, ΔXb = tensor_split(ΔX)
-    Xa, Xb = tensor_split(X)
-    ΔXa, ΔXb, Xa, Xb = CL_X.backward(ΔXa, ΔXb, Xa, Xb)
-    ΔXp = tensor_cat(ΔXa, ΔXb)
-    Xp = tensor_cat(Xa, Xb)
-
-    # Undo permutation
+    ΔYp, Yp = CL_Y.backward(ΔZy, Zy)
     ΔY, Y = C_Y.inverse((ΔYp, Yp))
+
+    # X-lane: conditional layer
+    ΔZY = tensor_cat(ΔZx, ΔYp)
+    ZY = tensor_cat(Zx, Yp)
+    ΔXY, XY = CL_XY.backward(ΔZY, ZY)
+    ΔX = tensor_split(ΔXY)[1]
+    X = tensor_split(XY)[1]
+
+    # X-lane: coupling layer
+    ΔXp, Xp = CL_X.backward(ΔX, X)
     ΔX, X = C_X.inverse((ΔXp, Xp))
 
     return ΔX, ΔY, X, Y
@@ -150,17 +138,13 @@ end
 
 function forward_hint_Y(Y, CL_Y, C_Y)
     Yp = C_Y.forward(Y)
-    Ya, Yb = tensor_split(Yp)
-    Ya, Yb, logdet2 = CL_Y.forward(Ya, Yb)
-    Zy = tensor_cat(Ya, Yb)
+    Zy = CL_Y.forward(Yp)[1]
     return Zy
 
 end
 
 function inverse_hint_Y(Zy, CL_Y, C_Y)
-    Ya, Yb = tensor_split(Zy)
-    Ya, Yb = CL_Y.inverse(Ya, Yb)
-    Yp = tensor_cat(Ya, Yb)
+    Yp = CL_Y.inverse(Zy)
     Y = C_Y.inverse(Yp)
     return Y
 end
