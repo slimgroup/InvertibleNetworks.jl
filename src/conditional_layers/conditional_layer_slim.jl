@@ -79,15 +79,15 @@ function ConditionalLayerSLIM(nx1::Int64, nx2::Int64, nx_in::Int64, nx_hidden::I
     C_Y = Conv1x1(Int(ny_in*4))
 
     return ConditionalLayerSLIM(CL_X, CL_Y, CL_XY, C_X, C_Y, Op,
-        (X, Y) -> forward_cond_irim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
-        (Zx, Zy) -> inverse_cond_irim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
-        (ΔZx, ΔZy, Zx, Zy) -> backward_cond_irim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
-        Y -> forward_cond_irim_Y(Y, CL_Y, C_Y),
-        Zy -> inverse_cond_irim_Y(Zy, CL_Y, C_Y)
+        (X, Y) -> forward_cond_slim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
+        (Zx, Zy) -> inverse_cond_slim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
+        (ΔZx, ΔZy, Zx, Zy) -> backward_cond_slim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
+        Y -> forward_cond_slim_Y(Y, CL_Y, C_Y),
+        Zy -> inverse_cond_slim_Y(Zy, CL_Y, C_Y)
         )
 end
 
-function forward_cond_irim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
+function forward_cond_slim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
 
     # Y-lane: coupling
     Ys = wavelet_squeeze(Y)
@@ -104,7 +104,7 @@ function forward_cond_irim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
     return Zx, Zy, logdet
 end
 
-function inverse_cond_irim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
+function inverse_cond_slim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
 
     # Y-lane
     Zy = wavelet_squeeze(Zy)
@@ -120,7 +120,7 @@ function inverse_cond_irim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
     return X, Y
 end
 
-function backward_cond_irim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
+function backward_cond_slim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
 
     # Y-lane
     ΔZy = wavelet_squeeze(ΔZy)
@@ -138,7 +138,7 @@ function backward_cond_irim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
     return ΔX, ΔY, X, Y
 end
 
-function forward_cond_irim_Y(Y, CL_Y, C_Y)
+function forward_cond_slim_Y(Y, CL_Y, C_Y)
     Ys = wavelet_squeeze(Y)
     Yp = C_Y.forward(Ys)
     Zy, logdet2 = CL_Y.forward(Yp)
@@ -146,7 +146,7 @@ function forward_cond_irim_Y(Y, CL_Y, C_Y)
     return Zy
 end
 
-function inverse_cond_irim_Y(Zy, CL_Y, C_Y)
+function inverse_cond_slim_Y(Zy, CL_Y, C_Y)
     Zy = wavelet_squeeze(Zy)
     Yp = CL_Y.inverse(Zy)
     Ys = C_Y.inverse(Yp)
