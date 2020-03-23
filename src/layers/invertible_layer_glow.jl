@@ -94,15 +94,14 @@ function coupling_layer_forward(X::Array{Float32, 4}, C, RB, logdet)
     k = Int(C.k/2)
     
     X_ = C.forward(X)
-    X1 = X_[:, :, 1:k, :]
-    X2 = X_[:, :, k+1:end, :]
+    X1, X2 = tensor_split(X_)
 
     Y2 = copy(X2)
     logS_T = RB.forward(X2)
     S = Sigmoid(logS_T[:,:,1:k,:])
     T = logS_T[:, :, k+1:end, :]
     Y1 = S.*X1 + T
-    Y = cat(Y1, Y2, dims=3)
+    Y = tensor_cat(Y1, Y2)
     
     logdet == true ? (return Y, glow_logdet_forward(S)) : (return Y)
 end
@@ -112,19 +111,17 @@ function coupling_layer_inverse(Y::Array{Float32, 4}, C, RB; save=false)
 
     # Get dimensions
     k = Int(C.k/2)
-    Y1 = Y[:, :, 1:k, :]
-    Y2 = Y[:, :, k+1:end, :]
-    
+    Y1, Y2 = tensor_split(Y)
+
     X2 = copy(Y2)
     logS_T = RB.forward(X2)
     S = Sigmoid(logS_T[:,:,1:k,:])
     T = logS_T[:, :, k+1:end, :]
     X1 = (Y1 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
-    X_ = cat(X1, X2; dims=3)
+    X_ = tensor_cat(X1, X2)
     X = C.inverse(X_)
 
     save == true ? (return X, X1, X2, S) : (return X)
-
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
@@ -135,16 +132,14 @@ function coupling_layer_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, C
     X, X1, X2, S = coupling_layer_inverse(Y, C, RB; save=true)
 
     # Backpropagate residual
-    ΔY1 = ΔY[:, :, 1:k, :]
-    ΔY2 = ΔY[:, :, k+1:end, :]
+    ΔY1, ΔY2 = tensor_split(ΔY)
     ΔT = copy(ΔY1)
     ΔS = ΔY1 .* X1
     logdet == true && (ΔS -= glow_logdet_backward(S))
     ΔX1 = ΔY1 .* S
     ΔX2 = RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), X2) + ΔY2
-    ΔX_ = cat(ΔX1, ΔX2; dims=3)
-    
-    ΔX = C.inverse((ΔX_, cat(X1, X2; dims=3)))[1]
+    ΔX_ = tensor_cat(ΔX1, ΔX2)
+    ΔX = C.inverse((ΔX_, tensor_cat(X1, X2)))[1]
 
     return ΔX, X
 end

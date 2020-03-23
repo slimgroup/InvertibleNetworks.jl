@@ -76,7 +76,7 @@ h = 0.5f0
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 
-print("Gradient test ΔX\n")
+print("\nGradient test ΔX\n")
 for j=1:maxiter
     f = loss(CH, X0 + h*dX, Y0 + h*dY)[1]
     err1[j] = abs(f - f0)
