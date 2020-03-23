@@ -43,6 +43,6 @@ include("networks/invertible_network_hyperbolic.jl")    # Hyperbolic: Lensink et
 
 # Conditional layers
 include("conditional_layers/conditional_layer_hint.jl")
-include("conditional_layers/conditional_layer_irim.jl")
+include("conditional_layers/conditional_layer_slim.jl")
 
 end

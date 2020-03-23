@@ -29,7 +29,7 @@ X = glorot_uniform(nx1, nx2, nx_channel, batchsize)
 Y = glorot_uniform(ny1, ny2, ny_channel, batchsize)
 
 # Conditional HINT layer
-CI = ConditionalLayerIRIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
+CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
 
 # Forward/inverse
 Zx, Zy, logdet = CI.forward(X, Y)
@@ -71,11 +71,11 @@ function loss(CI, X, Y)
     ΔZx = -∇log_likelihood(Zx)
     ΔZy = -∇log_likelihood(Zy)
     ΔX, ΔY = CI.backward(ΔZx, ΔZy, Zx, Zy)[1:2]
-    return f, ΔX, ΔY, CI.CL_X.RB.W1.grad, CI.C_X.v1.grad
+    return f, ΔX, ΔY, CI.CL_X.CL[1].RB.W1.grad, CI.C_X.v1.grad
 end
 
 # Gradient test for input X, Y
-CI = ConditionalLayerIRIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
+CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
 f0, gX, gY = loss(CI, X0, Y0)[1:3]
 
 maxiter = 5
@@ -98,15 +98,15 @@ end
 # Test for weights
 X = randn(Float32, nx1, nx2, nx_channel, batchsize)
 Y = randn(Float32, ny1, ny2, ny_channel, batchsize)
-CI = ConditionalLayerIRIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
-CI0 = ConditionalLayerIRIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
+CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
+CI0 = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
 
 # Make weights larger (otherweise too close to zero after initialization)
-CI.CL_X.RB.W1.data .*= 4; CI0.CL_X.RB.W1.data .*= 4
+CI.CL_X.CL[1].RB.W1.data .*= 4; CI0.CL_X.CL[1].RB.W1.data .*= 4
 CI.C_X.v1.data .*= 4; CI0.C_X.v1.data .*= 4
 CIini = deepcopy(CI0)
 
-dW = CI.CL_X.RB.W1.data - CI0.CL_X.RB.W1.data
+dW = CI.CL_X.CL[1].RB.W1.data - CI0.CL_X.CL[1].RB.W1.data
 dv = CI.C_X.v1.data - CI0.C_X.v1.data
 
 f0, gW, gv = loss(CI0, X, Y)[[1,4,5]]
@@ -118,7 +118,7 @@ err4 = zeros(Float32, maxiter)
 
 print("\nGradient test weights\n")
 for j=1:maxiter
-    CI0.CL_X.RB.W1.data = CIini.CL_X.RB.W1.data + h*dW
+    CI0.CL_X.CL[1].RB.W1.data = CIini.CL_X.CL[1].RB.W1.data + h*dW
     CI0.C_X.v1.data = CIini.C_X.v1.data + h*dv
     f = loss(CI0, X, Y)[1]
     err3[j] = abs(f - f0)
