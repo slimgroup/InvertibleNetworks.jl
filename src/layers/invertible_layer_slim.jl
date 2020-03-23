@@ -141,13 +141,13 @@ end
 
 # Clear gradients
 function clear_grad!(CS::CouplingLayerSLIM)
-    clear_grad!(CS.C)
+    ~isnothing(CS.C) && clear_grad!(CS.C)
     clear_grad!(CS.RB)
 end
 
 # Get parameters
 function get_params(CS::CouplingLayerSLIM)
-    p1 = get_params(CS.C)
-    p2 = get_params(CS.RB)
-    return cat(p1, p2; dims=1)
+    p = get_params(CS.RB)
+    ~isnothing(CS.C) && (p = cat(p, get_params(CS.C); dims=1))
+    return p
 end

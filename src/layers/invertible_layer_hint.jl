@@ -168,7 +168,7 @@ function clear_grad!(H::CouplingLayerHINT)
     for j=1:length(H.CL)
         clear_grad!(H.CL[j])
     end
-    typeof(H.C) != nothing && clear_grad!(H.C)
+    ~isnothing(H.C) && clear_grad!(H.C)
 end
 
 # Get parameters
@@ -180,6 +180,6 @@ function get_params(H::CouplingLayerHINT)
             p = cat(p, get_params(H.CL[j]); dims=1)
         end
     end
-    typeof(H.C) != nothing && (p = cat(p, get_params(H.C); dims=1))
+    ~isnothing(H.C) && (p = cat(p, get_params(H.C); dims=1))
     return p
 end
