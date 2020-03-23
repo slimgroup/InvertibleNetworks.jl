@@ -57,7 +57,6 @@ struct ConditionalLayerSLIM <: NeuralNetLayer
     CL_XY::CouplingLayerSLIM
     C_X::Conv1x1
     C_Y::Conv1x1
-    Op::Union{AbstractMatrix, Any}
     forward::Function
     inverse::Function
     backward::Function
@@ -67,7 +66,7 @@ end
 
 # Constructor from input dimensions
 function ConditionalLayerSLIM(nx1::Int64, nx2::Int64, nx_in::Int64, nx_hidden::Int64, ny1::Int64, ny2::Int64, ny_in::Int64, ny_hidden::Int64,
-    batchsize::Int64, Op::Union{AbstractMatrix, Any}; k1=4, k2=3, p1=0, p2=1)
+    batchsize::Int64; k1=4, k2=3, p1=0, p2=1)
 
     # Create basic coupling layers
     CL_X = CouplingLayerHINT(nx1, nx2, nx_in, nx_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
@@ -78,10 +77,10 @@ function ConditionalLayerSLIM(nx1::Int64, nx2::Int64, nx_in::Int64, nx_hidden::I
     C_X = Conv1x1(nx_in)
     C_Y = Conv1x1(Int(ny_in*4))
 
-    return ConditionalLayerSLIM(CL_X, CL_Y, CL_XY, C_X, C_Y, Op,
-        (X, Y) -> forward_cond_slim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
-        (Zx, Zy) -> inverse_cond_slim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
-        (ΔZx, ΔZy, Zx, Zy) -> backward_cond_slim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
+    return ConditionalLayerSLIM(CL_X, CL_Y, CL_XY, C_X, C_Y,
+        (X, Y, Op) -> forward_cond_slim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
+        (Zx, Zy, Op) -> inverse_cond_slim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
+        (ΔZx, ΔZy, Zx, Zy, Op) -> backward_cond_slim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
         Y -> forward_cond_slim_Y(Y, CL_Y, C_Y),
         Zy -> inverse_cond_slim_Y(Zy, CL_Y, C_Y)
         )
@@ -98,7 +97,7 @@ function forward_cond_slim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
     # X-lane
     Xp = C_X.forward(X)
     X, logdet1 = CL_X.forward(Xp)
-    Zx, logdet3 = CL_XY.forward(X, Op, reshape(Y, :, size(Y, 4)))
+    Zx, logdet3 = CL_XY.forward(X, reshape(Y, :, size(Y, 4)), Op)
 
     logdet = logdet1 + logdet2 + logdet3
     return Zx, Zy, logdet
@@ -113,7 +112,7 @@ function inverse_cond_slim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
     Y = wavelet_unsqueeze(Ys)
 
     # X-lane
-    X = CL_XY.inverse(Zx, Op, reshape(Y, :, size(Y, 4)))
+    X = CL_XY.inverse(Zx, reshape(Y, :, size(Y, 4)), Op)
     Xp = CL_X.inverse(X)
     X = C_X.inverse(Xp)
 
@@ -131,7 +130,7 @@ function backward_cond_slim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
     ΔY = wavelet_unsqueeze(ΔYs)
 
     # X-lane
-    ΔX, X = CL_XY.backward(ΔZx, Zx, Op, reshape(Y, :, size(Y, 4)))
+    ΔX, X = CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)), Op)
     ΔXp, Xp = CL_X.backward(ΔX, X)
     ΔX, X = C_X.inverse((ΔXp, Xp))
 

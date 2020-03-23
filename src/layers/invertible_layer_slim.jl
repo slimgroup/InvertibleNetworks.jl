@@ -34,13 +34,13 @@ export CouplingLayerSLIM
 
  *Usage:*
 
- - Forward mode: `Y, logdet = CS.forward(X, A, D)`    (if constructed with `logdet=true`)
+ - Forward mode: `Y, logdet = CS.forward(X, D, A)`    (if constructed with `logdet=true`)
 
- - Inverse mode: `X = CS.inverse(Y, A, D)`
+ - Inverse mode: `X = CS.inverse(Y, D, A)`
 
- - Backward mode: `ΔX, X = CS.backward(ΔY, Y, A, D)`
+ - Backward mode: `ΔX, X = CS.backward(ΔY, Y, D, A)`
 
- - where `A` is a linear forward modeling operator.
+ - where `A` is a linear forward modeling operator and `D` is the observed data.
 
  *Trainable parameters:*
 
@@ -70,14 +70,14 @@ function CouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
     RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, fan=false)
 
     return CouplingLayerSLIM(C, RB, Ψ, logdet,
-        (X, J, d) -> forward_slim(X, J, d, C, RB, Ψ; logdet=logdet),
-        (Y, J, d) -> inverse_slim(Y, J, d, C, RB, Ψ; logdet=logdet),
-        (ΔY, Y, J, d) -> backward_slim(ΔY, Y, J, d, C, RB, Ψ; logdet=logdet)
+        (X, D, J) -> forward_slim(X, J, D, C, RB, Ψ; logdet=logdet),
+        (Y, D, J) -> inverse_slim(Y, J, D, C, RB, Ψ; logdet=logdet),
+        (ΔY, Y, D, J) -> backward_slim(ΔY, Y, J, D, C, RB, Ψ; logdet=logdet)
         )
 end
 
 # Forward pass: Input X, Output Y
-function forward_slim(X::Array{Float32, 4}, J, d, C, RB, Ψ; logdet=false)
+function forward_slim(X::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(X)
@@ -87,7 +87,7 @@ function forward_slim(X::Array{Float32, 4}, J, d, C, RB, Ψ; logdet=false)
     X1_, X2_ = tensor_split(X_)
 
     # Gradient
-    g = J'*(J*reshape(Ψ(X1_[:,:,1:1,:]), :, batchsize) - d)
+    g = J'*(J*reshape(Ψ(X1_[:,:,1:1,:]), :, batchsize) - D)
     g = reshape(g/norm(g, Inf), nx, ny, 1, batchsize)
 
     # Coupling layer
@@ -100,7 +100,7 @@ function forward_slim(X::Array{Float32, 4}, J, d, C, RB, Ψ; logdet=false)
 end
 
 # Inverse pass: Input Y, Output X
-function inverse_slim(Y::Array{Float32, 4}, J, d, C, RB, Ψ; logdet=false, save=false)
+function inverse_slim(Y::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false, save=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(Y)
@@ -111,7 +111,7 @@ function inverse_slim(Y::Array{Float32, 4}, J, d, C, RB, Ψ; logdet=false, save=
     X1_ = copy(Y1_)
 
     # Gradient
-    g = J'*(J*reshape(Ψ(X1_[:,:,1:1,:]), :, batchsize) - d)
+    g = J'*(J*reshape(Ψ(X1_[:,:,1:1,:]), :, batchsize) - D)
     g = reshape(g/norm(g, Inf), nx, ny, 1, batchsize)
     X1_temp = tensor_cat(g, X1_[:,:,2:end,:])
 
@@ -123,10 +123,10 @@ function inverse_slim(Y::Array{Float32, 4}, J, d, C, RB, Ψ; logdet=false, save=
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward_slim(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, J, d, C, RB, Ψ; logdet=false, permute=false)
+function backward_slim(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false, permute=false)
 
     # Recompute forward states
-    X, X_, X1_temp = inverse_slim(Y, J, d, C, RB, Ψ; logdet=logdet, save=true)
+    X, X_, X1_temp = inverse_slim(Y, J, D, C, RB, Ψ; logdet=logdet, save=true)
 
     # Backpropagation
     isnothing(C) ? (ΔY_ = copy(ΔY)) : (ΔY_ = C.forward((ΔY, Y))[1])
