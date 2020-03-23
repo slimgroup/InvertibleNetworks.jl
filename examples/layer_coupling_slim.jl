@@ -18,7 +18,7 @@ nt = 50
 D = randn(Float32, nt*nrec, batchsize)
 
 # Modeling/imaging operator (can be JOLI/JUDI operator or explicit matrix)
-J = joMatrix(randn(Float32, nt*nrec, nx*ny))
+A = joMatrix(randn(Float32, nt*nrec, nx*ny))
 
 # Link function
 Ψ(η) = identity(η)
@@ -26,10 +26,10 @@ J = joMatrix(randn(Float32, nt*nrec, nx*ny))
 # Slim coupling layer
 L = CouplingLayerSLIM(nx, ny, n_in, n_hidden, batchsize, Ψ; logdet=false, permute=false)
 
-Y = L.forward(X, J, D)
-
-X_ = L.inverse(Y, J, D)
+Y = L.forward(X, D, A)
+X_ = L.inverse(Y, D, A)
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
 
-X_ = L.backward(0f0.*Y, Y, J, D)[2]
+ΔY = Y .* 0f0
+X_ = L.backward(ΔY, Y, D, A)[2]
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)

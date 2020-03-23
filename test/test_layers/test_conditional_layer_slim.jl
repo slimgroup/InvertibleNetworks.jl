@@ -29,18 +29,18 @@ X = glorot_uniform(nx1, nx2, nx_channel, batchsize)
 Y = glorot_uniform(ny1, ny2, ny_channel, batchsize)
 
 # Conditional HINT layer
-CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
+CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize)
 
 # Forward/inverse
-Zx, Zy, logdet = CI.forward(X, Y)
-X_, Y_ = CI.inverse(Zx, Zy)
+Zx, Zy, logdet = CI.forward(X, Y, A)
+X_, Y_ = CI.inverse(Zx, Zy, A)
 
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
 @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
 
 # Forward/backward
-Zx, Zy, logdet = CI.forward(X, Y)
-X_, Y_ = CI.backward(0f0*Zx, 0f0*Zy, Zx, Zy)[3:4]
+Zx, Zy, logdet = CI.forward(X, Y, A)
+X_, Y_ = CI.backward(0f0*Zx, 0f0*Zy, Zx, Zy, A)[3:4]
 
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
 @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
@@ -65,18 +65,18 @@ Y = randn(Float32, ny1, ny2, ny_channel, batchsize)
 Y0 = randn(Float32, ny1, ny2, ny_channel, batchsize)
 dY = Y - Y0
 
-function loss(CI, X, Y)
-    Zx, Zy, logdet = CI.forward(X, Y)
+function loss(CI, X, Y, A)
+    Zx, Zy, logdet = CI.forward(X, Y, A)
     f = -log_likelihood(Zx) -log_likelihood(Zy) - logdet
     ΔZx = -∇log_likelihood(Zx)
     ΔZy = -∇log_likelihood(Zy)
-    ΔX, ΔY = CI.backward(ΔZx, ΔZy, Zx, Zy)[1:2]
+    ΔX, ΔY = CI.backward(ΔZx, ΔZy, Zx, Zy, A)[1:2]
     return f, ΔX, ΔY, CI.CL_X.CL[1].RB.W1.grad, CI.C_X.v1.grad
 end
 
 # Gradient test for input X, Y
-CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
-f0, gX, gY = loss(CI, X0, Y0)[1:3]
+CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize)
+f0, gX, gY = loss(CI, X0, Y0, A)[1:3]
 
 maxiter = 5
 h = 0.25f0
@@ -85,7 +85,7 @@ err2 = zeros(Float32, maxiter)
 
 print("Gradient test ΔX\n")
 for j=1:maxiter
-    f = loss(CI, X0 + h*dX, Y0 + h*dY)[1]
+    f = loss(CI, X0 + h*dX, Y0 + h*dY, A)[1]
     err1[j] = abs(f - f0)
     err2[j] = abs(f - f0 - h*dot(dX, gX) - h*dot(dY, gY))
     print(err1[j], "; ", err2[j], "\n")
@@ -98,8 +98,8 @@ end
 # Test for weights
 X = randn(Float32, nx1, nx2, nx_channel, batchsize)
 Y = randn(Float32, ny1, ny2, ny_channel, batchsize)
-CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
-CI0 = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
+CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize)
+CI0 = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize)
 
 # Make weights larger (otherweise too close to zero after initialization)
 CI.CL_X.CL[1].RB.W1.data .*= 4; CI0.CL_X.CL[1].RB.W1.data .*= 4
@@ -109,7 +109,7 @@ CIini = deepcopy(CI0)
 dW = CI.CL_X.CL[1].RB.W1.data - CI0.CL_X.CL[1].RB.W1.data
 dv = CI.C_X.v1.data - CI0.C_X.v1.data
 
-f0, gW, gv = loss(CI0, X, Y)[[1,4,5]]
+f0, gW, gv = loss(CI0, X, Y, A)[[1,4,5]]
 
 maxiter = 5
 h = 0.25f0
@@ -120,7 +120,7 @@ print("\nGradient test weights\n")
 for j=1:maxiter
     CI0.CL_X.CL[1].RB.W1.data = CIini.CL_X.CL[1].RB.W1.data + h*dW
     CI0.C_X.v1.data = CIini.C_X.v1.data + h*dv
-    f = loss(CI0, X, Y)[1]
+    f = loss(CI0, X, Y, A)[1]
     err3[j] = abs(f - f0)
     err4[j] = abs(f - f0 - h*dot(gW, dW) - h*dot(gv, dv))
     print(err3[j], "; ", err4[j], "\n")

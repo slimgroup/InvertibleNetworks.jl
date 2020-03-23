@@ -25,18 +25,18 @@ X = glorot_uniform(nx1, nx2, nx_channel, batchsize)
 Y = glorot_uniform(ny1, ny2, ny_channel, batchsize)
 
 # Conditional i-RIM layer
-CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize, A)
+CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize)
 
 # Forward/inverse
-Zx, Zy, logdet = CI.forward(X, Y)
-X_, Y_ = CI.inverse(Zx, Zy)
+Zx, Zy, logdet = CI.forward(X, Y, A)
+X_, Y_ = CI.inverse(Zx, Zy, A)
 
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
 @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
 
 # Forward/backward
-Zx, Zy, logdet = CI.forward(X, Y)
-X_, Y_ = CI.backward(0f0*Zx, 0f0*Zy, Zx, Zy)[3:4]
+Zx, Zy, logdet = CI.forward(X, Y, A)
+X_, Y_ = CI.backward(0f0*Zx, 0f0*Zy, Zx, Zy, A)[3:4]
 
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
 @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
