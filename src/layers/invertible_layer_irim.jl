@@ -72,7 +72,7 @@ function CouplingLayerIRIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
-    RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=0, p2=1)
+    RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2)
 
     return CouplingLayerIRIM(C, RB, 
         X -> inv_layer_forward(X, C, RB),
