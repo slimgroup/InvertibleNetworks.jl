@@ -146,11 +146,14 @@ function backward_hint(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, CL, C; scal
     ΔYa, ΔYb = tensor_split(ΔY)
     if size(Y, 3) > 4
         ΔXa, Xa = backward_hint(ΔYa, Ya, CL, C; scale=scale+1)
-        ΔXb, Xb = backward_hint(CL[scale].backward(ΔYb, ΔXa, Yb, Xa)[[1,3]], CL, C; scale=scale+1)
+        ΔXb_temp, ΔXa_temp, X_temp = CL[scale].backward(ΔYb, ΔXa.*0f0, Yb, Xa)[1:3]
+        ΔXb, Xb = backward_hint(ΔXb_temp, X_temp, CL, C; scale=scale+1)
+        ΔXa += ΔXa_temp
     else
         Xa = copy(Ya)
         ΔXa = copy(ΔYa)
-        ΔXb, Xb = CL[scale].backward(ΔYb, ΔYa, Yb, Ya)[[1,3]]
+        ΔXb, ΔXa_, Xb = CL[scale].backward(ΔYb, ΔYa.*0f0, Yb, Ya)[1:3]
+        ΔXa += ΔXa_
     end
     permute == "lower" && ((ΔXb, Xb) = C.inverse((ΔXb, Xb)))
     ΔX = tensor_cat(ΔXa, ΔXb)
@@ -158,10 +161,6 @@ function backward_hint(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, CL, C; scal
     permute == "full" && ((ΔX, X) = C.inverse((ΔX, X)))
     return ΔX, X
 end
-
-#  Input is tuple single tuple (ΔY, Y)
-backward_hint(Y_tuple::Tuple{Array{Float32,4},Array{Float32,4}}, CL, C; scale=1, permute="none") = 
-    backward_hint(Y_tuple[1], Y_tuple[2], CL, C; scale=scale, permute=permute)
 
 # Clear gradients
 function clear_grad!(H::CouplingLayerHINT)

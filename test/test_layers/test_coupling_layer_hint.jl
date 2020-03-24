@@ -2,8 +2,9 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using InvertibleNetworks, LinearAlgebra, Test
+using InvertibleNetworks, LinearAlgebra, Test, Random
 
+Random.seed!(11)
 
 #######################################################################################################################
 # Test invertibility
@@ -11,8 +12,8 @@ using InvertibleNetworks, LinearAlgebra, Test
 # Input
 nx = 16
 ny = 16
-n_channel = 8
-n_hidden = 32
+n_channel = 16
+n_hidden = 64
 batchsize = 2
 
 # Input image
@@ -24,6 +25,11 @@ HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower")
 # Test 
 Y = HL.forward(X)
 X_ = HL.inverse(Y)
+
+@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+
+Y = HL.forward(X)
+X_ = HL.backward(0f0.*Y, Y)[2]
 
 @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
 
@@ -49,7 +55,7 @@ f0, gX, X_ = loss(HL, X0)[[1,2,4]]
 @test isapprox(norm(X_ - X0)/norm(X0), 0f0; atol=1f-6)
 
 maxiter = 5
-h = 0.5f0
+h = 0.1f0
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 
@@ -70,6 +76,7 @@ end
 X = glorot_uniform(nx, ny, n_channel, batchsize)
 HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower")
 HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower")
+HL.CL[1].RB.W1.data *= 4f0; HL0.CL[1].RB.W1.data *= 4f0 # make weights larger
 HLini = deepcopy(HL0)
 dW = HL.CL[1].RB.W1.data - HL0.CL[1].RB.W1.data
 
@@ -107,6 +114,7 @@ end
 X = glorot_uniform(nx, ny, n_channel, batchsize)
 HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true, permute="lower")
 HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true, permute="lower")
+HL.CL[1].RB.W1.data *= 8f0; HL0.CL[1].RB.W1.data *= 8f0 # make weights larger
 HLini = deepcopy(HL0)
 dW = HL.CL[1].RB.W1.data - HL0.CL[1].RB.W1.data
 
