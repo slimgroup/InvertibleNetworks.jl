@@ -120,18 +120,19 @@ function backward_hint(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y)
 
     # Y-lane
     ΔYp, Yp = CL_Y.backward(ΔZy, Zy)
-    ΔY, Y = C_Y.inverse((ΔYp, Yp))
 
     # X-lane: conditional layer
-    ΔZY = tensor_cat(ΔZx, ΔYp)
+    ΔZY = tensor_cat(ΔZx, ΔYp.*0f0)
     ZY = tensor_cat(Zx, Yp)
     ΔXY, XY = CL_XY.backward(ΔZY, ZY)
-    ΔX = tensor_split(ΔXY)[1]
+    ΔX, ΔYp_ = tensor_split(ΔXY)
     X = tensor_split(XY)[1]
+    ΔYp += ΔYp_
 
     # X-lane: coupling layer
     ΔXp, Xp = CL_X.backward(ΔX, X)
     ΔX, X = C_X.inverse((ΔXp, Xp))
+    ΔY, Y = C_Y.inverse((ΔYp, Yp))
 
     return ΔX, ΔY, X, Y
 end
