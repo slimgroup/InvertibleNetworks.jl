@@ -5,7 +5,7 @@
 export ConditionalLayerSLIM
 
 """
-    CI = ConditionalLayerSLIM(nx1, nx2, nx_in, nx_hidden, ny1, ny2, ny_in, ny_hidden, batchsize, Op; k1=1, k2=3, p1=1, p2=0)
+    CI = ConditionalLayerSLIM(nx1, nx2, nx_in, nx_hidden, ny1, ny2, ny_in, ny_hidden, batchsize, Op; affine=true, k1=1, k2=3, p1=1, p2=0)
 
  Create a conditional SLIM layer based on the HINT architecture.
 
@@ -20,6 +20,8 @@ export ConditionalLayerSLIM
  - `ny_in`, `ny_hidden`: number of input and hidden channels of `Y`
 
  - `Op`: Linear forward modeling operator
+
+ - `affine`: bool to indicate whether to use affine or additive coupling layer (default is affine)
 
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
     operator, `k2` is the kernel size of the second operator.
@@ -49,12 +51,12 @@ export ConditionalLayerSLIM
  - Trainable parameters in coupling layers `CI.CL_X`, `CI.CL_Y`, `CI.CL_XY` and in
    permutation layers `CI.C_X` and `CI.C_Y`.
 
- See also: [`CouplingLayerHINT`](@ref), [`CouplingLayerSLIM`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
+ See also: [`CouplingLayerHINT`](@ref), [`AffineCouplingLayerSLIM`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct ConditionalLayerSLIM <: NeuralNetLayer
     CL_X::CouplingLayerHINT
     CL_Y::CouplingLayerHINT
-    CL_XY::CouplingLayerSLIM
+    CL_XY::Union{AdditiveCouplingLayerSLIM, AffineCouplingLayerSLIM}
     C_X::Conv1x1
     C_Y::Conv1x1
     forward::Function
@@ -66,13 +68,17 @@ end
 
 # Constructor from input dimensions
 function ConditionalLayerSLIM(nx1::Int64, nx2::Int64, nx_in::Int64, nx_hidden::Int64, ny1::Int64, ny2::Int64, ny_in::Int64, ny_hidden::Int64,
-    batchsize::Int64; k1=4, k2=3, p1=0, p2=1)
+    batchsize::Int64; affine=true, k1=4, k2=3, p1=0, p2=1)
 
     # Create basic coupling layers
     CL_X = CouplingLayerHINT(nx1, nx2, nx_in, nx_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
     CL_Y = CouplingLayerHINT(Int(ny1/2), Int(ny2/2), Int(ny_in*4), ny_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
-    CL_XY = CouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, identity; k1=k1, k2=k2, logdet=true, permute=false)
-    
+    if affine
+        CL_XY = AffineCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, identity; k1=k1, k2=k2, logdet=true, permute=false)
+    else
+        CL_XY = AdditiveCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, identity; k1=k1, k2=k2, logdet=true, permute=false)
+    end
+
     # Permutation using 1x1 convolution
     C_X = Conv1x1(nx_in)
     C_Y = Conv1x1(Int(ny_in*4))

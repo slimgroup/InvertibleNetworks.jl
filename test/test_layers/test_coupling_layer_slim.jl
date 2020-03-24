@@ -1,5 +1,8 @@
 using InvertibleNetworks, LinearAlgebra, Test
 
+# Test affine or additive coupling layer
+affine = true
+
 # Input
 nx1 = 16
 nx2 = 16
@@ -19,7 +22,11 @@ A = randn(Float32, nd1*nd2*nd_in, nx1*nx2)
 Ψ(η) = identity(η)
 
 # Unrolled loop
-CS = CouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=false, permute=false)
+if affine
+    CS = AffineCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=false, permute=false)
+else
+    CS = AdditiveCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=false, permute=false)
+end
 
 # Initializations
 D = randn(Float32, nd1*nd2*nd_in, batchsize)
@@ -44,7 +51,11 @@ X_ = CS.backward(0f0.*Y, Y, D, A)[2]
 ###################################################################################################
 
 # Initializations
-CS = CouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=true, permute=false)
+if affine
+    CS = AffineCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=true, permute=false)
+else
+    CS = AdditiveCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=true, permute=false)
+end
 D = randn(Float32, nd1*nd2*nd_in, batchsize)
 X = randn(Float32, nx1, nx2, nx_in, batchsize)
 X0 = randn(Float32, nx1, nx2, nx_in, batchsize)
@@ -82,8 +93,13 @@ end
 
 
 # Gradient test for weights
-CS = CouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=true, permute=false)
-CS0 = CouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=true, permute=false)
+if affine
+    CS = AffineCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=true, permute=false)
+    CS0 = AffineCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=true, permute=false)
+else
+    CS = AdditiveCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=true, permute=false)
+    CS0 = AdditiveCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, Ψ; logdet=true, permute=false)
+end
 CS.RB.W1.data *= 10; CS0.RB.W1.data *= 10     # make weights larger
 CSini = deepcopy(CS0)
 dW = CS.RB.W1.data - CS0.RB.W1.data   # just test for 2 parameters
