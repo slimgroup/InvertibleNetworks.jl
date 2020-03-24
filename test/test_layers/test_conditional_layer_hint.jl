@@ -2,8 +2,10 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using InvertibleNetworks, LinearAlgebra, Test
+using InvertibleNetworks, LinearAlgebra, Test, Random
 
+# Random seed
+Random.seed!(11)
 
 #######################################################################################################################
 # Test invertibility
@@ -96,10 +98,8 @@ CH = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
 CH0 = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
 CHini = deepcopy(CH0)
 dW = CH.CL_X.CL[1].RB.W1.data - CH0.CL_X.CL[1].RB.W1.data
-dv = CH.C_X.v1.data - CH0.C_X.v1.data
 
 f0, gW, gv = loss(CH0, X, Y)[[1,4,5]]
-
 maxiter = 5
 h = 0.5f0
 err3 = zeros(Float32, maxiter)
@@ -108,10 +108,9 @@ err4 = zeros(Float32, maxiter)
 print("\nGradient test weights\n")
 for j=1:maxiter
     CH0.CL_X.CL[1].RB.W1.data = CHini.CL_X.CL[1].RB.W1.data + h*dW
-    CH0.C_X.v1.data = CHini.C_X.v1.data + h*dv
     f = loss(CH0, X, Y)[1]
     err3[j] = abs(f - f0)
-    err4[j] = abs(f - f0 - h*dot(gW, dW) - h*dot(gv, dv))
+    err4[j] = abs(f - f0 - h*dot(gW, dW))
     print(err3[j], "; ", err4[j], "\n")
     global h = h/2f0
 end
