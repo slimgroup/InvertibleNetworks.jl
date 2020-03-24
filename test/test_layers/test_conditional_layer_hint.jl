@@ -74,15 +74,15 @@ CH = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
 f0, gX, gY = loss(CH, X0, Y0)[1:3]
 
 maxiter = 5
-h = 0.5f0
+h = 0.1f0
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 
 print("\nGradient test ΔX\n")
 for j=1:maxiter
-    f = loss(CH, X0 + h*dX, Y0 + h*dY)[1]
+    f = loss(CH, X0 + h*dX, Y0)[1]# + h*dY)[1]
     err1[j] = abs(f - f0)
-    err2[j] = abs(f - f0 - h*dot(dX, gX) - h*dot(dY, gY))
+    err2[j] = abs(f - f0 - h*dot(dX, gX))# - h*dot(dY, gY))
     print(err1[j], "; ", err2[j], "\n")
     global h = h/2f0
 end
@@ -101,7 +101,7 @@ dW = CH.CL_X.CL[1].RB.W1.data - CH0.CL_X.CL[1].RB.W1.data
 
 f0, gW, gv = loss(CH0, X, Y)[[1,4,5]]
 maxiter = 5
-h = 0.5f0
+h = 0.1f0
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 
