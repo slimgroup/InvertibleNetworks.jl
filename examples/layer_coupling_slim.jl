@@ -23,13 +23,34 @@ A = joMatrix(randn(Float32, nt*nrec, nx*ny))
 # Link function
 Ψ(η) = identity(η)
 
-# Slim coupling layer
-L = CouplingLayerSLIM(nx, ny, n_in, n_hidden, batchsize, Ψ; logdet=false, permute=false)
 
-Y = L.forward(X, D, A)
-X_ = L.inverse(Y, D, A)
+###################################################################################################
+# Additive slim coupling layer (zero logdet)
+
+# Create layer
+L1 = AdditiveCouplingLayerSLIM(nx, ny, n_in, n_hidden, batchsize, Ψ; logdet=true, permute=false)
+
+Y, logdet = L1.forward(X, D, A)
+X_ = L1.inverse(Y, D, A)
+@test iszero(logdet)
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
 
 ΔY = Y .* 0f0
-X_ = L.backward(ΔY, Y, D, A)[2]
+X_ = L1.backward(ΔY, Y, D, A)[2]
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
+
+
+###################################################################################################
+# Affine slim coupling layer (non-zero logdet)
+
+# Create layer
+L2 = AffineCouplingLayerSLIM(nx, ny, n_in, n_hidden, batchsize, Ψ; logdet=true, permute=false)
+
+Y, logdet = L2.forward(X, D, A)
+X_ = L2.inverse(Y, D, A)
+@test ~iszero(logdet)
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
+
+ΔY = Y .* 0f0
+X_ = L2.backward(ΔY, Y, D, A)[2]
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
