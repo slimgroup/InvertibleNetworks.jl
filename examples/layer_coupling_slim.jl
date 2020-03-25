@@ -36,7 +36,7 @@ X_ = L1.inverse(Y, D, A)
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
 
 ΔY = Y .* 0f0
-X_ = L1.backward(ΔY, Y, D, A)[2]
+X_ = L1.backward(ΔY, Y, D, A)[3]
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
 
 
@@ -52,5 +52,5 @@ X_ = L2.inverse(Y, D, A)
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
 
 ΔY = Y .* 0f0
-X_ = L2.backward(ΔY, Y, D, A)[2]
+X_ = L2.backward(ΔY, Y, D, A)[3]
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
