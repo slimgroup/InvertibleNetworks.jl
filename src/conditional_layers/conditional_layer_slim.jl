@@ -136,7 +136,8 @@ function backward_cond_slim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
     ΔY = wavelet_unsqueeze(ΔYs)
 
     # X-lane
-    ΔX, X = CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)), Op)
+    ΔX, ΔY_, X = CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)), Op)
+    ΔY += reshape(ΔY_, size(ΔY))
     ΔXp, Xp = CL_X.backward(ΔX, X)
     ΔX, X = C_X.inverse((ΔXp, Xp))
 
