@@ -15,8 +15,8 @@ k1 = 4
 k2 = 3
 
 # Input images
-X = glorot_uniform(nx, ny, k, batchsize)
-X0 = glorot_uniform(nx, ny, k, batchsize)
+X = randn(Float32, nx, ny, k, batchsize)
+X0 = randn(Float32, nx, ny, k, batchsize)
 dX = X - X0
 
 # 1x1 convolution and residual blocks

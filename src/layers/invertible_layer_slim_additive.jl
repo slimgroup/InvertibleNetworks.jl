@@ -53,6 +53,7 @@ export AdditiveCouplingLayerSLIM
 struct AdditiveCouplingLayerSLIM <: NeuralNetLayer
     C::Union{Conv1x1, Nothing}
     RB::ResidualBlock
+    AN::ActNorm
     Ψ::Function
     logdet::Bool
     forward::Function
@@ -68,16 +69,17 @@ function AdditiveCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::
     # 1x1 Convolution and residual block for invertible layer
     permute == true ? (C = Conv1x1(n_in)) : (C = nothing)
     RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, fan=false)
+    AN = ActNorm(1)
 
-    return AdditiveCouplingLayerSLIM(C, RB, Ψ, logdet,
-        (X, D, J) -> forward_slim_additive(X, J, D, C, RB, Ψ; logdet=logdet),
-        (Y, D, J) -> inverse_slim_additive(Y, J, D, C, RB, Ψ; logdet=logdet),
-        (ΔY, Y, D, J) -> backward_slim_additive(ΔY, Y, J, D, C, RB, Ψ; logdet=logdet)
+    return AdditiveCouplingLayerSLIM(C, RB, AN, Ψ, logdet,
+        (X, D, J) -> forward_slim_additive(X, J, D, C, RB, AN, Ψ; logdet=logdet),
+        (Y, D, J) -> inverse_slim_additive(Y, J, D, C, RB, AN, Ψ; logdet=logdet),
+        (ΔY, Y, D, J) -> backward_slim_additive(ΔY, Y, J, D, C, RB, AN, Ψ; logdet=logdet)
         )
 end
 
 # Forward pass: Input X, Output Y
-function forward_slim_additive(X::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false)
+function forward_slim_additive(X::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(X)
@@ -88,11 +90,13 @@ function forward_slim_additive(X::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=fal
 
     # Gradient
     g = J'*(J*reshape(Ψ(X1_[:,:,1:1,:]), :, batchsize) - D)
-    g = reshape(g/norm(g, Inf), nx, ny, 1, batchsize)
+    g = reshape(g, nx, ny, 1, batchsize)
+    gn = AN.forward(g)
+    gs = tensor_cat(gn, X1_[:,:,2:end,:])
 
     # Coupling layer
     Y1_ = copy(X1_)
-    Y2_ = X2_ + RB.forward(tensor_cat(g, X1_[:,:,2:end,:]))
+    Y2_ = X2_ + RB.forward(gs)
     Y_ = tensor_cat(Y1_, Y2_)
 
     isnothing(C) ? (Y = copy(Y_)) : (Y = C.inverse(Y_))
@@ -100,7 +104,7 @@ function forward_slim_additive(X::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=fal
 end
 
 # Inverse pass: Input Y, Output X
-function inverse_slim_additive(Y::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false, save=false)
+function inverse_slim_additive(Y::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false, save=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(Y)
@@ -112,42 +116,54 @@ function inverse_slim_additive(Y::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=fal
 
     # Gradient
     g = J'*(J*reshape(Ψ(X1_[:,:,1:1,:]), :, batchsize) - D)
-    g = reshape(g/norm(g, Inf), nx, ny, 1, batchsize)
-    X1_temp = tensor_cat(g, X1_[:,:,2:end,:])
+    g = reshape(g, nx, ny, 1, batchsize)
+    gn = AN.forward(g)
+    gs = tensor_cat(gn, X1_[:,:,2:end,:])
 
-    X2_ = Y2_ - RB.forward(X1_temp)
+    X2_ = Y2_ - RB.forward(gs)
     X_ = tensor_cat(X1_, X2_)
 
     isnothing(C) ? (X = copy(X_)) : (X = C.inverse(X_))
-    save == true ? (return X, X_, X1_temp) : (return X)
+    save == true ? (return X, X_, g, gn, gs) : (return X)
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward_slim_additive(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false, permute=false)
+function backward_slim_additive(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false, permute=false)
 
     # Recompute forward states
-    X, X_, X1_temp = inverse_slim_additive(Y, J, D, C, RB, Ψ; logdet=logdet, save=true)
+    X, X_, g, gn, gs = inverse_slim_additive(Y, J, D, C, RB, AN, Ψ; logdet=logdet, save=true)
+    nx1, nx2, nx_in, batchsize = size(X)
 
     # Backpropagation
     isnothing(C) ? (ΔY_ = copy(ΔY)) : (ΔY_ = C.forward((ΔY, Y))[1])
     ΔY1_, ΔY2_ = tensor_split(ΔY_)
-    ΔX1_ = RB.backward(ΔY2_, X1_temp) + ΔY1_
     ΔX2_ = copy(ΔY2_)
+
+    Δgs = RB.backward(ΔY2_, gs)
+    Δgn = Δgs[:,:,1:1,:]
+    Δg = AN.backward(Δgn, gn)[1]
+    Jg = J*reshape(Δg, :, batchsize)
+    ΔX1_= tensor_cat(reshape(J'*Jg, nx1, nx2, 1, batchsize), Δgs[:,:,2:end,:])
+    ΔD = -Jg
+    ΔX1_ += ΔY1_
+    
     ΔX_ = tensor_cat(ΔX1_, ΔX2_)
     isnothing(C) ? (ΔX = copy(ΔX_)) : (ΔX = C.inverse((ΔX_, X_))[1])
 
-    return ΔX, X
+    return ΔX, ΔD, X
 end
 
 # Clear gradients
 function clear_grad!(CS::AdditiveCouplingLayerSLIM)
     ~isnothing(CS.C) && clear_grad!(CS.C)
     clear_grad!(CS.RB)
+    clear_grad!(CS.AN)
 end
 
 # Get parameters
 function get_params(CS::AdditiveCouplingLayerSLIM)
     p = get_params(CS.RB)
+    p = cat(p, get_params(CS.AN); dims=1)
     ~isnothing(CS.C) && (p = cat(p, get_params(CS.C); dims=1))
     return p
 end

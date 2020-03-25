@@ -53,6 +53,7 @@ export AffineCouplingLayerSLIM
 struct AffineCouplingLayerSLIM <: NeuralNetLayer
     C::Union{Conv1x1, Nothing}
     RB::ResidualBlock
+    AN::ActNorm
     Ψ::Function
     logdet::Bool
     forward::Function
@@ -68,16 +69,17 @@ function AffineCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::In
     # 1x1 Convolution and residual block for invertible layer
     permute == true ? (C = Conv1x1(n_in)) : (C = nothing)
     RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, fan=true)
+    AN = ActNorm(1)
 
-    return AffineCouplingLayerSLIM(C, RB, Ψ, logdet,
-        (X, D, J) -> forward_slim_affine(X, J, D, C, RB, Ψ; logdet=logdet),
-        (Y, D, J) -> inverse_slim_affine(Y, J, D, C, RB, Ψ; logdet=logdet),
-        (ΔY, Y, D, J) -> backward_slim_affine(ΔY, Y, J, D, C, RB, Ψ; logdet=logdet)
+    return AffineCouplingLayerSLIM(C, RB, AN, Ψ, logdet,
+        (X, D, J) -> forward_slim_affine(X, J, D, C, RB, AN, Ψ; logdet=logdet),
+        (Y, D, J) -> inverse_slim_affine(Y, J, D, C, RB, AN, Ψ; logdet=logdet),
+        (ΔY, Y, D, J) -> backward_slim_affine(ΔY, Y, J, D, C, RB, AN, Ψ; logdet=logdet)
         )
 end
 
 # Forward pass: Input X, Output Y
-function forward_slim_affine(X::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false)
+function forward_slim_affine(X::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(X)
@@ -87,16 +89,17 @@ function forward_slim_affine(X::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false
     X1_, X2_ = tensor_split(X_)
 
     # Gradient
-    g = J'*(J*reshape(Ψ(X2_[:,:,1:1,:]), :, batchsize) - D)
-    g = reshape(g/norm(g, Inf), nx, ny, 1, batchsize)
-    X2_temp = tensor_cat(g, X2_[:,:,2:end,:])
+    g = J'*(J*reshape(Ψ(X1_[:,:,1:1,:]), :, batchsize) - D)
+    g = reshape(g, nx, ny, 1, batchsize)
+    gn = AN.forward(g)
+    gs = tensor_cat(gn, X1_[:,:,2:end,:])
 
     # Coupling layer
-    Y2_ = copy(X2_)
-    logS_T = RB.forward(X2_temp)
+    Y1_ = copy(X1_)
+    logS_T = RB.forward(gs)
     logS, T = tensor_split(logS_T)
     S = Sigmoid(logS)
-    Y1_ = S.*X1_ + T
+    Y2_ = S.*X2_ + T
     Y_ = tensor_cat(Y1_, Y2_)
 
     isnothing(C) ? (Y = copy(Y_)) : (Y = C.inverse(Y_))
@@ -104,7 +107,7 @@ function forward_slim_affine(X::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false
 end
 
 # Inverse pass: Input Y, Output X
-function inverse_slim_affine(Y::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false, save=false)
+function inverse_slim_affine(Y::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false, save=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(Y)
@@ -112,51 +115,60 @@ function inverse_slim_affine(Y::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false
 
     # Gradient
     Y1_, Y2_ = tensor_split(Y_)
-    X2_ = copy(Y2_)
-    g = J'*(J*reshape(Ψ(X2_[:,:,1:1,:]), :, batchsize) - D)
-    g = reshape(g/norm(g, Inf), nx, ny, 1, batchsize)
-    X2_temp = tensor_cat(g, X2_[:,:,2:end,:])
+    X1_ = copy(Y1_)
+    g = J'*(J*reshape(Ψ(X1_[:,:,1:1,:]), :, batchsize) - D)
+    g = reshape(g, nx, ny, 1, batchsize)
+    gn = AN.forward(g)
+    gs = tensor_cat(gn, X1_[:,:,2:end,:])
 
     # Coupling layer
-    logS_T = RB.forward(X2_temp)
+    logS_T = RB.forward(gs)
     logS, T = tensor_split(logS_T)
     S = Sigmoid(logS)
-    X1_ = (Y1_ - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid 
+    X2_ = (Y2_ - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid 
     X_ = tensor_cat(X1_, X2_)
 
     isnothing(C) ? (X = copy(X_)) : (X = C.inverse(X_))
-    save == true ? (return X, X1_, X2_, X2_temp, S) : (return X)
+    save == true ? (return X, X1_, X2_, gn, gs, S) : (return X)
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward_slim_affine(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, J, D, C, RB, Ψ; logdet=false, permute=false)
+function backward_slim_affine(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false, permute=false)
 
     # Recompute forward states
-    X, X1_, X2_, X2_temp, S  = inverse_slim_affine(Y, J, D, C, RB, Ψ; logdet=logdet, save=true)
+    X, X1_, X2_, gn, gs, S  = inverse_slim_affine(Y, J, D, C, RB, AN, Ψ; logdet=logdet, save=true)
+    nx, ny, n_s, batchsize = size(Y)
 
     # Backpropagation
     isnothing(C) ? (ΔY_ = copy(ΔY)) : (ΔY_ = C.forward((ΔY, Y))[1])
     ΔY1_, ΔY2_ = tensor_split(ΔY_)
-    ΔT = copy(ΔY1_)
-    ΔS = ΔY1_ .* X1_
+    ΔT = copy(ΔY2_)
+    ΔS = ΔY2_ .* X2_
     logdet == true && (ΔS -= slim_logdet_backward(S))
-    ΔX1_ = ΔY1_ .* S
-    ΔX2_ = RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), X2_temp) + ΔY2_
+    ΔX2_ = ΔY2_ .* S
+    Δgs = RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), gs)
+    Δgn = Δgs[:,:,1:1,:]
+    Δg = AN.backward(Δgn, gn)[1]
+    Jg = J*reshape(Δg, :, batchsize)
+    ΔD = -Jg
+    ΔX1_ = tensor_cat(reshape(J'*Jg, nx, ny, 1, batchsize), Δgs[:,:,2:end,:]) + ΔY1_
     ΔX_ = tensor_cat(ΔX1_, ΔX2_)
     isnothing(C) ? (ΔX = copy(ΔX_)) : (ΔX = C.inverse((ΔX_, tensor_cat(X1_, X2_)))[1])
 
-    return ΔX, X
+    return ΔX, ΔD, X
 end
 
 # Clear gradients
 function clear_grad!(CS::AffineCouplingLayerSLIM)
     ~isnothing(CS.C) && clear_grad!(CS.C)
     clear_grad!(CS.RB)
+    clear_grad!(CS.AN)
 end
 
 # Get parameters
 function get_params(CS::AffineCouplingLayerSLIM)
     p = get_params(CS.RB)
+    p = cat(p, get_params(CS.AN); dims=1)
     ~isnothing(CS.C) && (p = cat(p, get_params(CS.C); dims=1))
     return p
 end
