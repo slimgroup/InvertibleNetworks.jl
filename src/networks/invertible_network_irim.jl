@@ -32,23 +32,24 @@ export NetworkLoop
 
  *Usage:*
 
- - Forward mode: `η_out, s_out = L.forward(η_in, s_in, A, d)`
+ - Forward mode: `η_out, s_out = L.forward(η_in, s_in, d, A)`
 
- - Inverse mode: `η_in, s_in = L.inverse(η_out, s_out, A, d)`
+ - Inverse mode: `η_in, s_in = L.inverse(η_out, s_out, d, A)`
 
- - Backward mode: `Δη_in, Δs_in, η_in, s_in = L.backward(Δη_out, Δs_out, η_out, s_out, A, d)`
+ - Backward mode: `Δη_in, Δs_in, η_in, s_in = L.backward(Δη_out, Δs_out, η_out, s_out, d, A)`
 
  *Trainable parameters:*
 
  - None in `L` itself
 
- - Trainable parameters in the invertible coupling layers `L.L[i]`, 
-   where `i` ranges from `1` to the number of loop iterations.
+ - Trainable parameters in the invertible coupling layers `L.L[i]`, and actnorm layers
+   `L.AN[i]`, where `i` ranges from `1` to the number of loop iterations.
 
  See also: [`CouplingLayerIRIM`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct NetworkLoop <: InvertibleNetwork
     L::Array{CouplingLayerIRIM, 1}
+    AN::Array{ActNorm, 1}
     Ψ::Function
     forward::Function
     inverse::Function
@@ -58,19 +59,21 @@ end
 function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1)
     
     L = Array{CouplingLayerIRIM}(undef, maxiter)
+    AN = Array{ActNorm}(undef, maxiter)
     for j=1:maxiter
         L[j] = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=0, p2=1)
+        AN[j] = ActNorm(1)
     end
     
-    return NetworkLoop(L, Ψ,
-        (η, s, J, d) -> loop_forward(η, s, d, L, J, Ψ),
-        (η, s, J, d) -> loop_inverse(η, s, d, L, J, Ψ),
-        (Δη, Δs, η, s, J, d) -> loop_backward(Δη, Δs, η, s, d, L, J, Ψ)
+    return NetworkLoop(L, AN, Ψ,
+        (η, s, d, J) -> loop_forward(η, s, d, L, AN, J, Ψ),
+        (η, s, d, J) -> loop_inverse(η, s, d, L, AN, J, Ψ),
+        (Δη, Δs, η, s, d, J) -> loop_backward(Δη, Δs, η, s, d, L, AN, J, Ψ)
         )
 end
 
 # Forward loop: Input (η, s), Output (η, s)
-function loop_forward(η, s, d, L, J, Ψ)
+function loop_forward(η, s, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
@@ -79,9 +82,10 @@ function loop_forward(η, s, d, L, J, Ψ)
     N = zeros(Float32, nx, ny, n_in-2, batchsize)
 
     for j=1:maxiter
-        g = J'*(J*reshape(Ψ(η), :, batchsize) - d)
-        g = reshape(g/norm(g, Inf), nx, ny, 1, batchsize)
-        s_ = s + cat(g, N; dims=3)
+        g = J'*(J*reshape(Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        g = reshape(g, nx, ny, 1, batchsize)
+        gn = AN[j].forward(g)   # normalize
+        s_ = s + tensor_cat(gn, N)
 
         ηs = L[j].forward(cat(η, s_; dims=3))
         η = ηs[:, :, 1:1, :]
@@ -91,7 +95,7 @@ function loop_forward(η, s, d, L, J, Ψ)
 end
 
 # Inverse loop: Input (η, s), Output (η, s)
-function loop_inverse(η, s, d, L, J, Ψ)
+function loop_inverse(η, s, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
@@ -100,20 +104,20 @@ function loop_inverse(η, s, d, L, J, Ψ)
     N = zeros(Float32, nx, ny, n_in-2, batchsize)
 
     for j=maxiter:-1:1
-        ηs_ = L[j].inverse(cat(η, s; dims=3))
-        s_ = ηs_[:, :, 2:end, :]
+        ηs_ = L[j].inverse(tensor_cat(η, s))
         η = ηs_[:, :, 1:1, :]
+        s_ = ηs_[:, :, 2:end, :]
 
-        g = J'*(J*reshape(Ψ(η), :, batchsize) - d)
-        g = reshape(g/norm(g, Inf), nx, ny, 1, batchsize)
-
-        s = s_ - cat(g, N; dims=3)
+        g = J'*(J*reshape(Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        g = reshape(g, nx, ny, 1, batchsize)
+        gn = AN[j].forward(g)   # normalize
+        s = s_ - tensor_cat(gn, N)
     end
     return η, s
 end
 
 # Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function loop_backward(Δη, Δs, η, s, d, L, J, Ψ)
+function loop_backward(Δη, Δs, η, s, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
@@ -123,22 +127,21 @@ function loop_backward(Δη, Δs, η, s, d, L, J, Ψ)
     typeof(Δs) == Float32 && (Δs = 0f0.*s)  # make Δs zero tensor
 
     for j=maxiter:-1:1
-        Δηs_, ηs_ = L[j].backward(cat(Δη, Δs; dims=3), cat(η, s; dims=3))
+        Δηs_, ηs_ = L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
 
         # Inverse pass
         η = ηs_[:, :, 1:1, :]
         s_ = ηs_[:, :, 2:end, :]
-        g = J'*(J*reshape(Ψ(η), :, batchsize) - d)
-        g_norm = norm(g, Inf)
+        g = J'*(J*reshape(Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        g = reshape(g, nx, ny, 1, batchsize)
+        gn = AN[j].forward(g)   # normalize
+        s = s_ - tensor_cat(gn, N)
 
         # Gradients
         Δs = Δηs_[:, :, 2:end, :]
-        Δη = (J'*J*reshape(Ψ(Δs[:, :, 1, :]), :, batchsize)*g_norm - g.*sign.(g)) / g_norm^2
-        Δη = reshape(Δη, nx, ny, 1, batchsize) + Δηs_[:, :, 1:1, :]
-
-        # Recompute original input        
-        g = reshape(g / g_norm, nx, ny, 1, batchsize)
-        s = s_ - cat(g, N; dims=3)
+        Δgn = Δs[:, :, 1:1, :]
+        Δg = AN[j].backward(Δgn, gn)[1]
+        Δη = reshape(J'*J*reshape(Δg, :, batchsize), nx, ny, 1, batchsize) + Δηs_[:, :, 1:1, :]
     end
     return Δη, Δs, η, s
 end
@@ -149,6 +152,7 @@ function clear_grad!(UL::NetworkLoop)
     for j=1:maxiter
         clear_grad!(UL.L[j].C)
         clear_grad!(UL.L[j].RB)
+        clear_grad!(UL.AN[j])
     end
 end
 
@@ -156,9 +160,11 @@ end
 function get_params(UL::NetworkLoop)
     maxiter = length(UL.L)
     p = get_params(UL.L[1])
+    p = cat(p, get_params(UL.AN[1]); dims=1)
     if maxiter > 1
         for j=2:maxiter
             p = cat(p, get_params(UL.L[j]); dims=1)
+            p = cat(p, get_params(UL.AN[j]); dims=1)
         end
     end
     return p
