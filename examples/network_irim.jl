@@ -18,7 +18,7 @@ maxiter = 2
 # Observed data
 nrec = 20
 nt = 50
-d = randn(Float32, nt*nrec, batchsize)
+d = randn(Float32, nt, nrec, 1, batchsize)
 
 # Modeling/imaging operator (can be JOLI/JUDI operator or explicit matrix)
 J = joMatrix(randn(Float32, nt*nrec, nx*ny))
@@ -36,12 +36,12 @@ s_obs = randn(Float32, nx, ny, n_in-1, batchsize)
 s_in = randn(Float32, nx, ny, n_in-1, batchsize)
 
 # Forward pass and residual
-η_out, s_out = L.forward(η_in, s_in, J, d)
+η_out, s_out = L.forward(η_in, s_in, d, J)
 Δη = η_out - η_obs
 Δs = s_out - s_obs  # in practice there is no observed s, so Δs=0f0
 
 # Backward pass
-Δη_inv, Δs_inv, η_inv, s_inv = L.backward(Δη, Δs, η_out, s_out, J, d)
+Δη_inv, Δs_inv, η_inv, s_inv = L.backward(Δη, Δs, η_out, s_out, d, J)
 
 # Check invertibility
 @test isapprox(norm(η_inv - η_in)/norm(η_inv), 0f0, atol=1e-5)
