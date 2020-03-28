@@ -5,52 +5,43 @@
 export ConditionalResidualBlock
 
 """
-    RB = ConditionalResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, fan=false)
+    RB = ConditionalResidualBlock(nx1, nx2, nx_in, ny1, ny2, ny_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1
 
- Create a (non-invertible) residual block, consisting of three convolutional layers and activation functions.
- The first convolution is a downsampling operation with a stride equal to the kernel dimension. The last
- convolution is the corresponding transpose operation and upsamples the data to either its original dimensions
- or to twice the number of input channels (for `fan=true`). The first and second layer contain a bias term.
+ Create a (non-invertible) conditional residual block, consisting of one dense and three convolutional layers 
+ with ReLU activation functions.
 
  *Input*: 
 
- - `nx, ny`: spatial dimensions of input
+ - `nx1`, `nx2`, `nx_in`: spatial dimensions and no. of channels of input image
+
+ - `ny1`, `ny2`, `ny_in`: spatial dimensions and no. of channels of input data
  
- - `n_in`, `n_hidden`: number of input and hidden channels
+ - `n_hidden`: number of hidden channels
 
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
     operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
 
- - `fan`: bool to indicate whether the ouput has twice the number of input channels. For `fan=false`, the last
-    activation function is a gated linear unit (thereby bringing the output back to the original dimensions).
-    For `fan=true`, the last activation is a ReLU, in which case the output has twice the number of channels
-    as the input.
+ - `s1`, `s2`: strides for the first and third convolution (`s1`) and the second convolution (`s2`)
 
 or
 
- - `W1`, `W2`, `W3`: 4D tensors of convolutional weights
-
- - `b1`, `b2`: bias terms
-
- - `nx`, `ny`: spatial dimensions of input image
-
  *Output*:
  
- - `RB`: residual block layer
+ - `RB`: conditional residual block layer
 
  *Usage:*
 
- - Forward mode: `Y = RB.forward(X)`
+ - Forward mode: `Zx, Zy = RB.forward(X, Y)`
 
- - Backward mode: `ΔX = RB.backward(ΔY, X)`
+ - Backward mode: `ΔX, ΔY = RB.backward(ΔZx, ΔZy, X, Y)`
 
  *Trainable parameters:*
 
- - Convolutional kernel weights `RB.W1`, `RB.W2` and `RB.W3`
+ - Convolutional kernel weights `RB.W0`, `RB.W1`, `RB.W2` and `RB.W3`
 
- - Bias terms `RB.b1` and `RB.b2`
+ - Bias terms `RB.b0`, `RB.b1` and `RB.b2`
 
  See also: [`get_params`](@ref), [`clear_grad!`](@ref)
 """
@@ -144,8 +135,8 @@ function residual_backward(ΔX4, ΔD, X0, D, W0, W1, W2, W3, b0, b1, b2, cdims1,
 
     ΔX0, ΔX0_ = tensor_split(ΔX1)
     ΔY0 = ReLUgrad(ΔX0_, reshape(Y0, nx1, nx2, nx_in, batchsize))
-    ΔD = reshape(transpose(W0.data)*reshape(ΔY0, :, batchsize), size(D))
-    ΔW0 = reshape(D, :, batchsize)*transpose(reshape(ΔY0, :, batchsize))
+    ΔD += reshape(transpose(W0.data)*reshape(ΔY0, :, batchsize), size(D))
+    ΔW0 = reshape(ΔY0, :, batchsize)*transpose(reshape(D, :, batchsize))
     Δb0 = vec(sum(ΔY0, dims=4))
     
     # Set gradients

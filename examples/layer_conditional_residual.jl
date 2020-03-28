@@ -24,6 +24,9 @@ RB = ConditionalResidualBlock(nx1, nx2, nx_in, ny1, ny2, ny_in, n_hidden, batchs
 
 # Observed data
 Y, D_ = RB.forward(X, D)
-ΔY = Y
-ΔD = D
+
+# Set data residual to zero
+ΔY = Y.*0f0; ΔD = D.*0f0
+
+# Backward pass
 ΔX, ΔD = RB.backward(ΔY, ΔD, X, D)
