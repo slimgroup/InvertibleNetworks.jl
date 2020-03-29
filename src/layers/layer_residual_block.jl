@@ -73,7 +73,7 @@ struct ResidualBlock <: NeuralNetLayer
 end
 
 # Constructor
-function ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, fan=false)
+function ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, fan=false)
 
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1, k1, n_in, n_hidden))
@@ -84,11 +84,11 @@ function ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1
 
     # Dimensions for convolutions
     cdims1 = DenseConvDims((nx, ny, n_in, batchsize), (k1, k1, n_in, n_hidden); 
-        stride=(k1,k1), padding=(p1,p1))
+        stride=(s1,s1), padding=(p1,p1))
     cdims2 = DenseConvDims((Int(nx/k1), Int(ny/k1), n_hidden, batchsize), 
-        (k2, k2, n_hidden, n_hidden); stride=(1,1), padding=(p2,p2))
+        (k2, k2, n_hidden, n_hidden); stride=(s2,s2), padding=(p2,p2))
     cdims3 = DenseConvDims((nx, ny, 2*n_in, batchsize), (k1, k1, 2*n_in, n_hidden); 
-        stride=(k1,k1), padding=(p1,p1))
+        stride=(s1,s1), padding=(p1,p1))
 
     return ResidualBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3,
                          X -> residual_forward(X, W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3),

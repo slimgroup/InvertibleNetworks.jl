@@ -5,7 +5,7 @@
 export ConditionalLayerSLIM
 
 """
-    CI = ConditionalLayerSLIM(nx1, nx2, nx_in, nx_hidden, ny1, ny2, ny_in, ny_hidden, batchsize, Op; affine=true, k1=1, k2=3, p1=1, p2=0)
+    CI = ConditionalLayerSLIM(nx1, nx2, nx_in, nx_hidden, ny1, ny2, ny_in, ny_hidden, batchsize, Op; type="affine", k1=4, k2=3, p1=1, p2=0)
 
  Create a conditional SLIM layer based on the HINT architecture.
 
@@ -21,12 +21,14 @@ export ConditionalLayerSLIM
 
  - `Op`: Linear forward modeling operator
 
- - `affine`: bool to indicate whether to use affine or additive coupling layer (default is affine)
+ - `type`: string to indicate which type of data coupling layer to use (`"additive"`, `"affine"`, `"learned"`)
 
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
     operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
+
+ - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
  *Output*:
  
@@ -56,7 +58,7 @@ export ConditionalLayerSLIM
 struct ConditionalLayerSLIM <: NeuralNetLayer
     CL_X::CouplingLayerHINT
     CL_Y::CouplingLayerHINT
-    CL_XY::Union{AdditiveCouplingLayerSLIM, AffineCouplingLayerSLIM}
+    CL_XY::Union{AdditiveCouplingLayerSLIM, AffineCouplingLayerSLIM, LearnedCouplingLayerSLIM}
     C_X::Conv1x1
     C_Y::Conv1x1
     forward::Function
@@ -68,15 +70,20 @@ end
 
 # Constructor from input dimensions
 function ConditionalLayerSLIM(nx1::Int64, nx2::Int64, nx_in::Int64, nx_hidden::Int64, ny1::Int64, ny2::Int64, ny_in::Int64, ny_hidden::Int64,
-    batchsize::Int64; affine=true, k1=4, k2=3, p1=0, p2=1)
+    batchsize::Int64; type="affine", k1=4, k2=3, p1=0, p2=1)
 
     # Create basic coupling layers
     CL_X = CouplingLayerHINT(nx1, nx2, nx_in, nx_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
     CL_Y = CouplingLayerHINT(Int(ny1/2), Int(ny2/2), Int(ny_in*4), ny_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
-    if affine
+    
+    if type == "affine"
         CL_XY = AffineCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, identity; k1=k1, k2=k2, logdet=true, permute=false)
-    else
+    elseif type == "additive"
         CL_XY = AdditiveCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, identity; k1=k1, k2=k2, logdet=true, permute=false)
+    elseif type == "learned"
+        CL_XY = LearnedCouplingLayerSLIM( nx1, nx2, nx_in, ny1, ny2, ny_in, nx_hidden, batchsize; k1=k1, k2=k2, logdet=true, permute=false)
+    else
+        throw("Specified layer type not defined.")
     end
 
     # Permutation using 1x1 convolution
@@ -103,8 +110,11 @@ function forward_cond_slim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
     # X-lane
     Xp = C_X.forward(X)
     X, logdet1 = CL_X.forward(Xp)
-    Zx, logdet3 = CL_XY.forward(X, reshape(Y, :, size(Y, 4)), Op)
-
+    if typeof(CL_XY) == LearnedCouplingLayerSLIM
+        Zx, logdet3 = CL_XY.forward(X, reshape(Y, :, size(Y, 4)))   # Learn operator
+    else
+        Zx, logdet3 = CL_XY.forward(X, reshape(Y, :, size(Y, 4)), Op)   # Use provided operator
+    end
     logdet = logdet1 + logdet2 + logdet3
     return Zx, Zy, logdet
 end
@@ -118,7 +128,11 @@ function inverse_cond_slim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
     Y = wavelet_unsqueeze(Ys)
 
     # X-lane
-    X = CL_XY.inverse(Zx, reshape(Y, :, size(Y, 4)), Op)
+    if typeof(CL_XY) == LearnedCouplingLayerSLIM
+        X = CL_XY.inverse(Zx, reshape(Y, :, size(Y, 4)))
+    else
+        X = CL_XY.inverse(Zx, reshape(Y, :, size(Y, 4)), Op)
+    end
     Xp = CL_X.inverse(X)
     X = C_X.inverse(Xp)
 
@@ -136,7 +150,11 @@ function backward_cond_slim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
     ΔY = wavelet_unsqueeze(ΔYs)
 
     # X-lane
-    ΔX, ΔY_, X = CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)), Op)
+    if typeof(CL_XY) == LearnedCouplingLayerSLIM
+        ΔX, ΔY_, X = CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)))
+    else
+        ΔX, ΔY_, X = CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)), Op)
+    end
     ΔY += reshape(ΔY_, size(ΔY))
     ΔXp, Xp = CL_X.backward(ΔX, X)
     ΔX, X = C_X.inverse((ΔXp, Xp))

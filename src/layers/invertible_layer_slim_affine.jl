@@ -9,7 +9,7 @@ export AffineCouplingLayerSLIM
 """
     CS = AffineCouplingLayerSLIM(nx, ny, n_in, n_hidden, batchsize, Ψ; logdet=false, permute=false, k1=1, k2=3, p1=0, p2=1)
 
- Create an invertible SLIM coupling layer (affine).
+ Create an invertible affine SLIM coupling layer.
 
  *Input*: 
 
@@ -64,11 +64,11 @@ end
 
 # Constructor from input dimensions
 function AffineCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64, Ψ::Function; 
-    k1=4, k2=3, p1=0, p2=1, logdet::Bool=false, permute::Bool=false)
+    k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet::Bool=false, permute::Bool=false)
 
     # 1x1 Convolution and residual block for invertible layer
     permute == true ? (C = Conv1x1(n_in)) : (C = nothing)
-    RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, fan=true)
+    RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true)
     AN = ActNorm(1)
 
     return AffineCouplingLayerSLIM(C, RB, AN, Ψ, logdet,
