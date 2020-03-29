@@ -25,6 +25,7 @@ include("utils/activation_functions.jl")
 include("utils/test_distributions.jl")
 
 # Single network layers (invertible and non-invertible)
+include("conditional_layers/conditional_layer_residual_block.jl")
 include("layers/layer_residual_block.jl")
 include("layers/layer_affine.jl")
 include("layers/invertible_layer_actnorm.jl")
@@ -36,6 +37,7 @@ include("layers/invertible_layer_hyperbolic.jl")
 include("layers/invertible_layer_hint.jl")
 include("layers/invertible_layer_slim_additive.jl")
 include("layers/invertible_layer_slim_affine.jl")
+include("layers/invertible_layer_slim_learned.jl")
 
 # Invertible network architectures
 include("networks/invertible_network_irim.jl")  # i-RIM: Putzky and Welling (2019)
@@ -43,7 +45,6 @@ include("networks/invertible_network_glow.jl")  # Glow: Dinh et al. (2017), King
 include("networks/invertible_network_hyperbolic.jl")    # Hyperbolic: Lensink et al. (2019)
 
 # Conditional layers
-include("conditional_layers/conditional_layer_residual_block.jl")
 include("conditional_layers/conditional_layer_hint.jl")
 include("conditional_layers/conditional_layer_slim.jl")
 

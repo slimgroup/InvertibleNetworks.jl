@@ -5,7 +5,7 @@
 export ConditionalResidualBlock
 
 """
-    RB = ConditionalResidualBlock(nx1, nx2, nx_in, ny1, ny2, ny_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1
+    RB = ConditionalResidualBlock(nx1, nx2, nx_in, ny1, ny2, ny_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
  Create a (non-invertible) conditional residual block, consisting of one dense and three convolutional layers 
  with ReLU activation functions. The dense operator maps the data to the image space and both tensors are

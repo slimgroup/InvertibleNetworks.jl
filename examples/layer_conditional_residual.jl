@@ -13,7 +13,7 @@ batchsize = 2
 
 ny1 = 64
 ny2 = 22
-ny_in = 1
+ny_in = 4
 
 # Input image
 X = glorot_uniform(nx1, nx2, nx_in, batchsize)

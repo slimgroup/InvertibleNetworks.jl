@@ -9,7 +9,7 @@ using InvertibleNetworks, LinearAlgebra, Test
 # Test invertibility
 
 # Use affine or additive coupling ConditionalLayerSLIM
-is_affine = true
+type = "affine" # "affine", "additive" or "learned"
 
 # X dimensions
 nx1 = 32
@@ -32,7 +32,7 @@ X = glorot_uniform(nx1, nx2, nx_channel, batchsize)
 Y = glorot_uniform(ny1, ny2, ny_channel, batchsize)
 
 # Conditional HINT layer
-CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize; affine=is_affine)
+CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize; type=type)
 
 # Forward/inverse
 Zx, Zy, logdet = CI.forward(X, Y, A)
@@ -78,7 +78,7 @@ function loss(CI, X, Y, A)
 end
 
 # Gradient test for input X, Y
-CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize; affine=is_affine)
+CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize; type=type)
 f0, gX, gY = loss(CI, X0, Y0, A)[1:3]
 
 maxiter = 5
@@ -101,8 +101,8 @@ end
 # Test for weights
 X = randn(Float32, nx1, nx2, nx_channel, batchsize)
 Y = randn(Float32, ny1, ny2, ny_channel, batchsize)
-CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize; affine=is_affine)
-CI0 = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize; affine=is_affine)
+CI = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize; type=type)
+CI0 = ConditionalLayerSLIM(nx1, nx2, nx_channel, nx_hidden, ny1, ny2, ny_channel, ny_hidden, batchsize; type=type)
 
 # Make weights larger (otherweise too close to zero after initialization)
 CI.CL_X.CL[1].RB.W1.data .*= 4; CI0.CL_X.CL[1].RB.W1.data .*= 4
