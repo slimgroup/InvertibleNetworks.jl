@@ -152,7 +152,8 @@ function clear_grad!(UL::NetworkLoop)
     for j=1:maxiter
         clear_grad!(UL.L[j].C)
         clear_grad!(UL.L[j].RB)
-        clear_grad!(UL.AN[j])
+        UL.AN[j].s = nothing
+        UL.AN[j].b = nothing
     end
 end
 
@@ -160,11 +161,9 @@ end
 function get_params(UL::NetworkLoop)
     maxiter = length(UL.L)
     p = get_params(UL.L[1])
-    p = cat(p, get_params(UL.AN[1]); dims=1)
     if maxiter > 1
         for j=2:maxiter
             p = cat(p, get_params(UL.L[j]); dims=1)
-            p = cat(p, get_params(UL.AN[j]); dims=1)
         end
     end
     return p
