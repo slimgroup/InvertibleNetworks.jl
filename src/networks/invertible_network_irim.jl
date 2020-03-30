@@ -152,7 +152,7 @@ function clear_grad!(UL::NetworkLoop)
     for j=1:maxiter
         clear_grad!(UL.L[j].C)
         clear_grad!(UL.L[j].RB)
-        clear_grad!(UL.AN[j].RB)
+        clear_grad!(UL.AN[j])
         UL.AN[j].s.data = nothing
         UL.AN[j].b.data = nothing
     end
