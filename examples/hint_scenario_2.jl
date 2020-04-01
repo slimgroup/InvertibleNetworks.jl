@@ -48,7 +48,7 @@ R = cholesky(Σ2_post, check=false).L
 standard_normal = MvNormal(zeros(dim_model), ones(dim_model))
 
 function post_dist_sample()
-    return R*convert(Array{Float32}, rand(standard_normal)) + μ_post
+	return R*convert(Array{Float32}, rand(standard_normal)) + μ_post
 end
 
 ##### Invertible neural net #####
@@ -98,10 +98,10 @@ opt = Flux.ADAM(η)
 function loss(z_in, y_in)
 	x̂, logdet = forward(z_in)
 	f = 1.0f0/(2.0f0*σ_ϵ^2) * sum(A*x̂[1, 1, :, :] .- y_in)^2/(1.0f0*batch_size) + 
-    	1.0f0/(2.0f0*σ_x^2) * sum(x̂ .- μ_x)^2/(1.0f0*batch_size) - logdet
+		1.0f0/(2.0f0*σ_x^2) * sum(x̂ .- μ_x)^2/(1.0f0*batch_size) - logdet
 
-    ΔY = 1.0f0/(σ_ϵ^2) * transpose(A)*(A*x̂[1, 1, :, :] .- y_in)/(1.0f0*batch_size) + 
-    	1.0f0/(σ_x^2) * (x̂[1, 1, :, :] .- μ_x)/(1.0f0*batch_size)
+	ΔY = 1.0f0/(σ_ϵ^2) * transpose(A)*(A*x̂[1, 1, :, :] .- y_in)/(1.0f0*batch_size) + 
+		1.0f0/(σ_x^2) * (x̂[1, 1, :, :] .- μ_x)/(1.0f0*batch_size)
 	ΔX = backward(permutedims(repeat(ΔY, 1, 1, 1, 1), [3, 4, 1, 2]), x̂)[1]
 	return f, ΔX
 end
@@ -153,31 +153,31 @@ grid()
 # Comparing estimated and true covariance matrix
 figure("Posterior covariance", dpi=150, figsize=(8, 4)); 
 subplot(121); imshow(Σ2_post, vmin=-maximum(Σ2_post), vmax=maximum(Σ2_post), 
-    cmap="RdBu")
+	cmap="RdBu")
 title("True posterior covariance")
 colorbar(fraction=0.0475, pad=0.03)
 subplot(122); imshow(Σ2_est, vmin=-maximum(Σ2_post), vmax=maximum(Σ2_post), 
-    cmap="RdBu")
+	cmap="RdBu")
 title("Estimated posterior covariance")
 colorbar(fraction=0.0475, pad=0.03)
 
 # Sammpling from true posterior
 true_samples = zeros(Float32, dim_model, max_itr)
 for j = 1:N
-    true_samples[:, j] = post_dist_sample()
+	true_samples[:, j] = post_dist_sample()
 end
 
 # Samples from estimated and true posterior
 figure("samples from posterior", dpi=150, figsize=(7, 6))
 subplot(211); 
 for j = 1:100
-    plot(true_samples[:, j], alpha=0.5)
+	plot(true_samples[:, j], alpha=0.5)
 grid()
 end
 title("Samples from true posterior")
 subplot(212); 
 for j =1:100
-    plot(x̂[:, j], alpha=0.5)
+	plot(x̂[:, j], alpha=0.5)
 grid()
 title("Samples from estimated posterior")
 end
