@@ -1,6 +1,6 @@
 # Example for HINT scienario 2 (Kruse et al, 2020)
 # Obtaining samples from posterior for the following problem:
-# y = Ax + ϵ, ϵ ~ N(μ_x, σ_x^2), A ~ N(0, I/|x|^2)
+# y = Ax + ϵ, x ~ N(μ_x, σ_x^2), ϵ ~ N(μ_ϵ, σ_ϵ^2), A ~ N(0, I/|x|^2)
 
 using InvertibleNetworks, LinearAlgebra, Test
 using Distributions
