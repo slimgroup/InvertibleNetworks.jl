@@ -78,7 +78,7 @@ for j=1:maxiter
 
     # Evaluate objective and gradients
     X = sample_banana(batchsize)
-    Y = convert(Array{Float32},abs.(X).^0.5) + .2f0*randn(Float32, nx, ny, n_in, batchsize)
+    Y = convert(Array{Float32},abs.(X).^0.33) + .2f0*randn(Float32, nx, ny, n_in, batchsize)
     fval[j] = loss(X, Y)[1]
     mod(j, 10) == 0 && (print("Iteration: ", j, "; f = ", fval[j], "\n"))
 
@@ -94,7 +94,7 @@ end
 # Testing
 test_size = 500
 X = sample_banana(test_size)
-Y = convert(Array{Float32},abs.(X).^0.5) + .2f0*randn(Float32, nx, ny, n_in, test_size)
+Y = convert(Array{Float32},abs.(X).^0.33) + .2f0*randn(Float32, nx, ny, n_in, test_size)
 Zx_, Zy_ = forward(X, Y)[1:2]
 Zx = randn(Float32, nx, ny, n_in, test_size)
 Zy = randn(Float32, nx, ny, n_in, test_size)
