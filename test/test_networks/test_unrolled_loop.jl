@@ -88,8 +88,7 @@ end
 
 
 # Gradient test for weights
-#L = NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ);# L.forward(η0, s0, d, J)
-L0 = NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ)#; L0.forward(η0, s0, d, J)
+L0 = NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ)
 L_ini = deepcopy(L0)
 dv = L.L[1].C.v1.data - L0.L[1].C.v1.data   # just test for 2 parameters
 dW = L.L[1].RB.W1.data - L0.L[1].RB.W1.data

@@ -83,7 +83,7 @@ function forward_slim_affine(X::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=f
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(X)
-
+    
     # Permute and split
     isnothing(C) ? (X_ = copy(X)) : (X_ = C.forward(X))
     X1_, X2_ = tensor_split(X_)
@@ -163,12 +163,13 @@ function clear_grad!(CS::AffineCouplingLayerSLIM)
     ~isnothing(CS.C) && clear_grad!(CS.C)
     clear_grad!(CS.RB)
     clear_grad!(CS.AN)
+    CS.AN.s.data = nothing
+    CS.AN.b.data = nothing
 end
 
 # Get parameters
 function get_params(CS::AffineCouplingLayerSLIM)
     p = get_params(CS.RB)
-    p = cat(p, get_params(CS.AN); dims=1)
     ~isnothing(CS.C) && (p = cat(p, get_params(CS.C); dims=1))
     return p
 end

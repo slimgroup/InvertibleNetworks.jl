@@ -158,7 +158,7 @@ function clear_grad!(UL::NetworkLoop)
     end
 end
 
-# Get parameters
+# Get parameters (do not update actnorm weights)
 function get_params(UL::NetworkLoop)
     maxiter = length(UL.L)
     p = get_params(UL.L[1])
