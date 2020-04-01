@@ -53,7 +53,7 @@ end
 
 ##### Invertible neural net #####
 
-depth = 8
+depth = 4
 AN = Array{ActNorm}(undef, depth)
 L = Array{CouplingLayerHINT}(undef, depth)
 Params = Array{Parameter}(undef, 0)
@@ -61,7 +61,7 @@ Params = Array{Parameter}(undef, 0)
 # Create layers
 for j=1:depth
 	AN[j] = ActNorm(dim_model; logdet=true)
-	L[j] = CouplingLayerHINT(1, 1, dim_model, 64, 64; logdet=true, permute="lower", 
+	L[j] = CouplingLayerHINT(1, 1, dim_model, 32, 32; logdet=true, permute="lower", 
 		k1=1, k2=1, p1=0, p2=0)
 
 	# Collect parameters
