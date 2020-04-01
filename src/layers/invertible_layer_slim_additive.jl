@@ -158,12 +158,13 @@ function clear_grad!(CS::AdditiveCouplingLayerSLIM)
     ~isnothing(CS.C) && clear_grad!(CS.C)
     clear_grad!(CS.RB)
     clear_grad!(CS.AN)
+    CS.AN.s.data = nothing
+    CS.AN.b.data = nothing
 end
 
 # Get parameters
 function get_params(CS::AdditiveCouplingLayerSLIM)
     p = get_params(CS.RB)
-    p = cat(p, get_params(CS.AN); dims=1)
     ~isnothing(CS.C) && (p = cat(p, get_params(CS.C); dims=1))
     return p
 end

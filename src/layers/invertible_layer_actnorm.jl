@@ -4,7 +4,7 @@
 # Date: January 2020
 #
 
-export ActNorm
+export ActNorm, reset!
 
 """
     AN = ActNorm(k; logdet=false)
@@ -102,6 +102,19 @@ end
 function clear_grad!(AN::ActNorm)
     AN.s.grad = nothing
     AN.b.grad = nothing
+end
+
+# Reset actnorm layers
+function reset!(AN::ActNorm)
+    AN.s.data = nothing
+    AN.b.data = nothing
+end
+
+function reset!(AN::Array{ActNorm, 1})
+    for j=1:length(AN)
+        AN[j].s.data = nothing
+        AN[j].b.data = nothing
+    end
 end
 
 # Get parameters
