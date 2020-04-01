@@ -40,11 +40,11 @@ y = A*x + ϵ
 
 
 ##### Analytic posterior distribution #####
-Σ2_post = inv(I/σ_x^2 + transpose(A)*(I/σ_ϵ^2)*A)
-μ_post = convert(Array{Float32}, Σ2_post*transpose(A)*(I/σ_ϵ^2)*y + 
+Σ_post = inv(I/σ_x^2 + transpose(A)*(I/σ_ϵ^2)*A)
+μ_post = convert(Array{Float32}, Σ_post*transpose(A)*(I/σ_ϵ^2)*y + 
 	(I/σ_x^2)*μ_x*ones(dim_model))
 
-R = cholesky(Σ2_post, check=false).L
+R = cholesky(Σ_post, check=false).L
 standard_normal = MvNormal(zeros(dim_model), ones(dim_model))
 
 function post_dist_sample()
@@ -135,7 +135,7 @@ end
 x̂ = forward(z)[1][1, 1, :, :]
 
 μ_est = mean(x̂; dims=2)
-Σ2_est = cov(x̂; dims=2, corrected=true)
+Σ_est = cov(x̂; dims=2, corrected=true)
 
 
 # Training loss
@@ -152,11 +152,11 @@ grid()
 
 # Comparing estimated and true covariance matrix
 figure("Posterior covariance", dpi=150, figsize=(8, 4)); 
-subplot(121); imshow(Σ2_post, vmin=-maximum(Σ2_post), vmax=maximum(Σ2_post), 
+subplot(121); imshow(Σ_post, vmin=-maximum(Σ_post), vmax=maximum(Σ_post), 
 	cmap="RdBu")
 title("True posterior covariance")
 colorbar(fraction=0.0475, pad=0.03)
-subplot(122); imshow(Σ2_est, vmin=-maximum(Σ2_post), vmax=maximum(Σ2_post), 
+subplot(122); imshow(Σ_est, vmin=-maximum(Σ_post), vmax=maximum(Σ_post), 
 	cmap="RdBu")
 title("Estimated posterior covariance")
 colorbar(fraction=0.0475, pad=0.03)
