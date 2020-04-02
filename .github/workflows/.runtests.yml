@@ -42,5 +42,5 @@ jobs:
     
       - name: Run simple example
         if: runner.os == 'linux'
-        run: julia --project examples/layer_actnorm.jl
+        run: julia --project examples/layers/layer_actnorm.jl
 
