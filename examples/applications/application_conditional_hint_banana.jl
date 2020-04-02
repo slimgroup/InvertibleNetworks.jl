@@ -35,6 +35,9 @@ for j=1:depth
     global Params = cat(Params, get_params(L[j]); dims=1)
 end
 
+
+####################################################################################################
+
 # Forward pass
 function forward(X, Y)
     logdet = 0f0
@@ -55,6 +58,30 @@ function backward(ΔX, ΔY, X, Y)
         ΔY, Y = AN_Y[j].backward(ΔY_, Y_)
     end
     return ΔX, ΔY, X, Y
+end
+
+# Inverse pass
+function inverse(X, Y)
+    for j=depth:-1:1
+        X, Y = L[j].inverse(X, Y)
+    end
+    return X, Y
+end
+
+# Forward pass Y-lane
+function forward_Y(Y)
+    for j=1:depth
+        Y = L[j].forward_Y(Y)
+    end
+    return Y
+end
+
+# Inverse pass Y-lane
+function inverse_Y(Y)
+    for j=depth:-1:1
+        Y = L[j].inverse_Y(Y)
+    end
+    return Y
 end
 
 ####################################################################################################
@@ -93,22 +120,41 @@ end
 
 # Testing
 test_size = 500
+
+# Model + data samples
 X = sample_banana(test_size)
 Y = X + .2f0*randn(Float32, nx, ny, n_in, test_size)
-Zx_, Zy_ = forward(X, Y)[1:2]
-Zx = randn(Float32, nx, ny, n_in, test_size)
-Zy = randn(Float32, nx, ny, n_in, test_size)
-X_, Y_ = backward(0f0.*Zx, 0f0.*Zy, Zx, Zy)[3:4]
 
-# Plot
+# Latent space
+Zx_, Zy_ = forward(X, Y)[1:2]
+
+# Now select single fixed sample from all Ys
+idx = 1
+Y_fixed = Y[:,:,:,idx:idx]
+Zy_fixed = forward_Y(Y_fixed)
+
+# Plot samples from X and Y and their latent versions
 figure(figsize=[8,8])
 ax1 = subplot(2,2,1); plot(X[1, 1, 1, :], X[1, 1, 2, :], "."); title(L"Model space: $x \sim \hat{p}_x$")
+ax1.set_xlim([-3.5,3.5]); ax1.set_ylim([0,50])
 ax2 = subplot(2,2,2); plot(Zx_[1, 1, 1, :], Zx_[1, 1, 2, :], "g."); title(L"Latent space: $zx = f(x|y)$")
-ax3 = subplot(2,2,3); plot(X_[1, 1, 1, :], X_[1, 1, 2, :], "g."); title(L"Model space: $x = f^{-1}(zx|zy)$")
-ax4 = subplot(2,2,4); plot(Zx[1, 1, 1, :], Zx[1, 1, 2, :], "."); title(L"Latent space: $zx \sim \hat{p}_{zx}$")
+ax2.set_xlim([-3.5, 3.5]); ax2.set_ylim([-3.5, 3.5])
+ax3 = subplot(2,2,3); plot(Y[1, 1, 1, :], Y[1, 1, 2, :], "."); 
+plot(Y_fixed[1, 1, 1, :], Y_fixed[1, 1, 2, :], "r."); title(L"Data space: $y \sim \hat{p}_y$")
+ax3.set_xlim([-3.5,3.5]); ax3.set_ylim([0,50])
+ax4 = subplot(2,2,4); plot(Zy_[1, 1, 1, :], Zy_[1, 1, 2, :], "g."); 
+plot(Zy_fixed[1, 1, 1, :], Zy_fixed[1, 1, 2, :], "r."); title(L"Latent space: $zy = f(x|y)$")
+ax4.set_xlim([-3.5, 3.5]); ax4.set_ylim([-3.5, 3.5])
 
+
+# Draw new Zx, while keeping Zy fixed
+Zx = randn(Float32, nx, ny, n_in, test_size)
+X_, Y_ = inverse(Zx, Zy_fixed.*ones(Float32, nx, ny, n_in, test_size))  # copy Zy_fixed
+
+
+# Plot samples from X and Y and their latent versions
 figure(figsize=[8,8])
-ax1 = subplot(2,2,1); plot(Y[1, 1, 1, :], Y[1, 1, 2, :], "."); title(L"Data space: $y \sim \hat{p}_y$")
-ax2 = subplot(2,2,2); plot(Zy_[1, 1, 1, :], Zy_[1, 1, 2, :], "g."); title(L"Latent space: $zy = f(y)$")
-ax3 = subplot(2,2,3); plot(Y_[1, 1, 1, :], Y_[1, 1, 2, :], "g."); title(L"Data space: $y = f^{-1}(zy)$")
-ax4 = subplot(2,2,4); plot(Zy[1, 1, 1, :], Zy[1, 1, 2, :], "."); title(L"Latent space: $zy \sim \hat{p}_{zy}$")
+ax1 = subplot(2,2,1); plot(X_[1, 1, 1, :], X_[1, 1, 2, :], "."); title(L"Model space: $x \sim \hat{p}_x$")
+#ax1.set_xlim([-3.5,3.5]); ax1.set_ylim([0,50])
+ax2 = subplot(2,2,2); plot(Zx[1, 1, 1, :], Zx[1, 1, 2, :], "g."); title(L"Latent space: $zx = f(x|y)$")
+ax2.set_xlim([-3.5, 3.5]); ax2.set_ylim([-3.5, 3.5])
