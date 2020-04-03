@@ -88,11 +88,11 @@ function coupling_layer_forward(X1::Array{Float32, 4}, X2::Array{Float32, 4}, RB
 
     # Coupling layer
     k = size(X1, 3)  
-    Y2 = copy(X2)
-    logS_T = RB.forward(Y2)
+    Y1 = copy(X1)
+    logS_T = RB.forward(X1)
     S = Sigmoid(logS_T[:,:,1:k,:])
     T = logS_T[:, :, k+1:end, :]
-    Y1 = S.*X1 + T
+    Y2 = S.*X2 + T
     
     logdet == true ? (return Y1, Y2, coupling_logdet_forward(S)) : (return Y1, Y2)
 end
@@ -102,11 +102,11 @@ function coupling_layer_inverse(Y1::Array{Float32, 4}, Y2::Array{Float32, 4}, RB
 
     # Inverse layer  
     k = size(Y1, 3)  
-    X2 = copy(Y2)
-    logS_T = RB.forward(X2)
+    X1 = copy(Y1)
+    logS_T = RB.forward(X1)
     S = Sigmoid(logS_T[:,:,1:k,:])
     T = logS_T[:, :, k+1:end, :]
-    X1 = (Y1 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
+    X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
  
     save == true ? (return X1, X2, S) : (return X1, X2)
 
@@ -120,11 +120,11 @@ function coupling_layer_backward(ΔY1::Array{Float32, 4}, ΔY2::Array{Float32, 4
     X1, X2, S = coupling_layer_inverse(Y1, Y2, RB; save=true)
 
     # Backpropagate residual
-    ΔT = copy(ΔY1)
-    ΔS = ΔY1 .* X1
+    ΔT = copy(ΔY2)
+    ΔS = ΔY2 .* X2
     logdet == true && (ΔS -= coupling_logdet_backward(S))
-    ΔX1 = ΔY1 .* S
-    ΔX2 = RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), X2) + ΔY2
+    ΔX2 = ΔY2 .* S
+    ΔX1 = RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), X1) + ΔY1
 
     return ΔX1, ΔX2, X1, X2
 end

@@ -100,20 +100,20 @@ function forward_hint(X::Array{Float32, 4}, CL, C; scale=1, logdet=false, permut
         Ya, logdet1 = forward_hint(Xa, CL, C; scale=scale+1, logdet=logdet)
         Y_temp, logdet2 = forward_hint(Xb, CL, C; scale=scale+1, logdet=logdet)
         if logdet==false
-            Yb = CL[scale].forward(Y_temp, Xa)[1]
+            Yb = CL[scale].forward(Xa, Y_temp)[2]
             logdet3 = 0f0
         else
-            Yb, logdet3 = CL[scale].forward(Y_temp, Xa)[[1,3]]
+            Yb, logdet3 = CL[scale].forward(Xa, Y_temp)[[2,3]]
         end
         logdet_full = logdet1 + logdet2 + logdet3
     else
         # Finest layer
         Ya = copy(Xa)
         if logdet==false
-            Yb = CL[scale].forward(Xb, Xa)[1]
+            Yb = CL[scale].forward(Xa, Xb)[2]
             logdet_full = 0f0
         else
-            Yb, logdet_full = CL[scale].forward(Xb, Xa)[[1,3]]
+            Yb, logdet_full = CL[scale].forward(Xa, Xb)[[2,3]]
         end
     end
     Y = tensor_cat(Ya, Yb)
@@ -129,10 +129,10 @@ function inverse_hint(Y::Array{Float32, 4}, CL, C; scale=1, permute="none")
     Ya, Yb = tensor_split(Y)
     if size(Y, 3) > 4
         Xa = inverse_hint(Ya, CL, C; scale=scale+1)
-        Xb = inverse_hint(CL[scale].inverse(Yb, Xa)[1], CL, C; scale=scale+1)
+        Xb = inverse_hint(CL[scale].inverse(Xa, Yb)[2], CL, C; scale=scale+1)
     else
         Xa = copy(Ya)
-        Xb = CL[scale].inverse(Yb, Ya)[1]
+        Xb = CL[scale].inverse(Ya, Yb)[2]
     end
     permute == "lower" && (Xb = C.inverse(Xb))
     X = tensor_cat(Xa, Xb)
@@ -146,13 +146,13 @@ function backward_hint(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, CL, C; scal
     ΔYa, ΔYb = tensor_split(ΔY)
     if size(Y, 3) > 4
         ΔXa, Xa = backward_hint(ΔYa, Ya, CL, C; scale=scale+1)
-        ΔXb_temp, ΔXa_temp, X_temp = CL[scale].backward(ΔYb, ΔXa.*0f0, Yb, Xa)[1:3]
+        ΔXa_temp, ΔXb_temp, X_temp = CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb)[[1,2,4]]
         ΔXb, Xb = backward_hint(ΔXb_temp, X_temp, CL, C; scale=scale+1)
         ΔXa += ΔXa_temp
     else
         Xa = copy(Ya)
         ΔXa = copy(ΔYa)
-        ΔXb, ΔXa_, Xb = CL[scale].backward(ΔYb, ΔYa.*0f0, Yb, Ya)[1:3]
+        ΔXa_, ΔXb, Xb = CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb)[[1,2,4]]
         ΔXa += ΔXa_
     end
     permute == "lower" && ((ΔXb, Xb) = C.inverse((ΔXb, Xb)))
