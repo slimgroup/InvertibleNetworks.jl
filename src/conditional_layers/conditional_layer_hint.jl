@@ -42,7 +42,7 @@ export ConditionalLayerHINT
 
  - None in `CH` itself
 
- - Trainable parameters in coupling layers `CH.CL_X`, `CH.CL_Y`, `CH.CL_XY` and in
+ - Trainable parameters in coupling layers `CH.CL_X`, `CH.CL_Y`, `CH.CL_YX` and in
    permutation layers `CH.C_X` and `CH.C_Y`.
 
  See also: [`CouplingLayerBasic`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
@@ -50,7 +50,7 @@ export ConditionalLayerHINT
 struct ConditionalLayerHINT <: NeuralNetLayer
     CL_X::CouplingLayerHINT
     CL_Y::CouplingLayerHINT
-    CL_XY::CouplingLayerHINT
+    CL_YX::CouplingLayerBasic
     C_X::Union{Conv1x1, Nothing}
     C_Y::Union{Conv1x1, Nothing}
     forward::Function
@@ -66,22 +66,22 @@ function ConditionalLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64
     # Create basic coupling layers
     CL_X = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true, permute="none")
     CL_Y = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true, permute="none")
-    CL_XY = CouplingLayerHINT(nx, ny, n_in*2, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true, permute="none")
+    CL_YX = CouplingLayerBasic(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
 
     # Permutation using 1x1 convolution
     permute == true ? (C_X = Conv1x1(n_in)) : (C_X = nothing)
     permute == true ? (C_Y = Conv1x1(n_in)) : (C_Y = nothing)
 
-    return ConditionalLayerHINT(CL_X, CL_Y, CL_XY, C_X, C_Y,
-        (X, Y) -> forward_hint(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y),
-        (Zx, Zy) -> inverse_hint(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y),
-        (ΔZx, ΔZy, Zx, Zy) -> backward_hint(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y),
+    return ConditionalLayerHINT(CL_X, CL_Y, CL_YX, C_X, C_Y,
+        (X, Y) -> forward_hint(X, Y, CL_X, CL_Y, CL_YX, C_X, C_Y),
+        (Zx, Zy) -> inverse_hint(Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y),
+        (ΔZx, ΔZy, Zx, Zy) -> backward_hint(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y),
         Y -> forward_hint_Y(Y, CL_Y, C_Y),
         Zy -> inverse_hint_Y(Zy, CL_Y, C_Y)
         )
 end
 
-function forward_hint(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y)
+function forward_hint(X, Y, CL_X, CL_Y, CL_YX, C_X, C_Y)
 
     # Y-lane
     ~isnothing(C_Y) ? (Yp = C_Y.forward(Y)) : (Yp = copy(Y))
@@ -92,24 +92,21 @@ function forward_hint(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y)
     X, logdet1 = CL_X.forward(Xp)
 
     # X-lane: conditional layer
-    XY = tensor_cat(X, Yp)
-    Z, logdet3 = CL_XY.forward(XY)
-    Zx = tensor_split(Z)[1]
+    Zx, logdet3 = CL_YX.forward(Yp, X)[2:3]
     logdet = logdet1 + logdet2 + logdet3
 
     return Zx, Zy, logdet
 end
 
-function inverse_hint(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y)
+function inverse_hint(Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y)
 
     # Y-lane
     Yp = CL_Y.inverse(Zy)
     ~isnothing(C_Y) ? (Y = C_Y.inverse(Yp)) : (Y = copy(Yp))
 
     # X-lane: conditional layer
-    ZY = tensor_cat(Zx, Yp)
-    XY = CL_XY.inverse(ZY)
-    X = tensor_split(XY)[1]
+    YZ = tensor_cat(Yp, Zx)
+    X = CL_YX.inverse(Yp, Zx)[2]
 
     # X-lane: coupling layer
     Xp = CL_X.inverse(X)
@@ -118,17 +115,13 @@ function inverse_hint(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y)
     return X, Y
 end
 
-function backward_hint(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y)
+function backward_hint(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y)
 
     # Y-lane
     ΔYp, Yp = CL_Y.backward(ΔZy, Zy)
 
     # X-lane: conditional layer
-    ΔZY = tensor_cat(ΔZx, ΔYp.*0f0)
-    ZY = tensor_cat(Zx, Yp)
-    ΔXY, XY = CL_XY.backward(ΔZY, ZY)
-    ΔX, ΔYp_ = tensor_split(ΔXY)
-    X = tensor_split(XY)[1]
+    ΔYp_, ΔX, X = CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx)[[1,2,4]]
     ΔYp += ΔYp_
 
     # X-lane: coupling layer
@@ -162,7 +155,7 @@ end
 function clear_grad!(CH::ConditionalLayerHINT)
     clear_grad!(CH.CL_X)
     clear_grad!(CH.CL_Y)
-    clear_grad!(CH.CL_XY)
+    clear_grad!(CH.CL_YX)
     ~isnothing(CH.C_X) && clear_grad!(CH.C_X)
     ~isnothing(CH.C_Y) && clear_grad!(CH.C_Y)
 end
@@ -171,7 +164,7 @@ end
 function get_params(CH::ConditionalLayerHINT)
     p = get_params(CH.CL_X)
     p = cat(p, get_params(CH.CL_Y); dims=1)
-    p = cat(p, get_params(CH.CL_XY); dims=1)
+    p = cat(p, get_params(CH.CL_YX); dims=1)
     ~isnothing(CH.C_X) && (p = cat(p, get_params(CH.C_X); dims=1))
     ~isnothing(CH.C_Y) && (p = cat(p, get_params(CH.C_Y); dims=1))
     return p
