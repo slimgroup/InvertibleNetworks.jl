@@ -194,4 +194,5 @@ function get_params(CI::ConditionalLayerSLIM)
     p = cat(p, get_params(CI.CL_XY); dims=1)
     p = cat(p, get_params(CI.C_X); dims=1)
     p = cat(p, get_params(CI.C_Y); dims=1)
+    return p
 end
