@@ -2,7 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using LinearAlgebra, InvertibleNetworks, PyPlot, Flux, Random
+using LinearAlgebra, InvertibleNetworks, PyPlot, Flux, Random, Test
 import Flux.Optimise.update!
 
 # Random seed
@@ -16,8 +16,8 @@ nx = 1
 ny = 1
 n_in = 2
 n_hidden = 64
-batchsize = 20
-depth = 4
+batchsize = 64
+depth = 8
 AN_X = Array{ActNorm}(undef, depth)
 AN_Y = Array{ActNorm}(undef, depth)
 L = Array{ConditionalLayerHINT}(undef, depth)
@@ -25,13 +25,15 @@ Params = Array{Parameter}(undef, 0)
 
 # Create layers
 for j=1:depth
+
+    # Actnorm layers
     AN_X[j] = ActNorm(n_in; logdet=true)
     AN_Y[j] = ActNorm(n_in; logdet=true)
-    L[j] = ConditionalLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0)
-
-    # Collect parameters
     global Params = cat(Params, get_params(AN_X[j]); dims=1)
     global Params = cat(Params, get_params(AN_Y[j]); dims=1)
+
+    # Conditional HINT layers
+    L[j] = ConditionalLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, permute=true)
     global Params = cat(Params, get_params(L[j]); dims=1)
 end
 
@@ -63,7 +65,9 @@ end
 # Inverse pass
 function inverse(X, Y)
     for j=depth:-1:1
-        X, Y = L[j].inverse(X, Y)
+        X_, Y_ = L[j].inverse(X, Y)
+        Y = AN_Y[j].inverse(Y_)
+        X = AN_X[j].inverse(X_)
     end
     return X, Y
 end
@@ -71,7 +75,8 @@ end
 # Forward pass Y-lane
 function forward_Y(Y)
     for j=1:depth
-        Y = L[j].forward_Y(Y)
+        Y_ = AN_Y[j].forward(Y)[1]
+        Y = L[j].forward_Y(Y_)
     end
     return Y
 end
@@ -79,10 +84,36 @@ end
 # Inverse pass Y-lane
 function inverse_Y(Y)
     for j=depth:-1:1
-        Y = L[j].inverse_Y(Y)
+        Y_ = L[j].inverse_Y(Y)
+        Y = AN_Y[j].inverse(Y_)
     end
     return Y
 end
+
+####################################################################################################
+
+# Test layers
+test_size = 10
+X = sample_banana(test_size)
+Y = X + .4f0*randn(Float32, nx, ny, n_in, test_size)
+
+# Forward-backward
+Zx, Zy, logdet = forward(X, Y)
+X_, Y_ = backward(0f0.*Zx, 0f0.*Zy, Zx, Zy)[3:4]
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
+@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-5)
+
+# Forward-inverse
+Zx, Zy, logdet = forward(X, Y)
+X_, Y_ = inverse(Zx, Zy)
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
+@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-5)
+
+# Y-lane only
+Zyy = forward_Y(Y)
+Yy = inverse_Y(Zyy)
+@test isapprox(norm(Y - Yy)/norm(Y), 0f0; atol=1f-5)
+
 
 ####################################################################################################
 
@@ -97,8 +128,10 @@ function loss(X, Y)
 end
 
 # Training
-maxiter = 1000
+maxiter = 2000
 opt = Flux.ADAM(1f-3)
+lr_step = 100
+lr_decay_fn = Flux.ExpDecay(1f-3, .9, lr_step, 0.)
 fval = zeros(Float32, maxiter)
 
 for j=1:maxiter
@@ -112,49 +145,50 @@ for j=1:maxiter
     # Update params
     for p in Params
         update!(opt, p.data, p.grad)
+        update!(lr_decay_fn, p.data, p.grad)
     end
     clear_grad!(Params)
 end
 
-####################################################################################################
+# ####################################################################################################
 
 # Testing
-test_size = 500
-
-# Model + data samples
+test_size = 1000
 X = sample_banana(test_size)
 Y = X + .2f0*randn(Float32, nx, ny, n_in, test_size)
-
-# Latent space
 Zx_, Zy_ = forward(X, Y)[1:2]
+
+Zx = randn(Float32, nx, ny, n_in, test_size)
+Zy = randn(Float32, nx, ny, n_in, test_size)
+X_, Y_ = inverse(Zx, Zy)
 
 # Now select single fixed sample from all Ys
 idx = 1
-Y_fixed = Y[:,:,:,idx:idx]
+Y_fixed = Y[:, :, :, idx:idx]
 Zy_fixed = forward_Y(Y_fixed)
-
-# Plot samples from X and Y and their latent versions
-figure(figsize=[8,8])
-ax1 = subplot(2,2,1); plot(X[1, 1, 1, :], X[1, 1, 2, :], "."); title(L"Model space: $x \sim \hat{p}_x$")
-ax1.set_xlim([-3.5,3.5]); ax1.set_ylim([0,50])
-ax2 = subplot(2,2,2); plot(Zx_[1, 1, 1, :], Zx_[1, 1, 2, :], "g."); title(L"Latent space: $zx = f(x|y)$")
-ax2.set_xlim([-3.5, 3.5]); ax2.set_ylim([-3.5, 3.5])
-ax3 = subplot(2,2,3); plot(Y[1, 1, 1, :], Y[1, 1, 2, :], "."); 
-plot(Y_fixed[1, 1, 1, :], Y_fixed[1, 1, 2, :], "r."); title(L"Data space: $y \sim \hat{p}_y$")
-ax3.set_xlim([-3.5,3.5]); ax3.set_ylim([0,50])
-ax4 = subplot(2,2,4); plot(Zy_[1, 1, 1, :], Zy_[1, 1, 2, :], "g."); 
-plot(Zy_fixed[1, 1, 1, :], Zy_fixed[1, 1, 2, :], "r."); title(L"Latent space: $zy = f(x|y)$")
-ax4.set_xlim([-3.5, 3.5]); ax4.set_ylim([-3.5, 3.5])
-
 
 # Draw new Zx, while keeping Zy fixed
 Zx = randn(Float32, nx, ny, n_in, test_size)
-X_, Y_ = inverse(Zx, Zy_fixed.*ones(Float32, nx, ny, n_in, test_size))  # copy Zy_fixed
-
+X_post = inverse(Zx, Zy_fixed.*ones(Float32, nx, ny, n_in, test_size))[1]
 
 # Plot samples from X and Y and their latent versions
-figure(figsize=[8,8])
-ax1 = subplot(2,2,1); plot(X_[1, 1, 1, :], X_[1, 1, 2, :], "."); title(L"Model space: $x \sim \hat{p}_x$")
-#ax1.set_xlim([-3.5,3.5]); ax1.set_ylim([0,50])
-ax2 = subplot(2,2,2); plot(Zx[1, 1, 1, :], Zx[1, 1, 2, :], "g."); title(L"Latent space: $zx = f(x|y)$")
+figure(figsize=[16,8])
+ax1 = subplot(2,4,1); plot(X[1, 1, 1, :], X[1, 1, 2, :], "."); title(L"Model space: $x \sim \hat{p}_x$")
+ax1.set_xlim([-3.5, 3.5]); ax1.set_ylim([0,50])
+ax2 = subplot(2,4,5); plot(Zx_[1, 1, 1, :], Zx_[1, 1, 2, :], "g."); title(L"Latent space: $zx = f(x|y)$")
 ax2.set_xlim([-3.5, 3.5]); ax2.set_ylim([-3.5, 3.5])
+ax3 = subplot(2,4,2); plot(X_[1, 1, 1, :], X_[1, 1, 2, :], "g."); title(L"Model space: $x = f(zx|zy)^{-1}$")
+ax3.set_xlim([-3.5,3.5]); ax3.set_ylim([0,50])
+ax4 = subplot(2,4,6); plot(Zx[1, 1, 1, :], Zx[1, 1, 2, :], "."); title(L"Latent space: $zx \sim \hat{p}_{zx}$")
+ax4.set_xlim([-3.5, 3.5]); ax4.set_ylim([-3.5, 3.5])
+ax5 = subplot(2,4,3); plot(Y_[1, 1, 1, :], Y_[1, 1, 2, :], "g."); title(L"Data space: $y = f(zx|zy)^{-1}$")
+ax5.set_xlim([-3.5,3.5]); ax5.set_ylim([0,50])
+ax6 = subplot(2,4,7); plot(Zy[1, 1, 1, :], Zy[1, 1, 2, :], "."); title(L"Latent space: $zy \sim \hat{p}_{zy}$")
+ax6.set_xlim([-3.5, 3.5]); ax6.set_ylim([-3.5, 3.5])
+ax7 = subplot(2,4,4); plot(X_post[1, 1, 1, :], X_post[1, 1, 2, :], "g."); 
+plot(Y_fixed[1, 1, 1, :], Y_fixed[1, 1, 2, :], "r."); title(L"Model space: $x = f(zx|zy_{fix})^{-1}$")
+ax7.set_xlim([-3.5,3.5]); ax7.set_ylim([0,50])
+ax8 = subplot(2,4,8); plot(Zx[1, 1, 1, :], Zx[1, 1, 2, :], "."); 
+plot(Zy_fixed[1, 1, 1, :], Zy_fixed[1, 1, 2, :], "r."); title(L"Latent space: $zx \sim \hat{p}_{zx}$")
+ax8.set_xlim([-3.5, 3.5]); ax8.set_ylim([-3.5, 3.5])
+
