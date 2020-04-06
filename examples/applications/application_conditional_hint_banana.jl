@@ -95,7 +95,7 @@ end
 # Test layers
 test_size = 10
 X = sample_banana(test_size)
-Y = X + .4f0*randn(Float32, nx, ny, n_in, test_size)
+Y = X + .2f0*randn(Float32, nx, ny, n_in, test_size)
 
 # Forward-backward
 Zx, Zy, logdet = forward(X, Y)
