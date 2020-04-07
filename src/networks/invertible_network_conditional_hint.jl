@@ -1,5 +1,4 @@
-# Invertible network based on Glow (Kingma and Dhariwal, 2018)
-# Includes 1x1 convolution and residual block
+# Invertible conditional HINT network from Kruse et. al (2020)
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: February 2020
 

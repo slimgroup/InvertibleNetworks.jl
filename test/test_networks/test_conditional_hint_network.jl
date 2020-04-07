@@ -1,4 +1,4 @@
-# Generative model w/ Glow architecture from Kingma & Dhariwal (2018)
+# Conditional HINT network from Kruse et al. (2020)
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
