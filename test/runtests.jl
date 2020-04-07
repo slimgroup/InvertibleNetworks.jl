@@ -39,5 +39,6 @@ if test_suite == "all" || test_suite == "networks"
         include("test_networks/test_generator.jl")
         include("test_networks/test_glow.jl")
         include("test_networks/test_hyperbolic_network.jl")
+        include("test_networks/test_conditional_hint_network.jl")
     end
 end
