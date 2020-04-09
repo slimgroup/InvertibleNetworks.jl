@@ -48,5 +48,7 @@ include("networks/invertible_network_hyperbolic.jl")    # Hyperbolic: Lensink et
 include("conditional_layers/conditional_layer_hint.jl")
 include("conditional_layers/conditional_layer_slim.jl")
 include("networks/invertible_network_conditional_hint.jl")
+include("networks/invertible_network_conditional_hint_multiscale.jl")
+
 
 end
