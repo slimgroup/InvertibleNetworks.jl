@@ -5,14 +5,20 @@
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
 # Define network
-nx = 32
-ny = 32
+nx = 64
+ny = 64
 n_in = 2
 n_hidden = 4
 batchsize = 2
-depth = 2
+L = 2
+K = 2
+multiscale = true
 
-CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth)
+if multiscale
+    CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K)
+else
+    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K)
+end
 
 ###################################################################################################
 # Invertibility
@@ -54,7 +60,7 @@ function loss(CH, X, Y)
 end
 
 # Gradient test w.r.t. input
-CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth)
+CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K)
 
 X = randn(Float32, nx, ny, n_in, test_size)
 Y = X + .1f0*randn(Float32, nx, ny, n_in, test_size)
