@@ -47,8 +47,8 @@ end
 
 # Constructor: Initialize with nothing
 function AffineLayer(nx, ny, nc; logdet=false)
-    s = Parameter(nothing)
-    b = Parameter(nothing)
+    s = Parameter(glorot_uniform(nx, ny, nc))
+    b = Parameter(zeros(Float32, nx, ny, nc))
     return AffineLayer(s, b, logdet,
         X -> affine_forward(X, s, b, logdet),
         Y -> affine_inverse(Y, s, b),
@@ -58,14 +58,7 @@ end
 
 # Foward pass: Input X, Output Y
 function affine_forward(X, s, b, logdet)
-    nx, ny, n_in, batchsize = size(X)
 
-    # Initialize during first pass such that 
-    # output has zero mean and unit variance
-    if s.data == nothing
-        s.data = ones(Float32, nx, ny, n_in)
-        b.data = zeros(Float32, nx, ny, n_in)
-    end
     Y = X .* s.data .+ b.data
     
     # If logdet true, return as second ouput argument
