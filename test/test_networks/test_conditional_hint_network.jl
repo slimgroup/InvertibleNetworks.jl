@@ -17,7 +17,7 @@ multiscale = true
 if multiscale
     CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K)
 else
-    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K)
+    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K)
 end
 
 ###################################################################################################
@@ -60,7 +60,11 @@ function loss(CH, X, Y)
 end
 
 # Gradient test w.r.t. input
-CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K)
+if multiscale
+    CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K)
+else
+    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K)
+end
 
 X = randn(Float32, nx, ny, n_in, test_size)
 Y = X + .1f0*randn(Float32, nx, ny, n_in, test_size)
