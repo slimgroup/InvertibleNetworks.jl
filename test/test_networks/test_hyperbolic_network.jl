@@ -46,7 +46,7 @@ dX = X - X0
 # Gradient test w.r.t. input X0
 Y = H.forward(X)
 f0, ΔX = loss(H, X0)[1:2]
-h = 0.01f0
+h = 0.1f0
 maxiter = 6
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
@@ -75,7 +75,7 @@ dW = H.HL[1].W.data - H0.HL[1].W.data
 ds = H.AL.s.data - H0.AL.s.data
 
 f0, ΔX, ΔW, Δs = loss(H0, X)
-h = 0.1f0
+h = 0.01f0
 maxiter = 6
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)

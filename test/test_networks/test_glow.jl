@@ -2,7 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using InvertibleNetworks, LinearAlgebra, Test
+using InvertibleNetworks, LinearAlgebra, Test, Random
 
 # Define network
 nx = 32
