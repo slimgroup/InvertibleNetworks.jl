@@ -5,7 +5,7 @@
 export NetworkLoop
 
 """
-    L = NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3)
+    L = NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
 
  Create an invertibel recurrent inference machine (i-RIM) consisting of an unrooled loop
  for a given number of iterations.
@@ -26,6 +26,12 @@ export NetworkLoop
    but performs the transpose operation of the first convolution, thus upsampling the output to 
    the original input size.
 
+ - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`) in
+   residual block
+
+ - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`) in
+   residual block
+  
  *Output*:
  
  - `L`: invertible i-RIM network.
@@ -56,12 +62,12 @@ struct NetworkLoop <: InvertibleNetwork
     backward::Function
 end
 
-function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1)
+function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
     
     L = Array{CouplingLayerIRIM}(undef, maxiter)
     AN = Array{ActNorm}(undef, maxiter)
     for j=1:maxiter
-        L[j] = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=0, p2=1)
+        L[j] = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
         AN[j] = ActNorm(1)
     end
     

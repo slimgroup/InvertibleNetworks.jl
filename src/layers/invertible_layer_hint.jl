@@ -5,7 +5,7 @@
 export CouplingLayerHINT
 
 """
-    H = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; logdet=false, permute="none", k1=1, k2=3, p1=1, p2=0)
+    H = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
  Create a recursive HINT-style invertible layer based on coupling blocks. 
 
@@ -23,6 +23,8 @@ export CouplingLayerHINT
     operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
+
+ - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
  *Output*:
  
@@ -65,13 +67,13 @@ function get_depth(n_in)
 end
 
 # Constructor from input dimensions
-function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; logdet=false, permute="none", k1=4, k2=3, p1=0, p2=1)
+function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
     # Create basic coupling layers
     n = get_depth(n_in)
     CL = Array{CouplingLayerBasic}(undef, n) 
     for j=1:n
-        CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=logdet)
+        CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
     end
 
     # Permutation using 1x1 convolution

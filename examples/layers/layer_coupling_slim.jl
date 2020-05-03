@@ -33,11 +33,11 @@ L1 = AdditiveCouplingLayerSLIM(nx, ny, n_in, n_hidden, batchsize, Ψ; logdet=tru
 Y, logdet = L1.forward(X, D, A)
 X_ = L1.inverse(Y, D, A)
 @test iszero(logdet)
-@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 ΔY = Y .* 0f0
 X_ = L1.backward(ΔY, Y, D, A)[3]
-@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 
 ###################################################################################################
@@ -49,8 +49,8 @@ L2 = AffineCouplingLayerSLIM(nx, ny, n_in, n_hidden, batchsize, Ψ; logdet=true,
 Y, logdet = L2.forward(X, D, A)
 X_ = L2.inverse(Y, D, A)
 @test ~iszero(logdet)
-@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 ΔY = Y .* 0f0
 X_ = L2.backward(ΔY, Y, D, A)[3]
-@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)

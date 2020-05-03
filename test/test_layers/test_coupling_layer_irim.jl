@@ -7,29 +7,19 @@ using InvertibleNetworks, LinearAlgebra, Test
 # Input
 nx = 28
 ny = 28
-k = 8
-n_in = 4
+n_in = 8
 n_hidden = 8
 batchsize = 2
-k1 = 4
-k2 = 3
 
 # Input images
-X = randn(Float32, nx, ny, k, batchsize)
-X0 = randn(Float32, nx, ny, k, batchsize)
+X = randn(Float32, nx, ny, n_in, batchsize)
+X0 = randn(Float32, nx, ny, n_in, batchsize)
 dX = X - X0
 
-# 1x1 convolution and residual blocks
-C = Conv1x1(k)
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2)
-
-C0 = Conv1x1(k)
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2)
-
-# Invertible layer
-L = CouplingLayerIRIM(C, RB)
-L01 = CouplingLayerIRIM(C0, RB)
-L02 = CouplingLayerIRIM(C, RB0)
+# Invertible layers
+L = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize)
+L01 = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize)
+L02 = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize)
 
 ###################################################################################################
 # Test invertibility
@@ -108,9 +98,9 @@ end
 # Gradient test w.r.t. 1x1 conv weights
 Y = L.forward(X)
 Lini = deepcopy(L01)
-dv1 = C.v1.data - C0.v1.data
-dv2 = C.v2.data - C0.v2.data
-dv3 = C.v3.data - C0.v3.data
+dv1 = L.C.v1.data - L01.C.v1.data
+dv2 = L.C.v2.data - L01.C.v2.data
+dv3 = L.C.v3.data - L01.C.v3.data
 
 f0, ΔX, Δv1, Δv2, Δv3, ΔW1, ΔW2, ΔW3 = loss(L01, X, Y)
 h = 0.1f0

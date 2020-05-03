@@ -5,7 +5,8 @@
 export ConditionalLayerSLIM
 
 """
-    CI = ConditionalLayerSLIM(nx1, nx2, nx_in, nx_hidden, ny1, ny2, ny_in, ny_hidden, batchsize, Op; type="affine", k1=4, k2=3, p1=1, p2=0)
+    CI = ConditionalLayerSLIM(nx1, nx2, nx_in, nx_hidden, ny1, ny2, ny_in, ny_hidden, batchsize, Op;
+        type="affine", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
  Create a conditional SLIM layer based on the HINT architecture.
 
@@ -70,18 +71,23 @@ end
 
 # Constructor from input dimensions
 function ConditionalLayerSLIM(nx1::Int64, nx2::Int64, nx_in::Int64, nx_hidden::Int64, ny1::Int64, ny2::Int64, ny_in::Int64, ny_hidden::Int64,
-    batchsize::Int64; type="affine", k1=4, k2=3, p1=0, p2=1)
+    batchsize::Int64; type="affine", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
     # Create basic coupling layers
-    CL_X = CouplingLayerHINT(nx1, nx2, nx_in, nx_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
-    CL_Y = CouplingLayerHINT(Int(ny1/2), Int(ny2/2), Int(ny_in*4), ny_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
+    CL_X = CouplingLayerHINT(nx1, nx2, nx_in, nx_hidden, batchsize; 
+        k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
+    CL_Y = CouplingLayerHINT(Int(ny1/2), Int(ny2/2), Int(ny_in*4), ny_hidden, batchsize; 
+        k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
     
     if type == "affine"
-        CL_XY = AffineCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, identity; k1=k1, k2=k2, logdet=true, permute=false)
+        CL_XY = AffineCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, identity;
+            k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute=false)
     elseif type == "additive"
-        CL_XY = AdditiveCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, identity; k1=k1, k2=k2, logdet=true, permute=false)
+        CL_XY = AdditiveCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, identity;
+            k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute=false)
     elseif type == "learned"
-        CL_XY = LearnedCouplingLayerSLIM( nx1, nx2, nx_in, ny1, ny2, ny_in, nx_hidden, batchsize; k1=k1, k2=k2, logdet=true, permute=false)
+        CL_XY = LearnedCouplingLayerSLIM( nx1, nx2, nx_in, ny1, ny2, ny_in, nx_hidden, batchsize;
+            k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute=false)
     else
         throw("Specified layer type not defined.")
     end

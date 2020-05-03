@@ -10,15 +10,30 @@ ny = 64
 n_in = 10
 n_hidden = 20
 batchsize = 2
-k1 = 4
-k2 = 3
+
+# Residual blocks of various networks
+architecture = "Glow"
+
+if architecture == "Glow"
+    # Glow
+    k1 = 3; p1 = 1; s1 = 1
+    k2 = 1; p2 = 0; s2 = 1
+elseif architecture == "HINT"
+    # HINT
+    k1 = 3; p1 = 1; s1 = 1  # standard res-net block
+    k2 = 3; p2 = 1; s2 = 1
+elseif architecture == "iRIM"
+    # i-RIM
+    k1 = 4; p1 = 0; s1 = 4  # downsampling/upsampling in first and third layer
+    k2 = 3; p2 = 1; s2 = 1  # Standard res-net in center layer
+end
 
 # Input image
 X = glorot_uniform(nx, ny, n_in, batchsize)
 
 # Residual blocks
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2)
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2)
+RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
 
 # Observed data
 Y = RB.forward(X)

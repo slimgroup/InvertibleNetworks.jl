@@ -8,9 +8,6 @@ nx = 16
 ny = 16
 n_in = 3
 batchsize = 4
-k = 3   # kernel size
-s = 1   # stride
-p = 1   # padding
 X = randn(Float32, nx, ny, n_in, batchsize)
 
 # Network
@@ -29,7 +26,7 @@ X_ = H.forward(H.inverse(X))[1]
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
 
 
-#############################################################################################################
+####################################################################################################
 # Training
 
 # Loss

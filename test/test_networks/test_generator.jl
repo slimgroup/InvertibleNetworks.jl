@@ -4,6 +4,7 @@
 
 using LinearAlgebra, InvertibleNetworks, Flux, Test
 import Flux.Optimise.update!
+Random.seed!(11)
 
 # Target distribution
 function swirl(batchsize; noise=.5f0)
