@@ -81,7 +81,7 @@ HLini = deepcopy(HL0)
 dW = HL.CL[1].RB.W1.data - HL0.CL[1].RB.W1.data
 
 f0, gX, gW, X_ = loss(HL0, X)
-@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
 maxiter = 5
 h = 0.5f0
@@ -119,7 +119,7 @@ HLini = deepcopy(HL0)
 dW = HL.CL[1].RB.W1.data - HL0.CL[1].RB.W1.data
 
 f0, gX, gW, X_ = loss_logdet(HL0, X)
-@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
 maxiter = 5
 h = 0.5f0

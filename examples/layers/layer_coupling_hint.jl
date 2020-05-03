@@ -25,7 +25,7 @@ HL1 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=false, pe
 Y = HL1.forward(X)
 X_ = HL1.inverse(Y)
 
-@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
 
 ###################################################################################################
@@ -37,7 +37,7 @@ HL2 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true, per
 Y, logdet = HL2.forward(X)
 X_ = HL2.inverse(Y)
 
-@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
 
 ###################################################################################################
@@ -49,4 +49,4 @@ HL3 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=true, per
 Y, logdet = HL3.forward(X)
 X_ = HL3.inverse(Y)
 
-@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)

@@ -28,8 +28,8 @@ CH = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
 Zx, Zy, logdet = CH.forward(X, Y)
 X_, Y_ = CH.inverse(Zx, Zy)
 
-@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
-@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-6)
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
+@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-5)
 
 # Test backward
 Zx, Zy, logdet = CH.forward(X, Y)
@@ -37,14 +37,14 @@ Zx, Zy, logdet = CH.forward(X, Y)
 ΔZy = randn(Float32, size(Zx))
 ΔX_, ΔY_, X_, Y_ = CH.backward(ΔZx, ΔZy, Zx, Zy)
 
-@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-6)
-@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-6)
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
+@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-5)
 
 # Test inverse Y only
 Zy = CH.forward_Y(Y)
 Y_ = CH.inverse_Y(Zy)
 
-@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-6)
+@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-5)
 
 #######################################################################################################################
 # Gradient test

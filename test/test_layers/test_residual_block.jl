@@ -10,7 +10,7 @@ ny = 28
 n_in = 4
 n_hidden = 8
 batchsize = 2
-k1 = 4
+k1 = 3
 k2 = 3
 
 # Input

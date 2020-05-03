@@ -5,11 +5,11 @@
 export ResidualBlock
 
 """
-    RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, fan=false)
+    RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false)
 
 or
 
-    RB = ResidualBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; fan=false)
+    RB = ResidualBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false)
 
  Create a (non-invertible) residual block, consisting of three convolutional layers and activation functions.
  The first convolution is a downsampling operation with a stride equal to the kernel dimension. The last
@@ -26,6 +26,8 @@ or
     operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
+
+ - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
  - `fan`: bool to indicate whether the ouput has twice the number of input channels. For `fan=false`, the last
     activation function is a gated linear unit (thereby bringing the output back to the original dimensions).
@@ -73,7 +75,7 @@ struct ResidualBlock <: NeuralNetLayer
 end
 
 # Constructor
-function ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, fan=false)
+function ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false)
 
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1, k1, n_in, n_hidden))
@@ -84,11 +86,11 @@ function ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1
 
     # Dimensions for convolutions
     cdims1 = DenseConvDims((nx, ny, n_in, batchsize), (k1, k1, n_in, n_hidden); 
-        stride=(s1,s1), padding=(p1,p1))
-    cdims2 = DenseConvDims((Int(nx/k1), Int(ny/k1), n_hidden, batchsize), 
-        (k2, k2, n_hidden, n_hidden); stride=(s2,s2), padding=(p2,p2))
+        stride=(s1, s1), padding=(p1, p1))
+    cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), n_hidden, batchsize), 
+        (k2, k2, n_hidden, n_hidden); stride=(s2, s2), padding=(p2, p2))
     cdims3 = DenseConvDims((nx, ny, 2*n_in, batchsize), (k1, k1, 2*n_in, n_hidden); 
-        stride=(s1,s1), padding=(p1,p1))
+        stride=(s1, s1), padding=(p1 ,p1))
 
     return ResidualBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3,
                          X -> residual_forward(X, W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3),
@@ -97,7 +99,7 @@ function ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1
 end
 
 # Constructor for given weights
-function ResidualBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; fan=false)
+function ResidualBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; p1=1, p2=1, s1=1, s2=1, fan=false)
 
     # Make weights parameters
     W1 = Parameter(W1)
@@ -110,11 +112,11 @@ function ResidualBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; fan=false)
     k1, n_in, n_hidden = size(W1)[2:4]
     k2 = size(W2)[1]
     cdims1 = DenseConvDims((nx, ny, n_in, batchsize), (k1, k1, n_in, n_hidden); 
-        stride=(k1,k1), padding=(1,1))
-    cdims2 = DenseConvDims((Int(nx/k1), Int(ny/k1), n_hidden, batchsize), 
-        (k2, k2, n_hidden, n_hidden); stride=(1,1), padding=(1,1))
+        stride=(s1, s1), padding=(p1, p1))
+    cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), n_hidden, batchsize), 
+        (k2, k2, n_hidden, n_hidden); stride=(s2, s2), padding=(p2, p2))
     cdims3 = DenseConvDims((nx, ny, 2*n_in, batchsize), (k1, k1, 2*n_in, n_hidden); 
-        stride=(k1,k1), padding=(0,0))
+        stride=(s1, s1), padding=(p1, p1))
 
     return ResidualBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3,
                          X -> residual_forward(X, W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3),
