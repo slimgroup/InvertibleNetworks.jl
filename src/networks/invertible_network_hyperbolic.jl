@@ -55,7 +55,7 @@ function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, 
         k=3, s=1, p=1, logdet=true, α=1f0, hidden_factor=1, ncenter=1)
 
     depth = Int(2*(L-1)*K + ncenter)
-    AL = AffineLayer(Int(nx/4), Int(ny/4), Int(n_in*4); logdet=logdet)
+    AL = AffineLayer(Int(nx/2), Int(ny/2), Int(n_in*4); logdet=logdet)
     HL = Array{HyperbolicLayer}(undef, depth)
     nx = Int(nx/2); ny = Int(ny/2); n_in = Int(n_in*2)  # dimensions after initial wavelet transform
 
