@@ -5,7 +5,7 @@
 export NetworkConditionalHINT
 
 """
-    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=4, k2=3, p1=0, p2=1)
+    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
  Create a conditional HINT network for data-driven generative modeling based
  on the change of variables formula.
@@ -21,6 +21,8 @@ export NetworkConditionalHINT
  - `k1`, `k2`: kernel size for first and third residual layer (`k1`) and second layer (`k2`)
 
  - `p1`, `p2`: respective padding sizes for residual block layers
+
+ - `s1`, `s2`: respective strides for residual block layers
  
  *Output*:
  
@@ -55,7 +57,7 @@ struct NetworkConditionalHINT <: InvertibleNetwork
 end
 
 # Constructor
-function NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=4, k2=3, p1=0, p2=1)
+function NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
     AN_X = Array{ActNorm}(undef, depth)
     AN_Y = Array{ActNorm}(undef, depth)
@@ -65,7 +67,7 @@ function NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=4, 
     for j=1:depth
         AN_X[j] = ActNorm(n_in; logdet=true)
         AN_Y[j] = ActNorm(n_in; logdet=true)
-        CL[j] = ConditionalLayerHINT(nx, ny, n_in, n_hidden, batchsize; permute=true, k1=k1, k2=k2, p1=p1, p2=p2)
+        CL[j] = ConditionalLayerHINT(nx, ny, n_in, n_hidden, batchsize; permute=true, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
     end
 
     return NetworkConditionalHINT(AN_X, AN_Y, CL, 
