@@ -1,4 +1,4 @@
-using InvertibleNetworks, LinearAlgebra, Test
+using InvertibleNetworks, LinearAlgebra, Test, Random
 
 # Input
 nx = 16

@@ -5,7 +5,7 @@
 export NetworkMultiScaleConditionalHINT
 
 """
-    CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden,  L, K; k1=4, k2=3, p1=0, p2=1)
+    CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden,  L, K; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
  Create a conditional HINT network for data-driven generative modeling based
  on the change of variables formula.
@@ -24,6 +24,8 @@ export NetworkMultiScaleConditionalHINT
 
  - `p1`, `p2`: respective padding sizes for residual block layers
  
+ - `s1`, `s2`: respective strides for residual block layers
+
  *Output*:
  
  - `CH`: conditioinal HINT network
@@ -58,7 +60,7 @@ struct NetworkMultiScaleConditionalHINT <: InvertibleNetwork
 end
 
 # Constructor
-function NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; k1=4, k2=3, p1=0, p2=1)
+function NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
     AN_X = Array{ActNorm}(undef, L, K)
     AN_Y = Array{ActNorm}(undef, L, K)
@@ -70,7 +72,7 @@ function NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, 
         for j=1:K
             AN_X[i, j] = ActNorm(n_in*4; logdet=true)
             AN_Y[i, j] = ActNorm(n_in*4; logdet=true)
-            CL[i, j] = ConditionalLayerHINT(Int(nx/2^i), Int(ny/2^i), n_in*4, n_hidden, batchsize; permute=true, k1=k1, k2=k2, p1=p1, p2=p2)
+            CL[i, j] = ConditionalLayerHINT(Int(nx/2^i), Int(ny/2^i), n_in*4, n_hidden, batchsize; permute=true, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
         end
         n_in *= 2
     end

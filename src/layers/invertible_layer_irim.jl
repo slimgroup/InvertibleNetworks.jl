@@ -9,7 +9,7 @@ export CouplingLayerIRIM
 
 or
 
-    IL = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=1, p1=1, p2=0, logdet=false)
+    IL = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet=false)
 
  Create an i-RIM invertible coupling layer based on 1x1 convolutions and a residual block. 
 
@@ -29,6 +29,8 @@ or
     operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
+
+ - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
  *Output*:
  
@@ -68,11 +70,11 @@ function CouplingLayerIRIM(C::Conv1x1, RB::ResidualBlock)
 end
 
 # Constructor from input dimensions
-function CouplingLayerIRIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=4, k2=3, p1=0, p2=1)
+function CouplingLayerIRIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
-    RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2)
+    RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
 
     return CouplingLayerIRIM(C, RB, 
         X -> inv_layer_forward(X, C, RB),

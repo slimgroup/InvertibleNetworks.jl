@@ -3,6 +3,7 @@
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Test, Random
+Random.seed!(11)
 
 # Define network
 nx = 64
@@ -15,9 +16,9 @@ K = 2
 multiscale = true
 
 if multiscale
-    CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K)
+    CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0)
 else
-    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K)
+    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
 end
 
 ###################################################################################################
@@ -31,19 +32,19 @@ Y = X + .1f0*randn(Float32, nx, ny, n_in, test_size)
 # Forward-backward
 Zx, Zy, logdet = CH.forward(X, Y)
 X_, Y_ = CH.backward(0f0.*Zx, 0f0.*Zy, Zx, Zy)[3:4]
-@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
-@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-5)
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-4)
+@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-4)
 
 # Forward-inverse
 Zx, Zy, logdet = CH.forward(X, Y)
 X_, Y_ = CH.inverse(Zx, Zy)
-@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
-@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-5)
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-4)
+@test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-4)
 
 # Y-lane only
 Zyy = CH.forward_Y(Y)
 Yy = CH.inverse_Y(Zyy)
-@test isapprox(norm(Y - Yy)/norm(Y), 0f0; atol=1f-5)
+@test isapprox(norm(Y - Yy)/norm(Y), 0f0; atol=1f-4)
 
 
 ###################################################################################################
@@ -61,9 +62,9 @@ end
 
 # Gradient test w.r.t. input
 if multiscale
-    CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K)
+    CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0)
 else
-    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K)
+    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
 end
 
 X = randn(Float32, nx, ny, n_in, test_size)

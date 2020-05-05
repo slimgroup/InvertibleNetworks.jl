@@ -17,8 +17,6 @@ k = 4
 n_in = 2
 n_hidden = 4
 batchsize = 1
-k1 = 4
-k2 = 3
 
 # Input images
 Xa = randn(Float32, nx, ny, Int(k/2), batchsize)
@@ -29,7 +27,7 @@ dXa = Xa - Xa0
 dXb = Xb - Xb0
 
 # 1x1 convolution and residual blocks
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, fan=true)
+RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
 L = CouplingLayerBasic(RB; logdet=true)
 
 ###################################################################################################
@@ -68,7 +66,7 @@ function loss(L, Xa, Xb, Ya, Yb)
 end
 
 # Invertible layers
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, fan=true)
+RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
 L01 = CouplingLayerBasic(RB; logdet=true)
 L02 = CouplingLayerBasic(RB0; logdet=true)
 

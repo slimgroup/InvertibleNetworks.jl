@@ -6,7 +6,7 @@
 export NetworkGlow
 
 """
-    G = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K)
+    G = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
 
  Create an invertible network based on the Glow architecture. Each flow step in the inner loop 
  consists of an activation normalization layer, followed by an invertible coupling layer with
@@ -22,6 +22,13 @@ export NetworkGlow
  - `L`: number of scales (outer loop)
 
  - `K`: number of flow steps per scale (inner loop)
+
+ - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
+ operator, `k2` is the kernel size of the second operator.
+
+ - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
+
+ - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
  *Output*:
  
@@ -52,7 +59,7 @@ struct NetworkGlow <: InvertibleNetwork
 end
 
 # Constructor
-function NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K)
+function NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
 
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
@@ -61,7 +68,7 @@ function NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K)
     for i=1:L
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = CouplingLayerGlow(Int(nx/2^i), Int(ny/2^i), n_in*4, n_hidden, batchsize; k1=1, k2=3, p1=0, p2=1, logdet=true)
+            CL[i, j] = CouplingLayerGlow(Int(nx/2^i), Int(ny/2^i), n_in*4, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
         end
         n_in *= 2
     end

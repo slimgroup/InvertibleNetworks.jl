@@ -5,7 +5,7 @@
 export ConditionalLayerHINT
 
 """
-    CH = ConditionalLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=3, p1=1, p2=0, permute=true)
+    CH = ConditionalLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true)
 
  Create a conditional HINT layer based on coupling blocks and 1 level recursion. 
 
@@ -19,6 +19,8 @@ export ConditionalLayerHINT
     operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
+
+ - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
  - `permute`: bool to indicate whether to permute `X` and `Y`. Default is `true`
 
@@ -61,12 +63,12 @@ struct ConditionalLayerHINT <: NeuralNetLayer
 end
 
 # Constructor from input dimensions
-function ConditionalLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=4, k2=3, p1=0, p2=1, permute=true)
+function ConditionalLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true)
 
     # Create basic coupling layers
-    CL_X = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true, permute="none")
-    CL_Y = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true, permute="none")
-    CL_YX = CouplingLayerBasic(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, logdet=true)
+    CL_X = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute="none")
+    CL_Y = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute="none")
+    CL_YX = CouplingLayerBasic(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
 
     # Permutation using 1x1 convolution
     permute == true ? (C_X = Conv1x1(n_in)) : (C_X = nothing)

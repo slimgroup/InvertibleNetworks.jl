@@ -7,7 +7,7 @@ export AdditiveCouplingLayerSLIM
 
 
 """
-    CS = AdditiveCouplingLayerSLIM(nx, ny, n_in, n_hidden, batchsize, Ψ; logdet=false, permute=false, k1=1, k2=3, p1=0, p2=1, )
+    CS = AdditiveCouplingLayerSLIM(nx, ny, n_in, n_hidden, batchsize, Ψ; logdet=false, permute=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
  Create an invertible additive SLIM coupling layer.
 
@@ -27,6 +27,8 @@ export AdditiveCouplingLayerSLIM
     operator, `k2` is the kernel size of the second operator
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
+
+ - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
  *Output*:
  
@@ -64,7 +66,7 @@ end
 
 # Constructor from input dimensions
 function AdditiveCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64, Ψ::Function; 
-    k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet::Bool=false, permute::Bool=false)
+    k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet::Bool=false, permute::Bool=false)
 
     # 1x1 Convolution and residual block for invertible layer
     permute == true ? (C = Conv1x1(n_in)) : (C = nothing)

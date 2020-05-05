@@ -2,8 +2,9 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using LinearAlgebra, InvertibleNetworks, Flux, Test
+using LinearAlgebra, InvertibleNetworks, Flux, Test, Random
 import Flux.Optimise.update!
+Random.seed!(11)
 
 # Target distribution
 function swirl(batchsize; noise=.5f0)

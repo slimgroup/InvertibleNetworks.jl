@@ -8,7 +8,7 @@ export LearnedCouplingLayerSLIM
 
 """
     CS = LearnedCouplingLayerSLIM(nx1, nx2, nx_in, ny1, ny2, ny_in, n_hidden, batchsize; 
-        logdet::Bool=false, permute::Bool=false, k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
+        logdet::Bool=false, permute::Bool=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
  Create an invertible SLIM coupling layer with a learned data-to-image-space map.
 
@@ -65,7 +65,7 @@ end
 
 # Constructor from input dimensions
 function LearnedCouplingLayerSLIM(nx1, nx2, nx_in, ny1, ny2, ny_in, n_hidden, batchsize; 
-    k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet::Bool=false, permute::Bool=false)
+    k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet::Bool=false, permute::Bool=false)
 
     # 1x1 Convolution and residual block for invertible layer
     permute == true ? (C = Conv1x1(nx_in)) : (C = nothing)

@@ -11,8 +11,6 @@ k = 20
 n_in = 10
 n_hidden = 20
 batchsize = 2
-k1 = 4
-k2 = 3
 
 # Input image
 X = glorot_uniform(nx, ny, k, batchsize)
@@ -20,7 +18,7 @@ X0 = glorot_uniform(nx, ny, k, batchsize)
 
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2)
+RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize)
 
 # Invertible i-RIM coupling layer
 L = CouplingLayerIRIM(C, RB)

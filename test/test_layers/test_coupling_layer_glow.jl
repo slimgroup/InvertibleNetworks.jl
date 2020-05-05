@@ -17,8 +17,6 @@ k = 4
 n_in = 2
 n_hidden = 4
 batchsize = 1
-k1 = 4
-k2 = 3
 
 # Input images
 X = randn(Float32, nx, ny, k, batchsize)
@@ -27,7 +25,7 @@ dX = X - X0
 
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, fan=true)
+RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, fan=true)
 L = CouplingLayerGlow(C, RB; logdet=true)
 
 X_ = L.inverse(L.forward(X)[1])
@@ -52,7 +50,7 @@ end
 
 # Invertible layers
 C0 = Conv1x1(k)
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, fan=true)
+RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, fan=true)
 L01 = CouplingLayerGlow(C0, RB; logdet=true)
 L02 = CouplingLayerGlow(C, RB0; logdet=true)
 

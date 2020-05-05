@@ -8,9 +8,6 @@ nx = 16
 ny = 16
 n_in = 3
 batchsize = 4
-k = 3   # kernel size
-s = 1   # stride
-p = 1   # padding
 X = randn(Float32, nx, ny, n_in, batchsize)
 
 # Network
@@ -29,7 +26,7 @@ X_ = H.forward(H.inverse(X))[1]
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
 
 
-#############################################################################################################
+####################################################################################################
 # Training
 
 # Loss
@@ -49,7 +46,7 @@ dX = X - X0
 # Gradient test w.r.t. input X0
 Y = H.forward(X)
 f0, ΔX = loss(H, X0)[1:2]
-h = 0.01f0
+h = 0.1f0
 maxiter = 6
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
@@ -78,7 +75,7 @@ dW = H.HL[1].W.data - H0.HL[1].W.data
 ds = H.AL.s.data - H0.AL.s.data
 
 f0, ΔX, ΔW, Δs = loss(H0, X)
-h = 0.1f0
+h = 0.01f0
 maxiter = 6
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
