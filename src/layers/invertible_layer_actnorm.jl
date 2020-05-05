@@ -13,14 +13,14 @@ export ActNorm, reset!
  the first use, such that the output has zero mean and unit variance along
  channels for the current mini-batch size.
 
- *Input*: 
- 
- - `k`: number of channels 
- 
+ *Input*:
+
+ - `k`: number of channels
+
  - `logdet`: bool to indicate whether to compute the logdet
 
  *Output*:
- 
+
  - `AN`: Network layer for activation normalization.
 
  *Usage:*
@@ -64,24 +64,23 @@ end
 function actnorm_forward(X, k, s, b, logdet)
     nx, ny, n_in, batchsize = size(X)
 
-    # Initialize during first pass such that 
+    # Initialize during first pass such that
     # output has zero mean and unit variance
     if s.data == nothing
         μ = mean(X; dims=(1,2,4))[1,1,:,1]
         σ_sqr = var(X; dims=(1,2,4))[1,1,:,1]
-        s.data = 1f0 ./ sqrt.(σ_sqr .+ eps(1f0))
-        b.data = -μ ./ sqrt.(σ_sqr .+ eps(1f0))
+        s.data = 1f0 ./ sqrt.(σ_sqr)
+        b.data = -μ ./ sqrt.(σ_sqr)
     end
     Y = X .* reshape(s.data, 1, 1, :, 1) .+ reshape(b.data, 1, 1, :, 1)
-    
+
     # If logdet true, return as second ouput argument
     logdet == true ? (return Y, logdet_forward(nx, ny, s)) : (return Y)
 end
 
 # Inverse pass: Input Y, Output X
 function actnorm_inverse(Y, k, s, b)
-    ϵ = randn(Float32, size(s.data)) .* eps(1f0)
-    X = (Y .- reshape(b.data, 1, 1, :, 1)) ./ reshape(s.data + ϵ, 1, 1, :, 1)   # avoid division by 0
+    X = (Y .- reshape(b.data, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, :, 1)
     return X
 end
 
@@ -121,5 +120,5 @@ end
 get_params(AN::ActNorm) = [AN.s, AN.b]
 
 # Logdet
-logdet_forward(nx, ny, s) = nx*ny*sum(log.(abs.(s.data))) 
+logdet_forward(nx, ny, s) = nx*ny*sum(log.(abs.(s.data)))
 logdet_backward(nx, ny, s) = nx*ny ./ s.data
