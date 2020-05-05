@@ -127,6 +127,55 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, v1, v2, v3, ΔY::AbstractA
     return dv1, dv2, dv3
 end
 
+function conv1x1_grad_v(X::AbstractArray{Float32, 5}, v1, v2, v3, ΔY::AbstractArray{Float32, 5}, logdet; adjoint=false)
+
+    # Reshape input
+    nx, ny, nz, n_in, batchsize = size(X)
+
+    v1 = v1.data
+    v2 = v2.data
+    v3 = v3.data
+    k = length(v1)
+    I = diagm(ones(Float32, k))
+    
+    dv1 = zeros(Float32, k)
+    dv2 = zeros(Float32, k)
+    dv3 = zeros(Float32, k)
+
+    V1 = v1*v1'/(v1'*v1)
+    V2 = v2*v2'/(v2'*v2)
+    V3 = v3*v3'/(v3'*v3)
+
+    for i=1:batchsize
+
+        Xi = reshape(X[:,:,:,:,i], :, n_in)
+        ΔYi = reshape(ΔY[:,:,:,:,i], :, n_in)
+        
+        for j=1:k
+
+            dV1 = partial_derivative_outer(v1, j)
+            dV2 = partial_derivative_outer(v2, j)
+            dV3 = partial_derivative_outer(v3, j)
+
+            ∂V1 = dV1 - 2f0*dV1*V2 - 2f0*dV1*V3 + 4f0*dV1*V2*V3
+            ∂V2 = dV2 - 2f0*V1*dV2 - 2f0*dV2*V3 + 4f0*V1*dV2*V3
+            ∂V3 = dV3 - 2f0*V1*dV3 - 2f0*V2*dV3 + 4f0*V1*V2*dV3
+
+            if ~adjoint
+                dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi))
+                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi))   
+                dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi))
+            else
+                dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi))
+                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi))   
+                dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi))
+            end
+
+        end
+    end
+    return dv1, dv2, dv3
+end
+
 # Forward pass
 function conv1x1_forward(X::AbstractArray{Float32, 4}, v1, v2, v3, logdet)
     nx, ny, n_in, batchsize = size(X)
@@ -140,6 +189,23 @@ function conv1x1_forward(X::AbstractArray{Float32, 4}, v1, v2, v3, logdet)
         Xi = reshape(X[:,:,:,i], :, n_in)
         Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
         Y[:,:,:,i] = reshape(Yi, nx, ny, n_in, 1)
+    end
+    logdet == true ? (return Y, 0f0) : (return Y)   # logdet always 0
+end
+
+# Forward pass
+function conv1x1_forward(X::AbstractArray{Float32, 5}, v1, v2, v3, logdet)
+    nx, ny, nz, n_in, batchsize = size(X)
+    Y = zeros(Float32, nx, ny, nz, n_in, batchsize)
+    v1 = v1.data
+    v2 = v2.data
+    v3 = v3.data
+    k = length(v1)
+    I = diagm(ones(Float32, k))
+    for i=1:batchsize
+        Xi = reshape(X[:,:,:,:,i], :, n_in)
+        Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
+        Y[:,:,:,:,i] = reshape(Yi, nx, ny, nz, n_in, 1)
     end
     logdet == true ? (return Y, 0f0) : (return Y)   # logdet always 0
 end
@@ -170,6 +236,23 @@ function conv1x1_inverse(Y::AbstractArray{Float32, 4}, v1, v2, v3, logdet)
         Yi = reshape(Y[:,:,:,i], :, n_in)
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
         X[:,:,:,i] = reshape(Xi, nx, ny, n_in, 1)
+    end
+    logdet == true ? (return X, 0f0) : (return X)   # logdet always 0
+end
+
+# Inverse pass
+function conv1x1_inverse(Y::AbstractArray{Float32, 5}, v1, v2, v3, logdet)
+    nx, ny, nz, n_in, batchsize = size(Y)
+    X = zeros(Float32, nx, ny, nz, n_in, batchsize)
+    v1 = v1.data
+    v2 = v2.data
+    v3 = v3.data
+    k = length(v1)
+    I = diagm(ones(Float32, k))
+    for i=1:batchsize
+        Yi = reshape(Y[:,:,:,:,i], :, n_in)
+        Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
+        X[:,:,:,:,i] = reshape(Xi, nx, ny, nz, n_in, 1)
     end
     logdet == true ? (return X, 0f0) : (return X)   # logdet always 0
 end
