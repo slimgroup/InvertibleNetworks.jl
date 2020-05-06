@@ -174,9 +174,15 @@ end
 
  See also: [`GaLUgrad`](@ref)
 """
-function GaLU(x)
-    k = Int(size(x,3) / 2)
+function GaLU(x::Array{Float32, 4})
+    k = Int(size(x, 3) / 2)
     y = x[:, :, 1:k, :] .* Sigmoid(x[:, :, k+1:end, :])
+    return y
+end
+
+function GaLU(x::Array{Float32, 5})
+    k = Int(size(x, 4) / 2)
+    y = x[:, :, :, 1:k, :] .* Sigmoid(x[:, :, :, k+1:end, :])
     return y
 end
 
@@ -197,12 +203,22 @@ end
 
  See also: [`GaLU`](@ref)
 """
-function GaLUgrad(Δy, x)
-    k = Int(size(x,3) / 2)
+function GaLUgrad(Δy::Array{Float32, 4}, x::Array{Float32, 4})
+    k = Int(size(x, 3) / 2)
     x1 = x[:, :, 1:k, :]
     x2 = x[:, :, k+1:end, :]
     Δx = zeros(Float32, size(x))
     Δx[:, :, 1:k, :] = Sigmoid(x2) .* Δy
     Δx[:, :, k+1:end, :] = SigmoidGrad(Δy, nothing; x=x2) .* x1
+    return Δx
+end
+
+function GaLUgrad(Δy::Array{Float32, 5}, x::Array{Float32, 5})
+    k = Int(size(x, 4) / 2)
+    x1 = x[:, :, :, 1:k, :]
+    x2 = x[:, :, :, k+1:end, :]
+    Δx = zeros(Float32, size(x))
+    Δx[:, :, :, 1:k, :] = Sigmoid(x2) .* Δy
+    Δx[:, :, :, k+1:end, :] = SigmoidGrad(Δy, nothing; x=x2) .* x1
     return Δx
 end
