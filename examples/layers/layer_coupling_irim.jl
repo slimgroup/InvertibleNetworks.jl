@@ -5,20 +5,21 @@
 using InvertibleNetworks, LinearAlgebra, Test
 
 # Input
-nx = 64
-ny = 64
+nx = 32
+ny = 32
+nz = 32
 k = 20
 n_in = 10
 n_hidden = 20
 batchsize = 2
 
 # Input image
-X = glorot_uniform(nx, ny, k, batchsize)
-X0 = glorot_uniform(nx, ny, k, batchsize)
+X = glorot_uniform(nx, ny, nz, k, batchsize)
+X0 = glorot_uniform(nx, ny, nz, k, batchsize)
 
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize)
+RB = ResidualBlock(nx, ny, nz, n_in, n_hidden, batchsize)
 
 # Invertible i-RIM coupling layer
 L = CouplingLayerIRIM(C, RB)

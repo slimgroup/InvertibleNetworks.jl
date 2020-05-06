@@ -9,7 +9,10 @@ export CouplingLayerIRIM
 
 or
 
-    IL = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet=false)
+    IL = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet=false) (2D)
+
+    IL = CouplingLayerIRIM(nx, ny, nz, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet=false) (3D)
+
 
  Create an i-RIM invertible coupling layer based on 1x1 convolutions and a residual block. 
 
@@ -21,7 +24,7 @@ or
 
  or
 
- - `nx, ny`: spatial dimensions of input
+ - `nx`, `ny`, `nz`: spatial dimensions of input
  
  - `n_in`, `n_hidden`: number of input and hidden channels
 
@@ -69,8 +72,9 @@ function CouplingLayerIRIM(C::Conv1x1, RB::ResidualBlock)
         )
 end
 
-# Constructor from input dimensions
-function CouplingLayerIRIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
+# 2D Constructor from input dimensions
+function CouplingLayerIRIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; 
+    k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
@@ -83,7 +87,22 @@ function CouplingLayerIRIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
         )
 end
 
-# Forward pass: Input X, Output Y
+# 3D Constructor from input dimensions
+function CouplingLayerIRIM(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; 
+    k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
+
+    # 1x1 Convolution and residual block for invertible layer
+    C = Conv1x1(n_in)
+    RB = ResidualBlock(nx, ny, nz, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+
+    return CouplingLayerIRIM(C, RB, 
+        X -> inv_layer_forward(X, C, RB),
+        Y -> inv_layer_inverse(Y, C, RB),
+        (ΔY, Y) -> inv_layer_backward(ΔY, Y, C, RB)
+        )
+end
+
+# 2D Forward pass: Input X, Output Y
 function inv_layer_forward(X::Array{Float32, 4}, C, RB)
 
     # Get dimensions
@@ -102,7 +121,26 @@ function inv_layer_forward(X::Array{Float32, 4}, C, RB)
     return Y
 end
 
-# Inverse pass: Input Y, Output X
+# 3D Forward pass: Input X, Output Y
+function inv_layer_forward(X::Array{Float32, 5}, C, RB)
+
+    # Get dimensions
+    k = Int(C.k/2)
+    
+    X_ = C.forward(X)
+    X1_ = X_[:, :, :, 1:k, :]
+    X2_ = X_[:, :, :, k+1:end, :]
+
+    Y1_ = X1_
+    Y2_ = X2_ + RB.forward(Y1_)
+    
+    Y_ = cat(Y1_, Y2_, dims=4)
+    Y = C.inverse(Y_)
+    
+    return Y
+end
+
+# 2D Inverse pass: Input Y, Output X
 function inv_layer_inverse(Y::Array{Float32, 4}, C, RB; save=false)
 
     # Get dimensions
@@ -125,7 +163,30 @@ function inv_layer_inverse(Y::Array{Float32, 4}, C, RB; save=false)
     end
 end
 
-# Backward pass: Input (ΔY, Y), Output (ΔX, X)
+# 3D Inverse pass: Input Y, Output X
+function inv_layer_inverse(Y::Array{Float32, 5}, C, RB; save=false)
+
+    # Get dimensions
+    k = Int(C.k/2)
+
+    Y_ = C.forward(Y)
+    Y1_ = Y_[:, :, :, 1:k, :]
+    Y2_ = Y_[:, :, :, k+1:end, :]
+    
+    X1_ = Y1_
+    X2_ = Y2_ - RB.forward(Y1_)
+    
+    X_ = cat(X1_, X2_, dims=4)
+    X = C.inverse(X_)
+    
+    if save == false
+        return X
+    else
+        return X, X_, Y1_
+    end
+end
+
+# 2D Backward pass: Input (ΔY, Y), Output (ΔX, X)
 function inv_layer_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, C, RB)
 
     # Recompute forward state
@@ -138,6 +199,24 @@ function inv_layer_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, C, RB)
     ΔY1_ = RB.backward(ΔY2_, Y1_) + ΔY_[:, :, 1:k, :]
     
     ΔX_ = cat(ΔY1_, ΔY2_, dims=3)
+    ΔX = C.inverse((ΔX_, X_))[1]
+    
+    return ΔX, X
+end
+
+# 3D Backward pass: Input (ΔY, Y), Output (ΔX, X)
+function inv_layer_backward(ΔY::Array{Float32, 5}, Y::Array{Float32, 5}, C, RB)
+
+    # Recompute forward state
+    k = Int(C.k/2)
+    X, X_, Y1_ = inv_layer_inverse(Y, C, RB; save=true)
+
+    # Backpropagate residual
+    ΔY_ = C.forward((ΔY, Y))[1]
+    ΔY2_ = ΔY_[:, :, :, k+1:end, :]
+    ΔY1_ = RB.backward(ΔY2_, Y1_) + ΔY_[:, :, :, 1:k, :]
+    
+    ΔX_ = cat(ΔY1_, ΔY2_, dims=4)
     ΔX = C.inverse((ΔX_, X_))[1]
     
     return ΔX, X

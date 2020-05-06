@@ -8,32 +8,34 @@ using Flux, JOLI
 import Flux.Optimise.update!
 
 # Input
-nx = 64
-ny = 64
-n_in = 10
-n_hidden = 20
+nx = 32
+ny = 32
+nz = 32
+n_in = 4
+n_hidden = 8
 batchsize = 2
 maxiter = 2
 
 # Observed data
-nrec = 20
+nxrec = 20
+nyrec = 10
 nt = 50
-d = randn(Float32, nt, nrec, 1, batchsize)
+d = randn(Float32, nt, nxrec, nyrec, 1, batchsize)
 
 # Modeling/imaging operator (can be JOLI/JUDI operator or explicit matrix)
-J = joMatrix(randn(Float32, nt*nrec, nx*ny))
+J = joMatrix(randn(Float32, nt*nxrec*nyrec, nx*ny*nz))
 
 # Link function
 Ψ(η) = identity(η)
 
 # Unrolled loop
-L = NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ)
+L = NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ)
 
 # Initializations
-η_obs = randn(Float32, nx, ny, 1, batchsize)
-s_obs = randn(Float32, nx, ny, n_in-1, batchsize)
-η_in = randn(Float32, nx, ny, 1, batchsize)
-s_in = randn(Float32, nx, ny, n_in-1, batchsize)
+η_obs = randn(Float32, nx, ny, nz, 1, batchsize)
+s_obs = randn(Float32, nx, ny, nz, n_in-1, batchsize)
+η_in = randn(Float32, nx, ny, nz, 1, batchsize)
+s_in = randn(Float32, nx, ny, nz, n_in-1, batchsize)
 
 # Forward pass and residual
 η_out, s_out = L.forward(η_in, s_in, d, J)
