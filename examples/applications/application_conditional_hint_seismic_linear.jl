@@ -12,7 +12,7 @@ Random.seed!(66)
 ####################################################################################################
 
 # Load original data X (size of n1 x n2 x nc x ntrain)
-X_orig = load("../../data/seismic_samples_64_by_64_num_10k.jld")["X"]
+X_orig = load("../../data/seismic_samples_32_by_32_num_10k.jld")["X"]
 n1, n2, nc, nsamples = size(X_orig)
 AN = ActNorm(nsamples)
 X_orig = AN.forward(X_orig) # zero mean and unit std
@@ -38,7 +38,7 @@ for j=1:ntest
 end
 
 # Create network
-n_hidden = 64
+n_hidden = 32
 batchsize = 4
 depth = 8
 CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth)
@@ -87,7 +87,7 @@ function loss(CH, X, Y)
 end
 
 # Training
-maxiter = 2000
+maxiter = 1000
 opt = Flux.ADAM(1f-3)
 lr_step = 100
 lr_decay_fn = Flux.ExpDecay(1f-3, .9, lr_step, 0.)

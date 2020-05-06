@@ -12,7 +12,7 @@ Random.seed!(66)
 ####################################################################################################
 
 # Load original data X (size of n1 x n2 x nc x ntrain)
-X_orig = load("../../data/seismic_samples_64_by_64_num_10k.jld")["X"]
+X_orig = load("../../data/seismic_samples_32_by_32_num_10k.jld")["X"]
 n1, n2, nc, nsamples = size(X_orig)
 AN = ActNorm(nsamples)
 X_orig = AN.forward(X_orig) # zero mean and unit std
@@ -38,11 +38,12 @@ for j=1:ntest
 end
 
 # Create network
-n_hidden = 64
+n_hidden = 32
 batchsize = 4
-L = 2
-K = 4
-CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K)
+L = 1
+K = 8
+CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K;
+    k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, split_scales=false)
 Params = get_params(CH)
 
 # Data modeling function
@@ -87,7 +88,7 @@ function loss(CH, X, Y)
 end
 
 # Training
-maxiter = 2000
+maxiter = 1000
 opt = Flux.ADAM(1f-3)
 lr_step = 100
 lr_decay_fn = Flux.ExpDecay(1f-3, .9, lr_step, 0.)
@@ -121,8 +122,8 @@ X = X_test[:, :, :, idx]
 Y = Y_test[:, :, :, idx]
 Zx_, Zy_ = CH.forward(X, Y)[1:2]
 
-Zx = randn(Float32, prod((nx, ny, n_in, test_size)))
-Zy = randn(Float32, prod((nx, ny, n_in, test_size)))
+Zx = randn(Float32, size(Zx_))
+Zy = randn(Float32, size(Zy_))
 X_, Y_ = CH.inverse(Zx, Zy)
 
 # Now select single fixed sample from all Ys
@@ -133,7 +134,7 @@ Zy_fixed = CH.forward_Y(Y_fixed)
 
 # Draw new Zx, while keeping Zy fixed
 CH.forward_Y(X) # set X dimensions in forward pass (this needs to be fixed)
-X_post = CH.inverse(Zx, vec(Zy_fixed.*ones(Float32, prod((nx, ny, n_in)), test_size)))[1]
+X_post = CH.inverse(Zx, Zy_fixed.*ones(Float32, size(Zx_)))[1]
 
 # Plot one sample from X and Y and their latent versions
 figure(figsize=[8,8])
@@ -167,4 +168,3 @@ ax6 = subplot(2,4,6); imshow(X_post[:, :, 1, 4], cmap="gray", aspect="auto"); ti
 ax7 = subplot(2,4,7); imshow(X_post[:, :, 1, 5], cmap="gray", aspect="auto"); title(L"Post. sample: $x = f(zx|zy_{fix})^{-1}$")
 ax8 = subplot(2,4,8); imshow(X_post_std[:, :, 1,1], cmap="binary", aspect="auto", vmin=0, vmax=0.9*maximum(X_post_std)); 
 colorbar(); title("Posterior std");
-
