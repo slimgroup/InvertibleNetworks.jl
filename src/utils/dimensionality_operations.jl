@@ -229,6 +229,15 @@ function tensor_split(X::Array{T,4}; split_index=nothing) where T
     return X[:, :, 1:k, :], X[:, :, k+1:end, :]
 end
 
+function tensor_split(X::Array{T,5}; split_index=nothing) where T
+    if isnothing(split_index)
+        k = Int(round(size(X, 4)/2))
+    else
+        k = split_index
+    end
+    return X[:, :, :, 1:k, :], X[:, :, :, k+1:end, :]
+end
+
 function tensor_split(X::Array{T,1}; split_index=nothing) where T
     if isnothing(split_index)
         k = Int(round(size(X, 1)/2))
@@ -255,5 +264,6 @@ end
  See also: [`tensor_split`](@ref)
 """
 tensor_cat(X::Array{T,4}, Y::Array{T,4}) where T = cat(X, Y; dims=3)
+tensor_cat(X::Array{T,5}, Y::Array{T,5}) where T = cat(X, Y; dims=4)
 tensor_cat(X::Array{T,1}, Y::Array{T,1}) where T = cat(X, Y; dims=1)
 tensor_cat(X::Tuple{Array{T,4}, Array{T,4}}) where T = tensor_cat(X[1], X[2])
