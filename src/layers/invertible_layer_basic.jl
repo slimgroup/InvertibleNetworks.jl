@@ -11,7 +11,9 @@ export CouplingLayerBasic
 
 or
 
-    CL = CouplingLayerBasic(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false)
+    CL = CouplingLayerBasic(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false) (2D)
+
+    CL = CouplingLayerBasic(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false) (3D)
 
  Create a Real NVP-style invertible coupling layer with a residual block. 
 
@@ -23,7 +25,7 @@ or
 
  or
 
- - `nx, ny`: spatial dimensions of input
+ - `nx`, `ny`, `nz`: spatial dimensions of input
  
  - `n_in`, `n_hidden`: number of input and hidden channels
 
@@ -72,7 +74,7 @@ function CouplingLayerBasic(RB::ResidualBlock; logdet=false)
         )
 end
 
-# Constructor from input dimensions
+# 2D Constructor from input dimensions
 function CouplingLayerBasic(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false)
 
     # 1x1 Convolution and residual block for invertible layer
@@ -85,38 +87,77 @@ function CouplingLayerBasic(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, 
         )
 end
 
-# Forward pass: Input X, Output Y
+# 3D Constructor from input dimensions
+function CouplingLayerBasic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false)
+
+    # 1x1 Convolution and residual block for invertible layer
+    RB = ResidualBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true)
+
+    return CouplingLayerBasic(RB, logdet,
+        (X1, X2) -> coupling_layer_forward(X1, X2, RB, logdet),
+        (Y1, Y2) -> coupling_layer_inverse(Y1, Y2, RB),
+        (ΔY1, ΔY2, Y1, Y2) -> coupling_layer_backward(ΔY1, ΔY2, Y1, Y2, RB, logdet)
+        )
+end
+
+# 2D Forward pass: Input X, Output Y
 function coupling_layer_forward(X1::Array{Float32, 4}, X2::Array{Float32, 4}, RB, logdet)
 
     # Coupling layer
     k = size(X1, 3)  
     Y1 = copy(X1)
     logS_T = RB.forward(X1)
-    S = Sigmoid(logS_T[:,:,1:k,:])
+    S = Sigmoid(logS_T[:, :, 1:k, :])
     T = logS_T[:, :, k+1:end, :]
     Y2 = S.*X2 + T
     
     logdet == true ? (return Y1, Y2, coupling_logdet_forward(S)) : (return Y1, Y2)
 end
 
-# Inverse pass: Input Y, Output X
+# 3D Forward pass: Input X, Output Y
+function coupling_layer_forward(X1::Array{Float32, 5}, X2::Array{Float32, 5}, RB, logdet)
+
+    # Coupling layer
+    k = size(X1, 4)  
+    Y1 = copy(X1)
+    logS_T = RB.forward(X1)
+    S = Sigmoid(logS_T[:, :, :, 1:k,: ])
+    T = logS_T[:, :, :, k+1:end, :]
+    Y2 = S.*X2 + T
+    
+    logdet == true ? (return Y1, Y2, coupling_logdet_forward(S)) : (return Y1, Y2)
+end
+
+# 2D Inverse pass: Input Y, Output X
 function coupling_layer_inverse(Y1::Array{Float32, 4}, Y2::Array{Float32, 4}, RB; save=false)
 
     # Inverse layer  
     k = size(Y1, 3)  
     X1 = copy(Y1)
     logS_T = RB.forward(X1)
-    S = Sigmoid(logS_T[:,:,1:k,:])
+    S = Sigmoid(logS_T[:, :, 1:k, :])
     T = logS_T[:, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
  
     save == true ? (return X1, X2, S) : (return X1, X2)
-
 end
 
-# Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function coupling_layer_backward(ΔY1::Array{Float32, 4}, ΔY2::Array{Float32, 4}, 
-    Y1::Array{Float32, 4}, Y2::Array{Float32, 4}, RB, logdet)
+# 3D Inverse pass: Input Y, Output X
+function coupling_layer_inverse(Y1::Array{Float32, 5}, Y2::Array{Float32, 5}, RB; save=false)
+
+    # Inverse layer  
+    k = size(Y1, 4)  
+    X1 = copy(Y1)
+    logS_T = RB.forward(X1)
+    S = Sigmoid(logS_T[:, :, :, 1:k, :])
+    T = logS_T[:, :, :, k+1:end, :]
+    X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
+ 
+    save == true ? (return X1, X2, S) : (return X1, X2)
+end
+
+# 2D/3D Backward pass: Input (ΔY, Y), Output (ΔX, X)
+function coupling_layer_backward(ΔY1, ΔY2, Y1, Y2, RB, logdet)
 
     # Recompute forward state
     X1, X2, S = coupling_layer_inverse(Y1, Y2, RB; save=true)
@@ -126,7 +167,7 @@ function coupling_layer_backward(ΔY1::Array{Float32, 4}, ΔY2::Array{Float32, 4
     ΔS = ΔY2 .* X2
     logdet == true && (ΔS -= coupling_logdet_backward(S))
     ΔX2 = ΔY2 .* S
-    ΔX1 = RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), X1) + ΔY1
+    ΔX1 = RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1) + ΔY1
 
     return ΔX1, ΔX2, X1, X2
 end
