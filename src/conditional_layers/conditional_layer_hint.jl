@@ -5,13 +5,15 @@
 export ConditionalLayerHINT
 
 """
-    CH = ConditionalLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true)
+    CH = ConditionalLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true) (2D)
+
+    CH = ConditionalLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true) (3D)
 
  Create a conditional HINT layer based on coupling blocks and 1 level recursion. 
 
  *Input*: 
 
- - `nx, ny`: spatial dimensions of both `X` and `Y`.
+ - `nx`, `ny`, `nz`: spatial dimensions of both `X` and `Y`.
  
  - `n_in`, `n_hidden`: number of input and hidden channels of both `X` and `Y`
 
@@ -62,13 +64,36 @@ struct ConditionalLayerHINT <: NeuralNetLayer
     inverse_Y::Function
 end
 
-# Constructor from input dimensions
-function ConditionalLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true)
+# 2D Constructor from input dimensions
+function ConditionalLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; 
+    k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true)
 
     # Create basic coupling layers
     CL_X = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute="none")
     CL_Y = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute="none")
     CL_YX = CouplingLayerBasic(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
+
+    # Permutation using 1x1 convolution
+    permute == true ? (C_X = Conv1x1(n_in)) : (C_X = nothing)
+    permute == true ? (C_Y = Conv1x1(n_in)) : (C_Y = nothing)
+
+    return ConditionalLayerHINT(CL_X, CL_Y, CL_YX, C_X, C_Y,
+        (X, Y) -> forward_hint(X, Y, CL_X, CL_Y, CL_YX, C_X, C_Y),
+        (Zx, Zy) -> inverse_hint(Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y),
+        (ΔZx, ΔZy, Zx, Zy) -> backward_hint(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y),
+        Y -> forward_hint_Y(Y, CL_Y, C_Y),
+        Zy -> inverse_hint_Y(Zy, CL_Y, C_Y)
+        )
+end
+
+# 3D Constructor from input dimensions
+function ConditionalLayerHINT(nx::Int64, ny::Int64, nz:: Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; 
+    k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true)
+
+    # Create basic coupling layers
+    CL_X = CouplingLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute="none")
+    CL_Y = CouplingLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute="none")
+    CL_YX = CouplingLayerBasic(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
 
     # Permutation using 1x1 convolution
     permute == true ? (C_X = Conv1x1(n_in)) : (C_X = nothing)
