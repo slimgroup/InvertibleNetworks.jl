@@ -5,9 +5,11 @@
 export CouplingLayerHINT
 
 """
-    H = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1) (2D)
+    H = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; 
+        logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1) (2D)
 
-    H = CouplingLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize; logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1) (3D)
+    H = CouplingLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize; 
+        logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1) (3D)
 
  Create a recursive HINT-style invertible layer based on coupling blocks. 
 
@@ -76,7 +78,8 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
     n = get_depth(n_in)
     CL = Array{CouplingLayerBasic}(undef, n) 
     for j=1:n
-        CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
+        CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize; 
+            k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
     end
 
     # Permutation using 1x1 convolution
@@ -103,7 +106,8 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidde
     n = get_depth(n_in)
     CL = Array{CouplingLayerBasic}(undef, n) 
     for j=1:n
-        CL[j] = CouplingLayerBasic(nx, ny, nz, Int(n_in/2^j), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
+        CL[j] = CouplingLayerBasic(nx, ny, nz, Int(n_in/2^j), n_hidden, batchsize; 
+            k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
     end
 
     # Permutation using 1x1 convolution
