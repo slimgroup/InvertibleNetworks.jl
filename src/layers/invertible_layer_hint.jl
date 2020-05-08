@@ -21,7 +21,7 @@ export CouplingLayerHINT
 
  - `logdet`: bool to indicate whether to return the log determinant. Default is `false`.
 
- - `permute`: string to specify permutation. Options are `"none"`, `"lower"` or `"full"`.
+ - `permute`: string to specify permutation. Options are `"none"`, `"lower"`, `"both"` or `"full"`.
 
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
     operator, `k2` is the kernel size of the second operator.
@@ -83,7 +83,7 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
     end
 
     # Permutation using 1x1 convolution
-    if permute == "full"
+    if permute == "full" || permute == "both"
         C = Conv1x1(n_in)
     elseif permute == "lower"
         C = Conv1x1(Int(n_in/2))
@@ -111,7 +111,7 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidde
     end
 
     # Permutation using 1x1 convolution
-    if permute == "full"
+    if permute == "full" || permute == "both"
         C = Conv1x1(n_in)
     elseif permute == "lower"
         C = Conv1x1(Int(n_in/2))
@@ -128,7 +128,7 @@ end
 
 # Input is tensor X
 function forward_hint(X, CL, C; scale=1, logdet=false, permute="none")
-    permute == "full" && (X = C.forward(X))
+    permute == "full" || permute == "both" && (X = C.forward(X))
     Xa, Xb = tensor_split(X)
     permute == "lower" && (Xb = C.forward(Xb))
 
@@ -161,6 +161,7 @@ function forward_hint(X, CL, C; scale=1, logdet=false, permute="none")
         end
     end
     Y = tensor_cat(Ya, Yb)
+    permute == "both" && (Y = C.inverse(Y))
     if scale==1 && logdet==false
         return Y
     else
@@ -170,6 +171,7 @@ end
 
 # Input is tensor Y
 function inverse_hint(Y, CL, C; scale=1, permute="none")
+    permute == "both" && (Y = C.forward(Y))
     Ya, Yb = tensor_split(Y)
     recursive = false
     if typeof(Y) == Array{Float32, 4} && size(Y, 3) > 4
@@ -186,12 +188,13 @@ function inverse_hint(Y, CL, C; scale=1, permute="none")
     end
     permute == "lower" && (Xb = C.inverse(Xb))
     X = tensor_cat(Xa, Xb)
-    permute == "full" && (X = C.inverse(X))
+    permute == "full" || permute == "both" && (X = C.inverse(X))
     return X
 end
 
 # Input are two tensors ΔY, Y
 function backward_hint(ΔY, Y, CL, C; scale=1, permute="none")
+    permute == "both" && ((ΔY, Y) = C.forward((ΔY, Y)))
     Ya, Yb = tensor_split(Y)
     ΔYa, ΔYb = tensor_split(ΔY)
     recursive = false
@@ -214,7 +217,7 @@ function backward_hint(ΔY, Y, CL, C; scale=1, permute="none")
     permute == "lower" && ((ΔXb, Xb) = C.inverse((ΔXb, Xb)))
     ΔX = tensor_cat(ΔXa, ΔXb)
     X = tensor_cat(Xa, Xb)
-    permute == "full" && ((ΔX, X) = C.inverse((ΔX, X)))
+    permute == "full" || permute == "both" && ((ΔX, X) = C.inverse((ΔX, X)))
     return ΔX, X
 end
 
