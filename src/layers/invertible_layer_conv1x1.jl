@@ -13,18 +13,18 @@ export Conv1x1
 
     C = Conv1x1(v1, v2, v3; logdet=false)
 
- Create network layer for 1x1 convolutions using Householder reflections. 
+ Create network layer for 1x1 convolutions using Householder reflections.
 
- *Input*: 
- 
+ *Input*:
+
  - `k`: number of channels
 
  - `v1`, `v2`, `v3`: Vectors from which to construct matrix.
- 
+
  - `logdet`: if true, returns logdet in forward pass (which is always zero)
 
  *Output*:
- 
+
  - `C`: Network layer for 1x1 convolutions with Householder reflections.
 
  *Usage:*
@@ -65,7 +65,7 @@ function Conv1x1(v1, v2, v3; logdet=false)
     v2 = Parameter(v2)
     v3 = Parameter(v3)
     return Conv1x1(k, v1, v2, v3, logdet,
-                   X -> conv1x1_forward(X, v1, v2, v3, logdet), 
+                   X -> conv1x1_forward(X, v1, v2, v3, logdet),
                    Y -> conv1x1_inverse(Y, v1, v2, v3, logdet))
 end
 
@@ -88,7 +88,7 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, v1, v2, v3, ΔY::AbstractA
     v3 = v3.data
     k = length(v1)
     I = diagm(ones(Float32, k))
-    
+
     dv1 = zeros(Float32, k)
     dv2 = zeros(Float32, k)
     dv3 = zeros(Float32, k)
@@ -101,7 +101,7 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, v1, v2, v3, ΔY::AbstractA
 
         Xi = reshape(X[:,:,:,i], :, n_in)
         ΔYi = reshape(ΔY[:,:,:,i], :, n_in)
-        
+
         for j=1:k
 
             dV1 = partial_derivative_outer(v1, j)
@@ -114,11 +114,11 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, v1, v2, v3, ΔY::AbstractA
 
             if ~adjoint
                 dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi))
-                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi))   
+                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi))
                 dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi))
             else
                 dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi))
-                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi))   
+                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi))
                 dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi))
             end
 
@@ -137,7 +137,7 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 5}, v1, v2, v3, ΔY::AbstractA
     v3 = v3.data
     k = length(v1)
     I = diagm(ones(Float32, k))
-    
+
     dv1 = zeros(Float32, k)
     dv2 = zeros(Float32, k)
     dv3 = zeros(Float32, k)
@@ -150,7 +150,7 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 5}, v1, v2, v3, ΔY::AbstractA
 
         Xi = reshape(X[:,:,:,:,i], :, n_in)
         ΔYi = reshape(ΔY[:,:,:,:,i], :, n_in)
-        
+
         for j=1:k
 
             dV1 = partial_derivative_outer(v1, j)
@@ -163,11 +163,11 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 5}, v1, v2, v3, ΔY::AbstractA
 
             if ~adjoint
                 dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi))
-                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi))   
+                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi))
                 dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi))
             else
                 dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi))
-                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi))   
+                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi))
                 dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi))
             end
 
@@ -212,7 +212,7 @@ end
 
 # Forward pass and update weights
 function conv1x1_forward(X_tuple::Tuple, v1, v2, v3, logdet)
-    ΔX = X_tuple[1] 
+    ΔX = X_tuple[1]
     X = X_tuple[2]
     ΔY = conv1x1_forward(ΔX, v1, v2, v3, false)    # forward propagate residual
     Y = conv1x1_forward(X, v1, v2, v3, false)  # recompute forward state
@@ -259,7 +259,7 @@ end
 
 # Inverse pass and update weights
 function conv1x1_inverse(Y_tuple::Tuple, v1, v2, v3, logdet)
-    ΔY = Y_tuple[1] 
+    ΔY = Y_tuple[1]
     Y = Y_tuple[2]
     ΔX = conv1x1_inverse(ΔY, v1, v2, v3, false)    # derivative w.r.t. input
     X = conv1x1_inverse(Y, v1, v2, v3, false)  # recompute forward state
@@ -279,3 +279,15 @@ end
 
 # Get parameters
 get_params(C::Conv1x1) = [C.v1, C.v2, C.v3]
+
+# Inverse network
+function inverse(C::Conv1x1)
+    Cinv = deepcopy(C); inverse!(Cinv)
+    return Cinv
+end
+
+function inverse!(C::Conv1x1)
+    v1inv = C.v3.data
+    C.v3.data = C.v1.data
+    C.v1.data = v1inv
+end

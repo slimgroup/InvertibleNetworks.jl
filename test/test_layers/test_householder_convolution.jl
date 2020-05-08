@@ -56,6 +56,15 @@ err3 = norm(X - X_)/norm(X)
 
 @test isapprox(err3, 0f0; atol=1f-6)
 
+
+###################################################################################################
+# Test inverse network
+
+Cinv = inverse(C)
+@test isapprox(Cinv.forward(C.forward(X)), X; rtol=1f-3)
+@test isapprox(Cinv.inverse(C.inverse(Y)), Y; rtol=1f-3)
+
+
 ###################################################################################################
 # Test gradients are set in inverse pass
 
