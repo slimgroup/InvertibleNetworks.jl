@@ -8,9 +8,10 @@ import Base.size, Base.getindex, Flux.glorot_uniform
 using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets
 
 export clear_grad!, glorot_uniform, get_params
+export inverse, inverse!
 
 
-# Getters for DenseConvDims fields 
+# Getters for DenseConvDims fields
 # (need to redefine here as they are not public methods in NNlib)
 input_size(c::DenseConvDims) = c.I
 kernel_size(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = K
