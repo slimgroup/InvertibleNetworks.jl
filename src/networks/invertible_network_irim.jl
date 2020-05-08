@@ -270,12 +270,7 @@ end
 function clear_grad!(UL::NetworkLoop)
     maxiter = length(UL.L)
     for j=1:maxiter
-        clear_grad!(UL.L[j].C)
-        if typeof(UL.L[j]) == CouplingLayerIRIM
-            clear_grad!(UL.L[j].RB)
-        elseif typeof(UL.L[j]) == CouplingLayerHINT
-            clear_grad!(UL.L[j].CL)
-        end
+        clear_grad!(UL.L[j])
         clear_grad!(UL.AN[j])
         UL.AN[j].s.data = nothing
         UL.AN[j].b.data = nothing
