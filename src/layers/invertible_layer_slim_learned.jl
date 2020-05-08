@@ -79,7 +79,7 @@ function LearnedCouplingLayerSLIM(nx1, nx2, nx_in, ny1, ny2, ny_in, n_hidden, ba
 end
 
 # Forward pass: Input X, Output Y
-function forward_slim_learned(X::Array{Float32, 4}, D, C, RB; logdet=false)
+function forward_slim_learned(X::AbstractArray{Float32, 4}, D, C, RB; logdet=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(X)
@@ -98,7 +98,7 @@ function forward_slim_learned(X::Array{Float32, 4}, D, C, RB; logdet=false)
 end
 
 # Inverse pass: Input Y, Output X
-function inverse_slim_learned(Y::Array{Float32, 4}, D, C, RB; logdet=false, save=false)
+function inverse_slim_learned(Y::AbstractArray{Float32, 4}, D, C, RB; logdet=false, save=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(Y)
@@ -117,7 +117,7 @@ function inverse_slim_learned(Y::Array{Float32, 4}, D, C, RB; logdet=false, save
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward_slim_learned(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, D, C, RB; logdet=false, permute=false)
+function backward_slim_learned(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, C, RB; logdet=false, permute=false)
 
     # Recompute forward states
     X, X_ = inverse_slim_learned(Y, D, C, RB; logdet=logdet, save=true)

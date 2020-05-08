@@ -81,7 +81,7 @@ function AdditiveCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::
 end
 
 # Forward pass: Input X, Output Y
-function forward_slim_additive(X::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false)
+function forward_slim_additive(X::AbstractArray{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(X)
@@ -106,7 +106,7 @@ function forward_slim_additive(X::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet
 end
 
 # Inverse pass: Input Y, Output X
-function inverse_slim_additive(Y::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false, save=false)
+function inverse_slim_additive(Y::AbstractArray{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false, save=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(Y)
@@ -130,7 +130,7 @@ function inverse_slim_additive(Y::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward_slim_additive(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false, permute=false)
+function backward_slim_additive(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, J, D, C, RB, AN, Ψ; logdet=false, permute=false)
 
     # Recompute forward states
     X, X_, g, gn, gs = inverse_slim_additive(Y, J, D, C, RB, AN, Ψ; logdet=logdet, save=true)
