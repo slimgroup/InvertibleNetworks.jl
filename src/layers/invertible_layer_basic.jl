@@ -101,7 +101,7 @@ function CouplingLayerBasic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidd
 end
 
 # 2D Forward pass: Input X, Output Y
-function coupling_layer_forward(X1::Array{Float32, 4}, X2::Array{Float32, 4}, RB, logdet)
+function coupling_layer_forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, RB, logdet)
 
     # Coupling layer
     k = size(X1, 3)  
@@ -115,7 +115,7 @@ function coupling_layer_forward(X1::Array{Float32, 4}, X2::Array{Float32, 4}, RB
 end
 
 # 3D Forward pass: Input X, Output Y
-function coupling_layer_forward(X1::Array{Float32, 5}, X2::Array{Float32, 5}, RB, logdet)
+function coupling_layer_forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, RB, logdet)
 
     # Coupling layer
     k = size(X1, 4)  
@@ -129,7 +129,7 @@ function coupling_layer_forward(X1::Array{Float32, 5}, X2::Array{Float32, 5}, RB
 end
 
 # 2D Inverse pass: Input Y, Output X
-function coupling_layer_inverse(Y1::Array{Float32, 4}, Y2::Array{Float32, 4}, RB; save=false)
+function coupling_layer_inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, RB; save=false)
 
     # Inverse layer  
     k = size(Y1, 3)  
@@ -143,7 +143,7 @@ function coupling_layer_inverse(Y1::Array{Float32, 4}, Y2::Array{Float32, 4}, RB
 end
 
 # 3D Inverse pass: Input Y, Output X
-function coupling_layer_inverse(Y1::Array{Float32, 5}, Y2::Array{Float32, 5}, RB; save=false)
+function coupling_layer_inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, RB; save=false)
 
     # Inverse layer  
     k = size(Y1, 4)  

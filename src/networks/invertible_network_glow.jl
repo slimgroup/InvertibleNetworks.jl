@@ -50,9 +50,9 @@ export NetworkGlow
  See also: [`ActNorm`](@ref), [`CouplingLayerGlow!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct NetworkGlow <: InvertibleNetwork
-    AN::Array{ActNorm, 2}
-    CL::Array{CouplingLayerGlow, 2}
-    Z_dims::Array{Tuple, 1}
+    AN::AbstractArray{ActNorm, 2}
+    CL::AbstractArray{CouplingLayerGlow, 2}
+    Z_dims::AbstractArray{Tuple, 1}
     forward::Function
     inverse::Function
     backward::Function

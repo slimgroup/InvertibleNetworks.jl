@@ -51,7 +51,7 @@ export CouplingLayerHINT
  See also: [`CouplingLayerBasic`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct CouplingLayerHINT <: NeuralNetLayer
-    CL::Array{CouplingLayerBasic, 1}
+    CL::AbstractArray{CouplingLayerBasic, 1}
     C::Union{Conv1x1, Nothing}
     logdet::Bool
     forward::Function
