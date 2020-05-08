@@ -17,8 +17,9 @@ X = rand(Float32, nx, ny, nc, batchsize)
 # Actnorm and initialize
 AN = ActNorm(nc; logdet=true)
 AN.forward(X)
+ANinv = inverse(AN) # inverse network
 
-# Explicitely compute logdet of Jacobian through probing
+# Explicitly compute logdet of Jacobian through probing
 # for small number of dimensions
 J = zeros(Float32, Int(nx*ny*nc), Int(nx*ny*nc))
 for i=1:nc
@@ -37,6 +38,11 @@ lgdet1 = log(abs(det(J)))
 lgdet2 = AN.forward(X)[2]
 @test isapprox((lgdet1 - lgdet2)/lgdet1, 0f0; atol=1f-6)
 
+# Check: logdet of inverse = -logdet
+Y = AN.forward(X)[1]
+lgdet3 = ANinv.forward(Y)[2]
+@test isapprox((-lgdet3-lgdet2)/lgdet2, 0f0; atol=1f-6)
+
 
 ###############################################################################
 # Initialization and invertibility
@@ -48,7 +54,7 @@ nc = 4
 batchsize = 1
 X = rand(Float32, nx, ny, nc, batchsize)
 
-# Layer and
+# Layer and initialization
 AN = ActNorm(nc)
 Y = AN.forward(X)
 
@@ -59,6 +65,15 @@ Y = AN.forward(X)
 # Test invertibility
 @test isapprox(norm(X - AN.inverse(AN.forward(X)))/norm(X), 0f0, atol=1f-6)
 @test isapprox(norm(X - AN.forward(AN.inverse(X)))/norm(X), 0f0, atol=1f-6)
+
+
+###############################################################################
+# Check inverted network
+
+ANinv = inverse(AN)
+@test isapprox(norm(X - ANinv.forward(AN.forward(X)))/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(Y - ANinv.inverse(AN.inverse(Y)))/norm(Y), 0f0, atol=1f-6)
+
 
 ###############################################################################
 # Gradient Test
@@ -116,6 +131,7 @@ end
 
 
 # Gradient test for parameters
+X = randn(Float32, nx, ny, nc, batchsize)
 AN0 = ActNorm(nc; logdet=true); AN0.forward(X)
 AN_ini = deepcopy(AN0)
 ds = AN.s.data - AN0.s.data
@@ -127,8 +143,8 @@ h = .1f0
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 for j=1:maxiter
-    AN0.s.data = AN_ini.s.data + h*Δs
-    AN0.b.data = AN_ini.b.data + h*Δb
+    AN0.s.data = AN_ini.s.data + h*ds
+    AN0.b.data = AN_ini.b.data + h*db
     f = loss(AN0, X, Y)[1]
     err3[j] = abs(f - f0)
     err4[j] = abs(f - f0 - h*dot(ds, Δs) - h*dot(db, Δb))
@@ -138,4 +154,3 @@ end
 
 @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
-

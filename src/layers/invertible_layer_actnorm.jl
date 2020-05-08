@@ -98,14 +98,12 @@ end
 
 # 2D Inverse pass: Input Y, Output X
 function actnorm_inverse(Y::Array{Float32, 4}, k, s, b)
-    X = (Y .- reshape(b.data, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, :, 1)
-    return X
+    return (Y .- reshape(b.data, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, :, 1)
 end
 
 # 3D Inverse pass: Input Y, Output X
-function actnorm_inverse(Y::Array{Float32, 5}, k, s, b)
-    X = (Y .- reshape(b.data, 1, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, 1, :, 1)
-    return X
+function actnorm_inverse(Y::Array{Float32, 5}, k, s, b; logdet::Bool = false)
+    return (Y .- reshape(b.data, 1, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, 1, :, 1)
 end
 
 # 2D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
@@ -163,3 +161,16 @@ logdet_backward(nx, ny, s) = nx*ny ./ s.data
 # 3D Logdet
 logdet_forward(nx, ny, nz, s) = nx*ny*nz*sum(log.(abs.(s.data)))
 logdet_backward(nx, ny, nz, s) = nx*ny*nz ./ s.data
+
+# Inverse network
+function inverse(AN::ActNorm)
+    ANinv = deepcopy(AN); inverse!(ANinv)
+    return ANinv
+end
+
+function inverse!(AN::ActNorm)
+    sinv = 1f0 ./ AN.s.data
+    binv = -AN.b.data ./ AN.s.data
+    AN.s.data .= sinv
+    AN.b.data .= binv
+end
