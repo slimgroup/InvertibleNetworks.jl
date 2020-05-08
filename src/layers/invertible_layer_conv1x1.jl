@@ -49,6 +49,7 @@ struct Conv1x1 <: NeuralNetLayer
     inverse::Function
 end
 
+@Flux.functor Conv1x1
 # Constructor with random initializations
 function Conv1x1(k; logdet=false)
     v1 = Parameter(glorot_uniform(k))

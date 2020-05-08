@@ -263,7 +263,34 @@ end
 
  See also: [`tensor_split`](@ref)
 """
-tensor_cat(X::AbstractArray{T,4}, Y::AbstractArray{T,4}) where T = cat(X, Y; dims=3)
-tensor_cat(X::AbstractArray{T,5}, Y::AbstractArray{T,5}) where T = cat(X, Y; dims=4)
-tensor_cat(X::AbstractArray{T,1}, Y::AbstractArray{T,1}) where T = cat(X, Y; dims=1)
+function tensor_cat(X::AbstractArray{T,4}, Y::AbstractArray{T,4}) where T 
+    if size(X, 3) == 0
+        return Y
+    elseif size(Y, 3) == 0
+        return X
+    else
+        return cat(X, Y; dims=3)
+    end
+end
+
+function tensor_cat(X::AbstractArray{T,5}, Y::AbstractArray{T,5}) where T
+    if size(X, 4) == 0
+        return Y
+    elseif size(Y, 4) == 0
+        return X
+    else
+        return cat(X, Y; dims=4)
+    end
+end
+
+function tensor_cat(X::AbstractArray{T,1}, Y::AbstractArray{T,1}) where T
+    if size(X, 1) == 0
+        return Y
+    elseif size(Y, 1) == 0
+        return X
+    else
+        return cat(X, Y; dims=1)
+    end
+end
+
 tensor_cat(X::Tuple{AbstractArray{T,4}, AbstractArray{T,4}}) where T = tensor_cat(X[1], X[2])
