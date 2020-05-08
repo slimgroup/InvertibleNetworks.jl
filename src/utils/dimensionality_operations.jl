@@ -32,7 +32,7 @@ export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, tensor_split, ten
 
  See also: [`unsqueeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
 """
-function squeeze(X::Array{T,4}; pattern="column") where T
+function squeeze(X::AbstractArray{T,4}; pattern="column") where T
 
     # Dimensions
     nx_in, ny_in, nc_in, batchsize = size(X)
@@ -88,7 +88,7 @@ end
 
  See also: [`squeeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
 """
-function unsqueeze(Y::Array{T,4}; pattern="column") where T
+function unsqueeze(Y::AbstractArray{T,4}; pattern="column") where T
 
     # Dimensions
     nx_in, ny_in, nc_in, batchsize = size(Y)
@@ -118,7 +118,7 @@ function unsqueeze(Y::Array{T,4}; pattern="column") where T
     return X
 end
 
-function unsqueeze(X::Array{T,4}, Y::Array{T,4}; pattern="column") where T
+function unsqueeze(X::AbstractArray{T,4}, Y::AbstractArray{T,4}; pattern="column") where T
     return unsqueeze(X; pattern=pattern), unsqueeze(Y; pattern=pattern)
 end
 
@@ -147,7 +147,7 @@ end
 
  See also: [`wavelet_unsqueeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
-function wavelet_squeeze(X::Array{T,4}; type=WT.db1) where T
+function wavelet_squeeze(X::AbstractArray{T,4}; type=WT.db1) where T
     nx_in, ny_in, nc_in, batchsize = size(X)
     nx_out = Int(round(nx_in/2))
     ny_out = Int(round(ny_in/2))
@@ -184,7 +184,7 @@ end
 
  See also: [`wavelet_squeeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
-function wavelet_unsqueeze(Y::Array{T,4}; type=WT.db1) where T
+function wavelet_unsqueeze(Y::AbstractArray{T,4}; type=WT.db1) where T
     nx_in, ny_in, nc_in, batchsize = size(Y)
     nx_out = Int(round(nx_in*2))
     ny_out = Int(round(ny_in*2))
@@ -220,7 +220,7 @@ end
 
  See also: [`tensor_cat`](@ref)
 """
-function tensor_split(X::Array{T,4}; split_index=nothing) where T
+function tensor_split(X::AbstractArray{T,4}; split_index=nothing) where T
     if isnothing(split_index)
         k = Int(round(size(X, 3)/2))
     else
@@ -229,7 +229,7 @@ function tensor_split(X::Array{T,4}; split_index=nothing) where T
     return X[:, :, 1:k, :], X[:, :, k+1:end, :]
 end
 
-function tensor_split(X::Array{T,5}; split_index=nothing) where T
+function tensor_split(X::AbstractArray{T,5}; split_index=nothing) where T
     if isnothing(split_index)
         k = Int(round(size(X, 4)/2))
     else
@@ -238,7 +238,7 @@ function tensor_split(X::Array{T,5}; split_index=nothing) where T
     return X[:, :, :, 1:k, :], X[:, :, :, k+1:end, :]
 end
 
-function tensor_split(X::Array{T,1}; split_index=nothing) where T
+function tensor_split(X::AbstractArray{T,1}; split_index=nothing) where T
     if isnothing(split_index)
         k = Int(round(size(X, 1)/2))
     else
@@ -263,7 +263,7 @@ end
 
  See also: [`tensor_split`](@ref)
 """
-tensor_cat(X::Array{T,4}, Y::Array{T,4}) where T = cat(X, Y; dims=3)
-tensor_cat(X::Array{T,5}, Y::Array{T,5}) where T = cat(X, Y; dims=4)
-tensor_cat(X::Array{T,1}, Y::Array{T,1}) where T = cat(X, Y; dims=1)
-tensor_cat(X::Tuple{Array{T,4}, Array{T,4}}) where T = tensor_cat(X[1], X[2])
+tensor_cat(X::AbstractArray{T,4}, Y::AbstractArray{T,4}) where T = cat(X, Y; dims=3)
+tensor_cat(X::AbstractArray{T,5}, Y::AbstractArray{T,5}) where T = cat(X, Y; dims=4)
+tensor_cat(X::AbstractArray{T,1}, Y::AbstractArray{T,1}) where T = cat(X, Y; dims=1)
+tensor_cat(X::Tuple{AbstractArray{T,4}, AbstractArray{T,4}}) where T = tensor_cat(X[1], X[2])

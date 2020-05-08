@@ -93,7 +93,7 @@ function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, ke
 end
 
 # Constructor for given weights
-function HyperbolicLayer(W::Array{Float32, 4}, b::Array{Float32, 1}, nx::Int64, ny::Int64, 
+function HyperbolicLayer(W::AbstractArray{Float32, 4}, b::AbstractArray{Float32, 1}, nx::Int64, ny::Int64, 
     batchsize::Int64, stride::Int64, pad::Int64; action="same", α=1f0)
 
     kernel, n_in, n_hidden = size(W)[2:4]

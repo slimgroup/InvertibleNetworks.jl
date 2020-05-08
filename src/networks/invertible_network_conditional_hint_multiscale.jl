@@ -51,9 +51,9 @@ export NetworkMultiScaleConditionalHINT
  See also: [`ActNorm`](@ref), [`ConditionalLayerHINT!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct NetworkMultiScaleConditionalHINT <: InvertibleNetwork
-    AN_X::Array{ActNorm, 2}
-    AN_Y::Array{ActNorm, 2}
-    CL::Array{ConditionalLayerHINT, 2}
+    AN_X::AbstractArray{ActNorm, 2}
+    AN_Y::AbstractArray{ActNorm, 2}
+    CL::AbstractArray{ConditionalLayerHINT, 2}
     XY_dims::Union{Array{Tuple, 1}, Nothing}
     forward::Function
     inverse::Function
@@ -96,7 +96,7 @@ function NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, 
 end
 
 # Concatenate states Zi and final output
-function cat_states(XY_save::Array{Array, 2}, X::Array{Float32, 4}, Y::Array{Float32, 4})
+function cat_states(XY_save::AbstractArray{Array, 2}, X::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4})
     X_full = []
     Y_full = []
     for j=1:size(XY_save, 1)
@@ -108,7 +108,7 @@ function cat_states(XY_save::Array{Array, 2}, X::Array{Float32, 4}, Y::Array{Flo
     return Float32.(X_full), Float32.(Y_full)  # convert to Array{Float32, 1}
 end
 
-function cat_states(Y_save::Array{Array, 1}, Y::Array{Float32, 4})
+function cat_states(Y_save::AbstractArray{Array, 1}, Y::AbstractArray{Float32, 4})
     Y_full = []
     for j=1:size(Y_save, 1)
         Y_full = cat(Y_full, vec(Y_save[j, 1]); dims=1)
@@ -118,7 +118,7 @@ function cat_states(Y_save::Array{Array, 1}, Y::Array{Float32, 4})
 end
 
 # Split 1D vector in latent space back to states Zi
-function split_states(XY_dims::Array{Tuple, 1}, X_full::Array{Float32, 1}, Y_full::Array{Float32, 1})
+function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{Float32, 1}, Y_full::AbstractArray{Float32, 1})
     L = length(XY_dims) + 1
     XY_save = Array{Array}(undef, L-1, 2)
     count = 1
@@ -133,7 +133,7 @@ function split_states(XY_dims::Array{Tuple, 1}, X_full::Array{Float32, 1}, Y_ful
 end
 
 # Split 1D vector in latent space back to states Zi
-function split_states(XY_dims::Array{Tuple, 1}, Y_full::Array{Float32, 1})
+function split_states(XY_dims::AbstractArray{Tuple, 1}, Y_full::AbstractArray{Float32, 1})
     L = length(XY_dims) + 1
     Y_save = Array{Array}(undef, L-1)
     count = 1
