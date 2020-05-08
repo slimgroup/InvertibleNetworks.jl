@@ -56,8 +56,8 @@ export NetworkLoop
  See also: [`CouplingLayerIRIM`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct NetworkLoop <: InvertibleNetwork
-    L::Array{CouplingLayerIRIM, 1}
-    AN::Array{ActNorm, 1}
+    L::AbstractArray{CouplingLayerIRIM, 1}
+    AN::AbstractArray{ActNorm, 1}
     Ψ::Function
     forward::Function
     inverse::Function
@@ -99,7 +99,7 @@ function NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k
 end
 
 # 2D Forward loop: Input (η, s), Output (η, s)
-function loop_forward(η::Array{Float32, 4}, s::Array{Float32, 4}, d, L, AN, J, Ψ)
+function loop_forward(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
@@ -121,7 +121,7 @@ function loop_forward(η::Array{Float32, 4}, s::Array{Float32, 4}, d, L, AN, J, 
 end
 
 # 3D Forward loop: Input (η, s), Output (η, s)
-function loop_forward(η::Array{Float32, 5}, s::Array{Float32, 5}, d, L, AN, J, Ψ)
+function loop_forward(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, nz, n_s, batchsize = size(s)
@@ -143,7 +143,7 @@ function loop_forward(η::Array{Float32, 5}, s::Array{Float32, 5}, d, L, AN, J, 
 end
 
 # 2D Inverse loop: Input (η, s), Output (η, s)
-function loop_inverse(η::Array{Float32, 4}, s::Array{Float32, 4}, d, L, AN, J, Ψ)
+function loop_inverse(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
@@ -165,7 +165,7 @@ function loop_inverse(η::Array{Float32, 4}, s::Array{Float32, 4}, d, L, AN, J, 
 end
 
 # 3D Inverse loop: Input (η, s), Output (η, s)
-function loop_inverse(η::Array{Float32, 5}, s::Array{Float32, 5}, d, L, AN, J, Ψ)
+function loop_inverse(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, nz, n_s, batchsize = size(s)
@@ -187,8 +187,8 @@ function loop_inverse(η::Array{Float32, 5}, s::Array{Float32, 5}, d, L, AN, J, 
 end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function loop_backward(Δη::Array{Float32, 4}, Δs::Array{Float32, 4}, 
-    η::Array{Float32, 4}, s::Array{Float32, 4}, d, L, AN, J, Ψ)
+function loop_backward(Δη::AbstractArray{Float32, 4}, Δs::AbstractArray{Float32, 4}, 
+    η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
@@ -218,8 +218,8 @@ function loop_backward(Δη::Array{Float32, 4}, Δs::Array{Float32, 4},
 end
 
 # 3D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function loop_backward(Δη::Array{Float32, 5}, Δs::Array{Float32, 5}, 
-    η::Array{Float32, 5}, s::Array{Float32, 5}, d, L, AN, J, Ψ)
+function loop_backward(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5}, 
+    η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, nz, n_s, batchsize = size(s)

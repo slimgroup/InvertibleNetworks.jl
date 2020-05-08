@@ -103,7 +103,7 @@ function CouplingLayerIRIM(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidde
 end
 
 # 2D Forward pass: Input X, Output Y
-function inv_layer_forward(X::Array{Float32, 4}, C, RB)
+function inv_layer_forward(X::AbstractArray{Float32, 4}, C, RB)
 
     # Get dimensions
     k = Int(C.k/2)
@@ -122,7 +122,7 @@ function inv_layer_forward(X::Array{Float32, 4}, C, RB)
 end
 
 # 3D Forward pass: Input X, Output Y
-function inv_layer_forward(X::Array{Float32, 5}, C, RB)
+function inv_layer_forward(X::AbstractArray{Float32, 5}, C, RB)
 
     # Get dimensions
     k = Int(C.k/2)
@@ -141,7 +141,7 @@ function inv_layer_forward(X::Array{Float32, 5}, C, RB)
 end
 
 # 2D Inverse pass: Input Y, Output X
-function inv_layer_inverse(Y::Array{Float32, 4}, C, RB; save=false)
+function inv_layer_inverse(Y::AbstractArray{Float32, 4}, C, RB; save=false)
 
     # Get dimensions
     k = Int(C.k/2)
@@ -164,7 +164,7 @@ function inv_layer_inverse(Y::Array{Float32, 4}, C, RB; save=false)
 end
 
 # 3D Inverse pass: Input Y, Output X
-function inv_layer_inverse(Y::Array{Float32, 5}, C, RB; save=false)
+function inv_layer_inverse(Y::AbstractArray{Float32, 5}, C, RB; save=false)
 
     # Get dimensions
     k = Int(C.k/2)
@@ -187,7 +187,7 @@ function inv_layer_inverse(Y::Array{Float32, 5}, C, RB; save=false)
 end
 
 # 2D Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function inv_layer_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, C, RB)
+function inv_layer_backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, C, RB)
 
     # Recompute forward state
     k = Int(C.k/2)
@@ -205,7 +205,7 @@ function inv_layer_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, C, RB)
 end
 
 # 3D Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function inv_layer_backward(ΔY::Array{Float32, 5}, Y::Array{Float32, 5}, C, RB)
+function inv_layer_backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, C, RB)
 
     # Recompute forward state
     k = Int(C.k/2)

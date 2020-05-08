@@ -61,7 +61,7 @@ function ActNorm(k; logdet=false)
 end
 
 # 2D Foward pass: Input X, Output Y
-function actnorm_forward(X::Array{Float32, 4}, k, s, b, logdet)
+function actnorm_forward(X::AbstractArray{Float32, 4}, k, s, b, logdet)
     nx, ny, n_in, batchsize = size(X)
 
     # Initialize during first pass such that
@@ -79,7 +79,7 @@ function actnorm_forward(X::Array{Float32, 4}, k, s, b, logdet)
 end
 
 # 3D Foward pass: Input X, Output Y
-function actnorm_forward(X::Array{Float32, 5}, k, s, b, logdet)
+function actnorm_forward(X::AbstractArray{Float32, 5}, k, s, b, logdet)
     nx, ny, nz, n_in, batchsize = size(X)
 
     # Initialize during first pass such that
@@ -97,19 +97,19 @@ function actnorm_forward(X::Array{Float32, 5}, k, s, b, logdet)
 end
 
 # 2D Inverse pass: Input Y, Output X
-function actnorm_inverse(Y::Array{Float32, 4}, k, s, b)
+function actnorm_inverse(Y::AbstractArray{Float32, 4}, k, s, b)
     X = (Y .- reshape(b.data, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, :, 1)
     return X
 end
 
 # 3D Inverse pass: Input Y, Output X
-function actnorm_inverse(Y::Array{Float32, 5}, k, s, b)
+function actnorm_inverse(Y::AbstractArray{Float32, 5}, k, s, b)
     X = (Y .- reshape(b.data, 1, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, 1, :, 1)
     return X
 end
 
 # 2D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function actnorm_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, k, s, b, logdet)
+function actnorm_backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, k, s, b, logdet)
     nx, ny, n_in, batchsize = size(Y)
     X = actnorm_inverse(Y, k, s, b)
     ΔX = ΔY .* reshape(s.data, 1, 1, :, 1)
@@ -122,7 +122,7 @@ function actnorm_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, k, s, b,
 end
 
 # 3D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function actnorm_backward(ΔY::Array{Float32, 5}, Y::Array{Float32, 5}, k, s, b, logdet)
+function actnorm_backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, k, s, b, logdet)
     nx, ny, nz, n_in, batchsize = size(Y)
     X = actnorm_inverse(Y, k, s, b)
     ΔX = ΔY .* reshape(s.data, 1, 1, 1, :, 1)
@@ -146,7 +146,7 @@ function reset!(AN::ActNorm)
     AN.b.data = nothing
 end
 
-function reset!(AN::Array{ActNorm, 1})
+function reset!(AN::AbstractArray{ActNorm, 1})
     for j=1:length(AN)
         AN[j].s.data = nothing
         AN[j].b.data = nothing
