@@ -25,6 +25,7 @@ Parameter(x) = Parameter(x, nothing)
 size(x::Parameter) = size(x.data)
 
 @Flux.functor Parameter
+
 """
     clear_grad!(NL::NeuralNetLayer)
 

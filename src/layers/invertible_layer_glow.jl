@@ -65,6 +65,8 @@ struct CouplingLayerGlow <: NeuralNetLayer
     backward::Function
 end
 
+@Flux.functor CouplingLayerGlow
+
 # Constructor from 1x1 convolution and residual block
 function CouplingLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false)
     RB.fan == false && throw("Set ResidualBlock.fan == true")

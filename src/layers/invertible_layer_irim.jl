@@ -63,6 +63,8 @@ struct CouplingLayerIRIM <: NeuralNetLayer
     backward::Function
 end
 
+@Flux.functor CouplingLayerIRIM
+
 # Constructor from 1x1 convolution and residual block
 function CouplingLayerIRIM(C::Conv1x1, RB::ResidualBlock)
     return CouplingLayerIRIM(C, RB, 

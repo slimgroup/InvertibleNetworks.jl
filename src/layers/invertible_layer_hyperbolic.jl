@@ -61,6 +61,8 @@ struct HyperbolicLayer
     backward::Function
 end
 
+@Flux.functor HyperbolicLayer
+
 # Constructor
 function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, kernel::Int64, 
     stride::Int64, pad::Int64; action="same", α=1f0, hidden_factor=1)

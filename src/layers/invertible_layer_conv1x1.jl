@@ -45,19 +45,27 @@ struct Conv1x1 <: NeuralNetLayer
     v2::Parameter
     v3::Parameter
     logdet::Bool
-    forward::Function
-    inverse::Function
 end
 
 @Flux.functor Conv1x1
+
+function Base.getproperty(obj::Conv1x1, sym::Symbol)
+    if sym == :forward
+        return  X -> conv1x1_forward(X, obj.v1, obj.v2, obj.v3, obj.logdet)
+    elseif sym == :inverse
+        return  Y -> conv1x1_inverse(Y, obj.v1, obj.v2, obj.v3, obj.logdet)
+    else
+         # fallback to getfield
+        return getfield(obj, sym)
+    end
+end
+
 # Constructor with random initializations
 function Conv1x1(k; logdet=false)
     v1 = Parameter(glorot_uniform(k))
     v2 = Parameter(glorot_uniform(k))
     v3 = Parameter(glorot_uniform(k))
-    return Conv1x1(k, v1, v2, v3, logdet,
-                   X -> conv1x1_forward(X, v1, v2, v3, logdet),
-                   Y -> conv1x1_inverse(Y, v1, v2, v3, logdet))
+    return Conv1x1(k, v1, v2, v3, logdet)
 end
 
 function Conv1x1(v1, v2, v3; logdet=false)
@@ -65,14 +73,13 @@ function Conv1x1(v1, v2, v3; logdet=false)
     v1 = Parameter(v1)
     v2 = Parameter(v2)
     v3 = Parameter(v3)
-    return Conv1x1(k, v1, v2, v3, logdet,
-                   X -> conv1x1_forward(X, v1, v2, v3, logdet),
-                   Y -> conv1x1_inverse(Y, v1, v2, v3, logdet))
+    return Conv1x1(k, v1, v2, v3, logdet)
 end
+
 
 function partial_derivative_outer(v, j)
     k = length(v)
-    dV = zeros(Float32, k, k)
+    dV = convert_cu(zeros(Float32, k, k), v)
     dV[:, j] = v
     dV[j, :] = v'
     dV[j, j] = 2f0*v[j]
@@ -88,11 +95,11 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, v1, v2, v3, ΔY::AbstractA
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = diagm(ones(Float32, k))
-
-    dv1 = zeros(Float32, k)
-    dv2 = zeros(Float32, k)
-    dv3 = zeros(Float32, k)
+    I = convert_cu(diagm(ones(Float32, k)), X)
+    
+    dv1 = convert_cu(zeros(Float32, k), X)
+    dv2 = convert_cu(zeros(Float32, k), X)
+    dv3 = convert_cu(zeros(Float32, k), X)
 
     V1 = v1*v1'/(v1'*v1)
     V2 = v2*v2'/(v2'*v2)
@@ -137,8 +144,8 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 5}, v1, v2, v3, ΔY::AbstractA
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = diagm(ones(Float32, k))
-
+    I = convert_cu(diagm(ones(Float32, k)), X)
+    
     dv1 = zeros(Float32, k)
     dv2 = zeros(Float32, k)
     dv3 = zeros(Float32, k)
@@ -180,12 +187,13 @@ end
 # Forward pass
 function conv1x1_forward(X::AbstractArray{Float32, 4}, v1, v2, v3, logdet)
     nx, ny, n_in, batchsize = size(X)
-    Y = zeros(Float32, nx, ny, n_in, batchsize)
+    Y = convert_cu(zeros(Float32, nx, ny, n_in, batchsize), X)
+    println(typeof(X), " ", typeof(v1.data))
     v1 = v1.data
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = diagm(ones(Float32, k))
+    I = convert_cu(diagm(ones(Float32, k)), X)
     for i=1:batchsize
         Xi = reshape(X[:,:,:,i], :, n_in)
         Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
@@ -197,12 +205,12 @@ end
 # Forward pass
 function conv1x1_forward(X::AbstractArray{Float32, 5}, v1, v2, v3, logdet)
     nx, ny, nz, n_in, batchsize = size(X)
-    Y = zeros(Float32, nx, ny, nz, n_in, batchsize)
+    Y = comvert_cu(zeros(Float32, nx, ny, nz, n_in, batchsize), X)
     v1 = v1.data
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = diagm(ones(Float32, k))
+    I = convert_cu(diagm(ones(Float32, k)), X)
     for i=1:batchsize
         Xi = reshape(X[:,:,:,:,i], :, n_in)
         Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
@@ -227,12 +235,12 @@ end
 # Inverse pass
 function conv1x1_inverse(Y::AbstractArray{Float32, 4}, v1, v2, v3, logdet)
     nx, ny, n_in, batchsize = size(Y)
-    X = zeros(Float32, nx, ny, n_in, batchsize)
+    X = convert_cu(zeros(Float32, nx, ny, n_in, batchsize), Y)
     v1 = v1.data
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = diagm(ones(Float32, k))
+    I = convert_cu(diagm(ones(Float32, k)), Y)
     for i=1:batchsize
         Yi = reshape(Y[:,:,:,i], :, n_in)
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
@@ -244,12 +252,12 @@ end
 # Inverse pass
 function conv1x1_inverse(Y::AbstractArray{Float32, 5}, v1, v2, v3, logdet)
     nx, ny, nz, n_in, batchsize = size(Y)
-    X = zeros(Float32, nx, ny, nz, n_in, batchsize)
+    X = convert_cu(zeros(Float32, nx, ny, nz, n_in, batchsize), Y)
     v1 = v1.data
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = diagm(ones(Float32, k))
+    I = convert_cu(diagm(ones(Float32, k)), Y)
     for i=1:batchsize
         Yi = reshape(Y[:,:,:,:,i], :, n_in)
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'

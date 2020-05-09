@@ -15,8 +15,8 @@ batchsize = 4
 X = glorot_uniform(nx, ny, k, batchsize) |> gpu
 
 # 1x1 convolution operators
-C = Conv1x1(k)
-C0 = Conv1x1(k)
+C = Conv1x1(k) |> gpu
+C0 = Conv1x1(k) |> gpu
 
 # Generate "true/observed" data with the same dimension as X
 Y = C.forward(X)
@@ -32,6 +32,7 @@ Y0 = C0.forward(X)
 # Also pass Y0 to recompute the forward state X using the inverse mapping
 # and use it to compute the derivative w.r.t. the coefficients of the 
 # Householder matrix.
+println(typeof(Y), typeof(ΔY))
 ΔX, X_ = C0.inverse((ΔY, Y0))  # returns derivative w.r.t input and the recomputed input itself
 @test ~isnothing(C0.v1.grad)    # after inverse pass, gradients are set
 @test isapprox(norm(X - X_)/norm(X), 0f0, atol=1f-6)    # X and X_ should be the same

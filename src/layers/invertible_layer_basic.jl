@@ -65,6 +65,8 @@ struct CouplingLayerBasic <: NeuralNetLayer
     is_inverse::Bool
 end
 
+@Flux.functor CouplingLayerBasic
+
 # Constructor from 1x1 convolution and residual block
 function CouplingLayerBasic(RB::ResidualBlock; logdet=false)
     RB.fan == false && throw("Set ResidualBlock.fan == true")

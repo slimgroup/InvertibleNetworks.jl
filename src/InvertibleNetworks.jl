@@ -51,5 +51,7 @@ include("conditional_layers/conditional_layer_slim.jl")
 include("networks/invertible_network_conditional_hint.jl")
 include("networks/invertible_network_conditional_hint_multiscale.jl")
 
+# gpu
+include("utils/cuda.jl")
 
 end
