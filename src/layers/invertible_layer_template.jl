@@ -32,6 +32,9 @@ struct AffineLayer <: NeuralNetLayer
     backward::Function  # backward function
 end
 
+# Functor the layer for gpu/cpu offloading
+@Flux.functor AffineLayer
+
 # The constructor builds and returns a new network layer for given input dimensions.
 function AffineLayer(nx, ny, nc; logdet=false)
 

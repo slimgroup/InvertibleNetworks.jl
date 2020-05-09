@@ -50,6 +50,8 @@ struct ActNorm <: NeuralNetLayer
     is_inverse::Bool
 end
 
+@Flux.functor ActNorm
+
 # Constructor: Initialize with nothing
 function ActNorm(k; logdet=false)
     s = Parameter(nothing)

@@ -61,6 +61,8 @@ struct CouplingLayerHINT <: NeuralNetLayer
     is_inverse::Bool
 end
 
+@Flux.functor CouplingLayerHINT
+
 # Get layer depth for recursion
 function get_depth(n_in)
     count = 0

@@ -63,6 +63,7 @@ struct AffineCouplingLayerSLIM <: NeuralNetLayer
     backward::Function
 end
 
+@Flux.functor AffineCouplingLayerSLIM
 
 # Constructor from input dimensions
 function AffineCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64, Ψ::Function; 

@@ -78,6 +78,8 @@ struct ResidualBlock <: NeuralNetLayer
     backward::Function
 end
 
+@Flux.functor ResidualBlock
+
 #######################################################################################################################
 # 2D Constructors
 

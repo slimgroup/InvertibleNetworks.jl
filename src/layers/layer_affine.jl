@@ -45,6 +45,8 @@ struct AffineLayer <: NeuralNetLayer
     backward::Function
 end
 
+@Flux.functor AffineLayer
+
 # Constructor: Initialize with nothing
 function AffineLayer(nx, ny, nc; logdet=false)
     s = Parameter(glorot_uniform(nx, ny, nc))

@@ -62,6 +62,7 @@ struct LearnedCouplingLayerSLIM <: NeuralNetLayer
     backward::Function
 end
 
+@Flux.functor LearnedCouplingLayerSLIM
 
 # Constructor from input dimensions
 function LearnedCouplingLayerSLIM(nx1, nx2, nx_in, ny1, ny2, ny_in, n_hidden, batchsize; 
