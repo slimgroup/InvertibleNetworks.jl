@@ -40,49 +40,42 @@ struct AffineLayer <: NeuralNetLayer
     s::Parameter
     b::Parameter
     logdet::Bool
-    forward::Function
-    inverse::Function
-    backward::Function
 end
 
 @Flux.functor AffineLayer
 
 # Constructor: Initialize with nothing
-function AffineLayer(nx, ny, nc; logdet=false)
+function AffineLayer(nx::Int64, ny::Int64, nc::Int64; logdet=false)
     s = Parameter(glorot_uniform(nx, ny, nc))
     b = Parameter(zeros(Float32, nx, ny, nc))
-    return AffineLayer(s, b, logdet,
-        X -> affine_forward(X, s, b, logdet),
-        Y -> affine_inverse(Y, s, b),
-        (ΔY, Y) -> affine_backward(ΔY, Y, s, b, logdet)
-    )
+    return AffineLayer(s, b, logdet)
 end
 
 # Foward pass: Input X, Output Y
-function affine_forward(X, s, b, logdet)
+function forward(X, AL::AffineLayer)
 
-    Y = X .* s.data .+ b.data
+    Y = X .* AL.s.data .+ AL.b.data
     
     # If logdet true, return as second ouput argument
-    logdet == true ? (return Y, logdet_forward(s)) : (return Y)
+    AL.logdet == true ? (return Y, logdet_forward(AL.s)) : (return Y)
 end
 
 # Inverse pass: Input Y, Output X
-function affine_inverse(Y, s, b)
-    X = (Y .- b.data) ./ (s.data + randn(Float32, size(s.data)) .* eps(1f0))   # avoid division by 0
+function inverse(Y, AL::AffineLayer)
+    X = (Y .- AL.b.data) ./ (AL.s.data + randn(Float32, size(AL.s.data)) .* eps(1f0))   # avoid division by 0
     return X
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function affine_backward(ΔY, Y, s, b, logdet)
+function backward(ΔY, Y, AL::AffineLayer)
     nx, ny, n_in, batchsize = size(Y)
-    X = affine_inverse(Y, s, b)
-    ΔX = ΔY .* s.data
+    X = inverse(Y, AL)
+    ΔX = ΔY .* AL.s.data
     Δs = sum(ΔY .* X, dims=4)[:,:,:,1]
-    logdet == true && (Δs -= logdet_backward(s))
+    AL.logdet == true && (Δs -= logdet_backward(AL.s))
     Δb = sum(ΔY, dims=4)[:,:,:,1]
-    s.grad = Δs
-    b.grad = Δb
+    AL.s.grad = Δs
+    AL.b.grad = Δb
     return ΔX, X
 end
 

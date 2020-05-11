@@ -62,11 +62,6 @@ struct ConditionalLayerSLIM <: NeuralNetLayer
     CL_XY::Union{AdditiveCouplingLayerSLIM, AffineCouplingLayerSLIM, LearnedCouplingLayerSLIM}
     C_X::Conv1x1
     C_Y::Conv1x1
-    forward::Function
-    inverse::Function
-    backward::Function
-    forward_Y::Function
-    inverse_Y::Function
 end
 
 # Constructor from input dimensions
@@ -78,7 +73,7 @@ function ConditionalLayerSLIM(nx1::Int64, nx2::Int64, nx_in::Int64, nx_hidden::I
         k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
     CL_Y = CouplingLayerHINT(Int(ny1/2), Int(ny2/2), Int(ny_in*4), ny_hidden, batchsize; 
         k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
-    
+
     if type == "affine"
         CL_XY = AffineCouplingLayerSLIM(nx1, nx2, nx_in, nx_hidden, batchsize, identity;
             k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute=false)
@@ -96,90 +91,84 @@ function ConditionalLayerSLIM(nx1::Int64, nx2::Int64, nx_in::Int64, nx_hidden::I
     C_X = Conv1x1(nx_in)
     C_Y = Conv1x1(Int(ny_in*4))
 
-    return ConditionalLayerSLIM(CL_X, CL_Y, CL_XY, C_X, C_Y,
-        (X, Y, Op) -> forward_cond_slim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
-        (Zx, Zy, Op) -> inverse_cond_slim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
-        (ΔZx, ΔZy, Zx, Zy, Op) -> backward_cond_slim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op),
-        Y -> forward_cond_slim_Y(Y, CL_Y, C_Y),
-        Zy -> inverse_cond_slim_Y(Zy, CL_Y, C_Y)
-        )
+    return ConditionalLayerSLIM(CL_X, CL_Y, CL_XY, C_X, C_Y)
 end
 
-function forward_cond_slim(X, Y, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
+function forward(X, Y, Op, CI::ConditionalLayerSLIM)
 
     # Y-lane: coupling
     Ys = wavelet_squeeze(Y)
-    Yp = C_Y.forward(Ys)
-    Zy, logdet2 = CL_Y.forward(Yp)
+    Yp = CI.C_Y.forward(Ys)
+    Zy, logdet2 = CI.CL_Y.forward(Yp)
     Zy = wavelet_unsqueeze(Zy)
 
     # X-lane
-    Xp = C_X.forward(X)
-    X, logdet1 = CL_X.forward(Xp)
-    if typeof(CL_XY) == LearnedCouplingLayerSLIM
-        Zx, logdet3 = CL_XY.forward(X, reshape(Y, :, size(Y, 4)))   # Learn operator
+    Xp = CI.C_X.forward(X)
+    X, logdet1 = CI.CL_X.forward(Xp)
+    if typeof(CI.CL_XY) == LearnedCouplingLayerSLIM
+        Zx, logdet3 = CI.CL_XY.forward(X, reshape(Y, :, size(Y, 4)))   # Learn operator
     else
-        Zx, logdet3 = CL_XY.forward(X, reshape(Y, :, size(Y, 4)), Op)   # Use provided operator
+        Zx, logdet3 = CI.CL_XY.forward(X, reshape(Y, :, size(Y, 4)), Op)   # Use provided operator
     end
     logdet = logdet1 + logdet2 + logdet3
     return Zx, Zy, logdet
 end
 
-function inverse_cond_slim(Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
+function inverse(Zx, Zy, Op, CI::ConditionalLayerSLIM)
 
     # Y-lane
     Zy = wavelet_squeeze(Zy)
-    Yp = CL_Y.inverse(Zy)
-    Ys = C_Y.inverse(Yp)
+    Yp = CI.CL_Y.inverse(Zy)
+    Ys = CI.C_Y.inverse(Yp)
     Y = wavelet_unsqueeze(Ys)
 
     # X-lane
-    if typeof(CL_XY) == LearnedCouplingLayerSLIM
-        X = CL_XY.inverse(Zx, reshape(Y, :, size(Y, 4)))
+    if typeof(CI.CL_XY) == LearnedCouplingLayerSLIM
+        X = CI.CL_XY.inverse(Zx, reshape(Y, :, size(Y, 4)))
     else
-        X = CL_XY.inverse(Zx, reshape(Y, :, size(Y, 4)), Op)
+        X = CI.CL_XY.inverse(Zx, reshape(Y, :, size(Y, 4)), Op)
     end
-    Xp = CL_X.inverse(X)
-    X = C_X.inverse(Xp)
+    Xp = CI.CL_X.inverse(X)
+    X = CI.C_X.inverse(Xp)
 
     return X, Y
 end
 
-function backward_cond_slim(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_XY, C_X, C_Y, Op)
+function backward(ΔZx, ΔZy, Zx, Zy, Op, CI::ConditionalLayerSLIM)
 
     # Y-lane
     ΔZy = wavelet_squeeze(ΔZy)
     Zy = wavelet_squeeze(Zy)
-    ΔYp, Yp = CL_Y.backward(ΔZy, Zy)
-    ΔYs, Ys = C_Y.inverse((ΔYp, Yp))
+    ΔYp, Yp = CI.CL_Y.backward(ΔZy, Zy)
+    ΔYs, Ys = CI.C_Y.inverse((ΔYp, Yp))
     Y = wavelet_unsqueeze(Ys)
     ΔY = wavelet_unsqueeze(ΔYs)
 
     # X-lane
-    if typeof(CL_XY) == LearnedCouplingLayerSLIM
-        ΔX, ΔY_, X = CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)))
+    if typeof(CI.CL_XY) == LearnedCouplingLayerSLIM
+        ΔX, ΔY_, X = CI.CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)))
     else
-        ΔX, ΔY_, X = CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)), Op)
+        ΔX, ΔY_, X = CI.CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)), Op)
     end
     ΔY += reshape(ΔY_, size(ΔY))
-    ΔXp, Xp = CL_X.backward(ΔX, X)
-    ΔX, X = C_X.inverse((ΔXp, Xp))
+    ΔXp, Xp = CI.CL_X.backward(ΔX, X)
+    ΔX, X = CI.C_X.inverse((ΔXp, Xp))
 
     return ΔX, ΔY, X, Y
 end
 
-function forward_cond_slim_Y(Y, CL_Y, C_Y)
+function forward_Y(Y, CI::ConditionalLayerSLIM)
     Ys = wavelet_squeeze(Y)
-    Yp = C_Y.forward(Ys)
-    Zy, logdet2 = CL_Y.forward(Yp)
+    Yp = CI.C_Y.forward(Ys)
+    Zy, logdet2 = CI.CL_Y.forward(Yp)
     Zy = wavelet_unsqueeze(Zy)
     return Zy
 end
 
-function inverse_cond_slim_Y(Zy, CL_Y, C_Y)
+function inverse_Y(Zy, CI::ConditionalLayerSLIM)
     Zy = wavelet_squeeze(Zy)
-    Yp = CL_Y.inverse(Zy)
-    Ys = C_Y.inverse(Yp)
+    Yp = CI.CL_Y.inverse(Zy)
+    Ys = CI.C_Y.inverse(Yp)
     Y = wavelet_unsqueeze(Ys)
     return Y
 end

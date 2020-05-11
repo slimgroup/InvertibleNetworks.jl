@@ -57,11 +57,6 @@ struct ConditionalLayerHINT <: NeuralNetLayer
     CL_YX::CouplingLayerBasic
     C_X::Union{Conv1x1, Nothing}
     C_Y::Union{Conv1x1, Nothing}
-    forward::Function
-    inverse::Function
-    backward::Function
-    forward_Y::Function
-    inverse_Y::Function
 end
 
 # 2D Constructor from input dimensions
@@ -77,13 +72,7 @@ function ConditionalLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64
     permute == true ? (C_X = Conv1x1(n_in)) : (C_X = nothing)
     permute == true ? (C_Y = Conv1x1(n_in)) : (C_Y = nothing)
 
-    return ConditionalLayerHINT(CL_X, CL_Y, CL_YX, C_X, C_Y,
-        (X, Y) -> forward_hint(X, Y, CL_X, CL_Y, CL_YX, C_X, C_Y),
-        (Zx, Zy) -> inverse_hint(Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y),
-        (ΔZx, ΔZy, Zx, Zy) -> backward_hint(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y),
-        Y -> forward_hint_Y(Y, CL_Y, C_Y),
-        Zy -> inverse_hint_Y(Zy, CL_Y, C_Y)
-        )
+    return ConditionalLayerHINT(CL_X, CL_Y, CL_YX, C_X, C_Y)
 end
 
 # 3D Constructor from input dimensions
@@ -99,82 +88,76 @@ function ConditionalLayerHINT(nx::Int64, ny::Int64, nz:: Int64, n_in::Int64, n_h
     permute == true ? (C_X = Conv1x1(n_in)) : (C_X = nothing)
     permute == true ? (C_Y = Conv1x1(n_in)) : (C_Y = nothing)
 
-    return ConditionalLayerHINT(CL_X, CL_Y, CL_YX, C_X, C_Y,
-        (X, Y) -> forward_hint(X, Y, CL_X, CL_Y, CL_YX, C_X, C_Y),
-        (Zx, Zy) -> inverse_hint(Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y),
-        (ΔZx, ΔZy, Zx, Zy) -> backward_hint(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y),
-        Y -> forward_hint_Y(Y, CL_Y, C_Y),
-        Zy -> inverse_hint_Y(Zy, CL_Y, C_Y)
-        )
+    return ConditionalLayerHINT(CL_X, CL_Y, CL_YX, C_X, C_Y)
 end
 
-function forward_hint(X, Y, CL_X, CL_Y, CL_YX, C_X, C_Y)
+function forward(X, Y, CH::ConditionalLayerHINT)
 
     # Y-lane
-    ~isnothing(C_Y) ? (Yp = C_Y.forward(Y)) : (Yp = copy(Y))
-    Zy, logdet2 = CL_Y.forward(Yp)
+    ~isnothing(CH.C_Y) ? (Yp = CH.C_Y.forward(Y)) : (Yp = copy(Y))
+    Zy, logdet2 = CH.CL_Y.forward(Yp)
 
     # X-lane: coupling layer
-    ~isnothing(C_X) ? (Xp = C_X.forward(X)) : (Xp = copy(X))
-    X, logdet1 = CL_X.forward(Xp)
+    ~isnothing(CH.C_X) ? (Xp =CH. C_X.forward(X)) : (Xp = copy(X))
+    X, logdet1 = CH.CL_X.forward(Xp)
 
     # X-lane: conditional layer
-    Zx, logdet3 = CL_YX.forward(Yp, X)[2:3]
+    Zx, logdet3 = CH.CL_YX.forward(Yp, X)[2:3]
     logdet = logdet1 + logdet2 + logdet3
 
     return Zx, Zy, logdet
 end
 
-function inverse_hint(Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y)
+function inverse(Zx, Zy, CH::ConditionalLayerHINT)
 
     # Y-lane
-    Yp = CL_Y.inverse(Zy)
-    ~isnothing(C_Y) ? (Y = C_Y.inverse(Yp)) : (Y = copy(Yp))
+    Yp = CH.CL_Y.inverse(Zy)
+    ~isnothing(CH.C_Y) ? (Y = CH.C_Y.inverse(Yp)) : (Y = copy(Yp))
 
     # X-lane: conditional layer
     YZ = tensor_cat(Yp, Zx)
-    X = CL_YX.inverse(Yp, Zx)[2]
+    X = CH.CL_YX.inverse(Yp, Zx)[2]
 
     # X-lane: coupling layer
-    Xp = CL_X.inverse(X)
-    ~isnothing(C_X) ? (X = C_X.inverse(Xp)) : (X = copy(Xp))
+    Xp = CH.CL_X.inverse(X)
+    ~isnothing(CH.C_X) ? (X = CH.C_X.inverse(Xp)) : (X = copy(Xp))
 
     return X, Y
 end
 
-function backward_hint(ΔZx, ΔZy, Zx, Zy, CL_X, CL_Y, CL_YX, C_X, C_Y)
+function backward(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT)
 
     # Y-lane
-    ΔYp, Yp = CL_Y.backward(ΔZy, Zy)
+    ΔYp, Yp = CH.CL_Y.backward(ΔZy, Zy)
 
     # X-lane: conditional layer
-    ΔYp_, ΔX, X = CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx)[[1,2,4]]
+    ΔYp_, ΔX, X = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx)[[1,2,4]]
     ΔYp += ΔYp_
 
     # X-lane: coupling layer
-    ΔXp, Xp = CL_X.backward(ΔX, X)
+    ΔXp, Xp = CH.CL_X.backward(ΔX, X)
 
     # 1x1 Convolutions
-    if isnothing(C_X) || isnothing(C_Y)
+    if isnothing(CH.C_X) || isnothing(CH.C_Y)
         ΔX = copy(ΔXp); X = copy(Xp)
         ΔY = copy(ΔYp); Y = copy(Yp)
     else
-        ΔX, X = C_X.inverse((ΔXp, Xp))
-        ΔY, Y = C_Y.inverse((ΔYp, Yp))
+        ΔX, X = CH.C_X.inverse((ΔXp, Xp))
+        ΔY, Y = CH.C_Y.inverse((ΔYp, Yp))
     end
     return ΔX, ΔY, X, Y
 end
 
-function forward_hint_Y(Y, CL_Y, C_Y)
-    ~isnothing(C_Y) ? (Yp = C_Y.forward(Y)) : (Yp = copy(Y))
-    Zy = CL_Y.forward(Yp)[1]
+function forward_Y(Y, CH::ConditionalLayerHINT)
+    ~isnothing(CH.C_Y) ? (Yp = CH.C_Y.forward(Y)) : (Yp = copy(Y))
+    Zy = CH.CL_Y.forward(Yp)[1]
     return Zy
 
 end
 
-function inverse_hint_Y(Zy, CL_Y, C_Y)
-    Yp = CL_Y.inverse(Zy)
-    ~isnothing(C_Y) ? (Y = C_Y.inverse(Yp)) : (Y = copy(Yp))
+function inverse_Y(Zy, CH::ConditionalLayerHINT)
+    Yp = CH.CL_Y.inverse(Zy)
+    ~isnothing(CH.C_Y) ? (Y = CH.C_Y.inverse(Yp)) : (Y = copy(Yp))
     return Y
 end
 
