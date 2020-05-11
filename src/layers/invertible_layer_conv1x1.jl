@@ -79,10 +79,9 @@ end
 
 function partial_derivative_outer(v, j)
     k = length(v)
-    dV = convert_cu(zeros(Float32, k, k), v)
+    dV = cuzeros(v, k, k)
     dV[:, j] = v
-    dV[j, :] = v'
-    dV[j, j] = 2f0*v[j]
+    dV[j, :] += v
     return (dV*(v'*v) - 2f0*v*v'*v[j])/(v'*v)^2
 end
 
@@ -95,11 +94,10 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, v1, v2, v3, ΔY::AbstractA
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = convert_cu(diagm(ones(Float32, k)), X)
     
-    dv1 = convert_cu(zeros(Float32, k), X)
-    dv2 = convert_cu(zeros(Float32, k), X)
-    dv3 = convert_cu(zeros(Float32, k), X)
+    dv1 = cuzeros(X, k)
+    dv2 = cuzeros(X, k)
+    dv3 = cuzeros(X, k)
 
     V1 = v1*v1'/(v1'*v1)
     V2 = v2*v2'/(v2'*v2)
@@ -121,13 +119,13 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, v1, v2, v3, ΔY::AbstractA
             ∂V3 = dV3 - 2f0*V1*dV3 - 2f0*V2*dV3 + 4f0*V1*V2*dV3
 
             if ~adjoint
-                dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi))
-                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi))
-                dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi))
+                dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi)')
+                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi)')   
+                dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi)')
             else
-                dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi))
-                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi))
-                dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi))
+                dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi)')
+                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi)')   
+                dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi)')
             end
 
         end
@@ -144,11 +142,10 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 5}, v1, v2, v3, ΔY::AbstractA
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = convert_cu(diagm(ones(Float32, k)), X)
-    
-    dv1 = zeros(Float32, k)
-    dv2 = zeros(Float32, k)
-    dv3 = zeros(Float32, k)
+
+    dv1 = cuzeros(X, k)
+    dv2 = cuzeros(X, k)
+    dv3 = cuzeros(X, k)
 
     V1 = v1*v1'/(v1'*v1)
     V2 = v2*v2'/(v2'*v2)
@@ -170,13 +167,13 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 5}, v1, v2, v3, ΔY::AbstractA
             ∂V3 = dV3 - 2f0*V1*dV3 - 2f0*V2*dV3 + 4f0*V1*V2*dV3
 
             if ~adjoint
-                dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi))
-                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi))
-                dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi))
+                dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi)')
+                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi)')   
+                dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi)')
             else
-                dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi))
-                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi))
-                dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi))
+                dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi)')
+                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi)')   
+                dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi)')
             end
 
         end
@@ -187,13 +184,12 @@ end
 # Forward pass
 function conv1x1_forward(X::AbstractArray{Float32, 4}, v1, v2, v3, logdet)
     nx, ny, n_in, batchsize = size(X)
-    Y = convert_cu(zeros(Float32, nx, ny, n_in, batchsize), X)
-    println(typeof(X), " ", typeof(v1.data))
+    Y = cuzeros(X, nx, ny, n_in, batchsize)
+    
     v1 = v1.data
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = convert_cu(diagm(ones(Float32, k)), X)
     for i=1:batchsize
         Xi = reshape(X[:,:,:,i], :, n_in)
         Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
@@ -205,12 +201,11 @@ end
 # Forward pass
 function conv1x1_forward(X::AbstractArray{Float32, 5}, v1, v2, v3, logdet)
     nx, ny, nz, n_in, batchsize = size(X)
-    Y = comvert_cu(zeros(Float32, nx, ny, nz, n_in, batchsize), X)
+    Y = cuzeros(X, nx, ny, nz, n_in, batchsize)
     v1 = v1.data
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = convert_cu(diagm(ones(Float32, k)), X)
     for i=1:batchsize
         Xi = reshape(X[:,:,:,:,i], :, n_in)
         Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
@@ -235,12 +230,11 @@ end
 # Inverse pass
 function conv1x1_inverse(Y::AbstractArray{Float32, 4}, v1, v2, v3, logdet)
     nx, ny, n_in, batchsize = size(Y)
-    X = convert_cu(zeros(Float32, nx, ny, n_in, batchsize), Y)
+    X = cuzeros(Y, nx, ny, n_in, batchsize)
     v1 = v1.data
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = convert_cu(diagm(ones(Float32, k)), Y)
     for i=1:batchsize
         Yi = reshape(Y[:,:,:,i], :, n_in)
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
@@ -252,12 +246,11 @@ end
 # Inverse pass
 function conv1x1_inverse(Y::AbstractArray{Float32, 5}, v1, v2, v3, logdet)
     nx, ny, nz, n_in, batchsize = size(Y)
-    X = convert_cu(zeros(Float32, nx, ny, nz, n_in, batchsize), Y)
+    X = cuzeros(Y, nx, ny, nz, n_in, batchsize)
     v1 = v1.data
     v2 = v2.data
     v3 = v3.data
     k = length(v1)
-    I = convert_cu(diagm(ones(Float32, k)), Y)
     for i=1:batchsize
         Yi = reshape(Y[:,:,:,:,i], :, n_in)
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
