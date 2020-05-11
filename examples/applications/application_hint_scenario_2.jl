@@ -155,8 +155,6 @@ x̂ = forward(z)[1][1, 1, :, :]
 fig = plt.figure("training logs - net", dpi=150, figsize=(7, 2.5))
 plt.plot(fval); plt.title("training loss")
 plt.grid()
-plt.savefig("figs/log.png", format="png", bbox_inches="tight", dpi=200)
-plt.close(fig)
 
 # Comparing estimated and true mean
 fig = plt.figure("Posterior mean", dpi=150, figsize=(12, 2.5))
@@ -164,8 +162,7 @@ plt.plot(μ_est, label="Estimated posterior mean")
 plt.plot(μ_post, label="True posterior mean")
 plt.legend(loc="upper right")
 plt.grid()
-plt.savefig("figs/mean-and-std.png", format="png", bbox_inches="tight", dpi=200)
-plt.close(fig)
+
 
 # Comparing estimated and true covariance matrix
 fig = plt.figure("Posterior covariance", dpi=150, figsize=(8, 4)); 
@@ -177,8 +174,7 @@ plt.subplot(122); plt.imshow(Σ_est, vmin=-maximum(Σ_post), vmax=maximum(Σ_pos
 	cmap="RdBu")
 plt.title("Estimated posterior covariance")
 plt.colorbar(fraction=0.0475, pad=0.03)
-plt.savefig("figs/cov-recovery.png", format="png", bbox_inches="tight", dpi=200)
-plt.close(fig)
+
 
 # Sammpling from true posterior
 true_samples = zeros(Float32, dim_model, 100)
@@ -200,5 +196,3 @@ for j =1:100
 plt.grid()
 plt.title("Samples from estimated posterior")
 end
-plt.savefig("figs/estimated-samples.png", format="png", bbox_inches="tight", dpi=200)
-plt.close(fig)
