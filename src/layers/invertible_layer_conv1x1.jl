@@ -49,19 +49,6 @@ end
 
 @Flux.functor Conv1x1
 
-function Base.getproperty(obj::Conv1x1, sym::Symbol)
-    if sym == :forward
-        return (args...) -> forward(args..., obj)
-    elseif sym == :inverse
-        return (args...) -> inverse(args..., obj)
-    elseif sym == :backward
-        return (args...) -> backward(args..., obj)
-    else
-         # fallback to getfield
-        return getfield(obj, sym)
-    end
-end
-
 # Constructor with random initializations
 function Conv1x1(k; logdet=false)
     v1 = Parameter(glorot_uniform(k))
@@ -88,14 +75,14 @@ function partial_derivative_outer(v, j)
 end
 
 
-function conv1x1_grad_v(X::AbstractArray{Float32, 4}, ΔY::AbstractArray{Float32, 4}, L::Conv1x1; adjoint=false)
+function conv1x1_grad_v(X::AbstractArray{Float32, 4}, ΔY::AbstractArray{Float32, 4}, C::Conv1x1; adjoint=false)
 
     # Reshape input
     nx, ny, n_in, batchsize = size(X)
 
-    v1 = L.v1.data
-    v2 = L.v2.data
-    v3 = L.v3.data
+    v1 = C.v1.data
+    v2 = C.v2.data
+    v3 = C.v3.data
     k = length(v1)
     
     dv1 = cuzeros(X, k)
@@ -136,14 +123,14 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, ΔY::AbstractArray{Float32
     return dv1, dv2, dv3
 end
 
-function conv1x1_grad_v(X::AbstractArray{Float32, 5}, ΔY::AbstractArray{Float32, 5}, L::Conv1x1; adjoint=false)
+function conv1x1_grad_v(X::AbstractArray{Float32, 5}, ΔY::AbstractArray{Float32, 5}, C::Conv1x1; adjoint=false)
 
     # Reshape input
     nx, ny, nz, n_in, batchsize = size(X)
 
-    v1 = L.v1.data
-    v2 = L.v2.data
-    v3 = L.v3.data
+    v1 = C.v1.data
+    v2 = C.v2.data
+    v3 = C.v3.data
     k = length(v1)
 
     dv1 = cuzeros(X, k)
@@ -185,93 +172,93 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 5}, ΔY::AbstractArray{Float32
 end
 
 # Forward pass
-function forward(X::AbstractArray{Float32, 4}, L::Conv1x1; logdet=true)
+function forward(X::AbstractArray{Float32, 4}, C::Conv1x1; logdet=true)
     nx, ny, n_in, batchsize = size(X)
     Y = cuzeros(X, nx, ny, n_in, batchsize)
     
-    v1 = L.v1.data
-    v2 = L.v2.data
-    v3 = L.v3.data
+    v1 = C.v1.data
+    v2 = C.v2.data
+    v3 = C.v3.data
     k = length(v1)
     for i=1:batchsize
         Xi = reshape(X[:,:,:,i], :, n_in)
         Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
         Y[:,:,:,i] = reshape(Yi, nx, ny, n_in, 1)
     end
-    L.logdet && logdet ? (return Y, 0f0) : (return Y)   # logdet always 0
+    C.logdet && logdet ? (return Y, 0f0) : (return Y)   # logdet always 0
 end
 
 # Forward pass
-function forward(X::AbstractArray{Float32, 5}, L::Conv1x1; logdet=true)
+function forward(X::AbstractArray{Float32, 5}, C::Conv1x1; logdet=true)
     nx, ny, nz, n_in, batchsize = size(X)
     Y = cuzeros(X, nx, ny, nz, n_in, batchsize)
-    v1 = L.v1.data
-    v2 = L.v2.data
-    v3 = L.v3.data
+    v1 = C.v1.data
+    v2 = C.v2.data
+    v3 = C.v3.data
     k = length(v1)
     for i=1:batchsize
         Xi = reshape(X[:,:,:,:,i], :, n_in)
         Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
         Y[:,:,:,:,i] = reshape(Yi, nx, ny, nz, n_in, 1)
     end
-    L.logdet && logdet ? (return Y, 0f0) : (return Y)   # logdet always 0
+    C.logdet && logdet ? (return Y, 0f0) : (return Y)   # logdet always 0
 end
 
 # Forward pass and update weights
-function forward(X_tuple::Tuple, L::Conv1x1)
+function forward(X_tuple::Tuple, C::Conv1x1)
     ΔX = X_tuple[1] 
     X = X_tuple[2]
-    ΔY = forward(ΔX, L; logdet=false)    # forward propagate residual
-    Y = forward(X, L; logdet=false)  # recompute forward state
-    Δv1, Δv2, Δv3 = conv1x1_grad_v(Y, ΔX, L; adjoint=true)  # gradient w.r.t. weights
-    isnothing(v1.grad) ? (v1.grad = Δv1) : (v1.grad += Δv1)
-    isnothing(v2.grad) ? (v2.grad = Δv2) : (v2.grad += Δv2)
-    isnothing(v3.grad) ? (v3.grad = Δv3) : (v3.grad += Δv3)
+    ΔY = forward(ΔX, C; logdet=false)    # forward propagate residual
+    Y = forward(X, C; logdet=false)  # recompute forward state
+    Δv1, Δv2, Δv3 = conv1x1_grad_v(Y, ΔX, C; adjoint=true)  # gradient w.r.t. weights
+    isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)
+    isnothing(C.v2.grad) ? (C.v2.grad = Δv2) : (C.v2.grad += Δv2)
+    isnothing(C.v3.grad) ? (C.v3.grad = Δv3) : (C.v3.grad += Δv3)
     return ΔY, Y
 end
 
 # Inverse pass
-function inverse(Y::AbstractArray{Float32, 4}, L::Conv1x1; logdet=true)
+function inverse(Y::AbstractArray{Float32, 4}, C::Conv1x1; logdet=true)
     nx, ny, n_in, batchsize = size(Y)
     X = cuzeros(Y, nx, ny, n_in, batchsize)
-    v1 = L.v1.data
-    v2 = L.v2.data
-    v3 = L.v3.data
+    v1 = C.v1.data
+    v2 = C.v2.data
+    v3 = C.v3.data
     k = length(v1)
     for i=1:batchsize
         Yi = reshape(Y[:,:,:,i], :, n_in)
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
         X[:,:,:,i] = reshape(Xi, nx, ny, n_in, 1)
     end
-    L.logdet && logdet ? (return X, 0f0) : (return X)   # logdet always 0
+    C.logdet && logdet ? (return X, 0f0) : (return X)   # logdet always 0
 end
 
 # Inverse pass
-function inverse(Y::AbstractArray{Float32, 5}, L::Conv1x1; logdet=true)
+function inverse(Y::AbstractArray{Float32, 5}, C::Conv1x1; logdet=true)
     nx, ny, nz, n_in, batchsize = size(Y)
     X = cuzeros(Y, nx, ny, nz, n_in, batchsize)
-    v1 = L.v1.data
-    v2 = L.v2.data
-    v3 = L.v3.data
+    v1 = C.v1.data
+    v2 = C.v2.data
+    v3 = C.v3.data
     k = length(v1)
     for i=1:batchsize
         Yi = reshape(Y[:,:,:,:,i], :, n_in)
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
         X[:,:,:,:,i] = reshape(Xi, nx, ny, nz, n_in, 1)
     end
-    L.logdet && logdet ? (return X, 0f0) : (return X)   # logdet always 0
+    C.logdet && logdet ? (return X, 0f0) : (return X)   # logdet always 0
 end
 
 # Inverse pass and update weights
-function inverse(Y_tuple::Tuple, L::Conv1x1)
+function inverse(Y_tuple::Tuple, C::Conv1x1)
     ΔY = Y_tuple[1] 
     Y = Y_tuple[2]
-    ΔX = inverse(ΔY, L; logdet=false)    # derivative w.r.t. input
-    X = inverse(Y, L; logdet=false)  # recompute forward state
-    Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, L)  # gradient w.r.t. weights
-    isnothing(L.v1.grad) ? (L.v1.grad = Δv1) : (L.v1.grad += Δv1)
-    isnothing(L.v2.grad) ? (L.v2.grad = Δv2) : (L.v2.grad += Δv2)
-    isnothing(L.v3.grad) ? (L.v3.grad = Δv3) : (L.v3.grad += Δv3)
+    ΔX = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
+    X = inverse(Y, C; logdet=false)  # recompute forward state
+    Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C)  # gradient w.r.t. weights
+    isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)
+    isnothing(C.v2.grad) ? (C.v2.grad = Δv2) : (C.v2.grad += Δv2)
+    isnothing(C.v3.grad) ? (C.v3.grad = Δv3) : (C.v3.grad += Δv3)
     return ΔX, X
 end
 

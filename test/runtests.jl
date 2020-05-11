@@ -4,7 +4,7 @@
 
 using InvertibleNetworks, Test
 
-test_suite = "all"   # "all", "layers" or "networks"
+test_suite = "networks"   # "all", "layers" or "networks"
 
 if test_suite == "all" || test_suite == "layers"
     @testset "Test individual layers" begin

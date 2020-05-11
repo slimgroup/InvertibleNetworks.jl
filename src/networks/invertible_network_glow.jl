@@ -53,9 +53,8 @@ struct NetworkGlow <: InvertibleNetwork
     AN::AbstractArray{ActNorm, 2}
     CL::AbstractArray{CouplingLayerGlow, 2}
     Z_dims::AbstractArray{Tuple, 1}
-    forward::Function
-    inverse::Function
-    backward::Function
+    L::Int64
+    K::Int64
 end
 
 # Constructor
@@ -73,11 +72,7 @@ function NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, 
         n_in *= 2
     end
 
-    return NetworkGlow(AN, CL, Z_dims, 
-        X -> glow_forward(X, AN, CL, Z_dims, L, K),
-        Y -> glow_inverse(Y, AN, CL, Z_dims, L, K),
-        (ΔY, Y) -> glow_backward(ΔY, Y, AN, CL, Z_dims, L, K)
-    )
+    return NetworkGlow(AN, CL, Z_dims, L, K)
 end
 
 # Concatenate states Zi and final output
@@ -104,20 +99,20 @@ function split_states(Y, Z_dims)
 end
 
 # Forward pass and compute logdet
-function glow_forward(X, AN, CL, Z_dims, L, K)
-    Z_save = Array{Array}(undef, L-1)
+function forward(X, G::NetworkGlow)
+    Z_save = Array{Array}(undef, G.L-1)
     logdet = 0f0
-    for i=1:L
+    for i=1:G.L
         X = squeeze(X; pattern="checkerboard")
-        for j=1:K
-            X, logdet1 = AN[i, j].forward(X)
-            X, logdet2 = CL[i, j].forward(X)
+        for j=1:G.K
+            X, logdet1 = G.AN[i, j].forward(X)
+            X, logdet2 = G.CL[i, j].forward(X)
             logdet += (logdet1 + logdet2)
         end
-        if i < L    # don't split after last iteration
+        if i < G.L    # don't split after last iteration
             X, Z = tensor_split(X)
             Z_save[i] = Z
-            Z_dims[i] = size(Z)
+            G.Z_dims[i] = size(Z)
         end
     end
     X = cat_states(Z_save, X)
@@ -125,15 +120,15 @@ function glow_forward(X, AN, CL, Z_dims, L, K)
 end
 
 # Inverse pass and compute gradients
-function glow_inverse(X, AN, CL, Z_dims, L, K)
-    Z_save, X = split_states(X, Z_dims)
-    for i=L:-1:1
-        if i < L
+function inverse(X, G::NetworkGlow)
+    Z_save, X = split_states(X, G.Z_dims)
+    for i=G.L:-1:1
+        if i < G.L
             X = tensor_cat(X, Z_save[i])
         end
-        for j=K:-1:1
-            X = CL[i, j].inverse(X)
-            X = AN[i, j].inverse(X)
+        for j=G.K:-1:1
+            X = G.CL[i, j].inverse(X)
+            X = G.AN[i, j].inverse(X)
         end
         X = unsqueeze(X; pattern="checkerboard")
     end
@@ -141,17 +136,17 @@ function glow_inverse(X, AN, CL, Z_dims, L, K)
 end
 
 # Backward pass and compute gradients
-function glow_backward(ΔX, X, AN, CL, Z_dims, L, K)
-    ΔZ_save, ΔX = split_states(ΔX, Z_dims)
-    Z_save, X = split_states(X, Z_dims)
-    for i=L:-1:1
-        if i < L
+function backward(ΔX, X, G::NetworkGlow)
+    ΔZ_save, ΔX = split_states(ΔX, G.Z_dims)
+    Z_save, X = split_states(X, G.Z_dims)
+    for i=G.L:-1:1
+        if i < G.L
             X = tensor_cat(X, Z_save[i])
             ΔX = tensor_cat(ΔX, ΔZ_save[i])
         end
-        for j=K:-1:1
-            ΔX, X = CL[i, j].backward(ΔX, X)
-            ΔX, X = AN[i, j].backward(ΔX, X)
+        for j=G.K:-1:1
+            ΔX, X = G.CL[i, j].backward(ΔX, X)
+            ΔX, X = G.AN[i, j].backward(ΔX, X)
         end
         X = unsqueeze(X; pattern="checkerboard")
         ΔX = unsqueeze(ΔX; pattern="checkerboard")
