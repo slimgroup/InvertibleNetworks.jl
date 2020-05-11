@@ -198,7 +198,7 @@ end
 
 # Input are two tensors ΔY, Y
 function backward_hint(ΔY, Y, CL, C; scale=1, permute="none")
-    permute == "both" && (print("hello"); (ΔY, Y) = C.forward((ΔY, Y)))
+    permute == "both" && ((ΔY, Y) = C.forward((ΔY, Y)))
     Ya, Yb = tensor_split(Y)
     ΔYa, ΔYb = tensor_split(ΔY)
     recursive = false
@@ -222,7 +222,7 @@ function backward_hint(ΔY, Y, CL, C; scale=1, permute="none")
     ΔX = tensor_cat(ΔXa, ΔXb)
     X = tensor_cat(Xa, Xb)
     if permute == "full" || permute == "both"
-        print("hi"); (ΔX, X) = C.inverse((ΔX, X))
+        (ΔX, X) = C.inverse((ΔX, X))
     end
     return ΔX, X
 end
