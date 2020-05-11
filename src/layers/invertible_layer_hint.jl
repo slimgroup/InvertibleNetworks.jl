@@ -128,7 +128,9 @@ end
 
 # Input is tensor X
 function forward_hint(X, CL, C; scale=1, logdet=false, permute="none")
-    permute == "full" || permute == "both" && (X = C.forward(X))
+    if permute == "full" || permute == "both"
+        X = C.forward(X)
+    end
     Xa, Xb = tensor_split(X)
     permute == "lower" && (Xb = C.forward(Xb))
 
@@ -188,13 +190,15 @@ function inverse_hint(Y, CL, C; scale=1, permute="none")
     end
     permute == "lower" && (Xb = C.inverse(Xb))
     X = tensor_cat(Xa, Xb)
-    permute == "full" || permute == "both" && (X = C.inverse(X))
+    if permute == "full" || permute == "both"
+        X = C.inverse(X)
+    end
     return X
 end
 
 # Input are two tensors ΔY, Y
 function backward_hint(ΔY, Y, CL, C; scale=1, permute="none")
-    permute == "both" && ((ΔY, Y) = C.forward((ΔY, Y)))
+    permute == "both" && (print("hello"); (ΔY, Y) = C.forward((ΔY, Y)))
     Ya, Yb = tensor_split(Y)
     ΔYa, ΔYb = tensor_split(ΔY)
     recursive = false
@@ -217,7 +221,9 @@ function backward_hint(ΔY, Y, CL, C; scale=1, permute="none")
     permute == "lower" && ((ΔXb, Xb) = C.inverse((ΔXb, Xb)))
     ΔX = tensor_cat(ΔXa, ΔXb)
     X = tensor_cat(Xa, Xb)
-    permute == "full" || permute == "both" && ((ΔX, X) = C.inverse((ΔX, X)))
+    if permute == "full" || permute == "both"
+        print("hi"); (ΔX, X) = C.inverse((ΔX, X))
+    end
     return ΔX, X
 end
 
