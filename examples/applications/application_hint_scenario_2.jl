@@ -62,7 +62,7 @@ nx = 1
 ny = 1
 n_in = dim_model
 n_hidden = 16
-batchsize = 4
+batchsize = 8
 depth = 4
 AN = Array{ActNorm}(undef, depth)
 L = Array{CouplingLayerHINT}(undef, depth)
@@ -103,7 +103,7 @@ end
 # Optimizer
 η = 0.01
 opt = Flux.ADAM(η)
-lr_step = 1000
+lr_step = 2000
 lr_decay_fn = Flux.ExpDecay(η, .3, lr_step, 0.)
 
 # Loss function
@@ -139,6 +139,7 @@ for j = 1:max_itr
         update!(lr_decay_fn, p.data, p.grad)
 	end
 	clear_grad!(Params)
+
 end
 
 
