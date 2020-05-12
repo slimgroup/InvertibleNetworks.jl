@@ -10,12 +10,12 @@ using Printf
 using Random
 Random.seed!(19)
 
-##### Model and data dimension #####
+# Model and data dimension
 dim_model = 8
 dim_data = 6
 
 
-##### Prior distribution #####
+# Prior distribution
 μ_x = 3.14f0*ones(Float32, dim_model)
 σ_x = 3.0f0
 Σ_x = σ_x^2*I
@@ -25,7 +25,7 @@ dim_data = 6
 x = rand(π_x)
 
 
-##### Distribution of noise #####
+# Distribution of noise
 μ_ϵ = 0.0f0*ones(Float32, dim_data)
 σ_ϵ = sqrt(0.1f0)
 Σ_ϵ = σ_ϵ^2*I
@@ -35,18 +35,20 @@ x = rand(π_x)
 ϵ = rand(π_ϵ)
 
 
-##### Forward operator #####
+# Forward operator
 A = randn(Float32, dim_data, dim_model)/sqrt(dim_model*1.0f0)
 
 
-##### Observation #####
+# Observation
 y = A*x + ϵ
 
 
-##### Analytic posterior distribution #####
+# Analytic posterior distribution
 Σ_post = inv(Λ_x + A'*Λ_ϵ*A)
 μ_post = Σ_post*A'*Λ_ϵ*(y - μ_ϵ) + Λ_x*μ_x
 
+
+# Analytic posterior distribution sampler
 R = cholesky(Σ_post, check=false).L
 standard_normal = MvNormal(zeros(Float32, dim_model), 1.0f0*I)
 
@@ -54,14 +56,14 @@ function post_dist_sample()
 	return R*rand(standard_normal) + μ_post
 end
 
-##### Invertible neural net #####
 
+# Invertible neural net
 nx = 1
 ny = 1
 n_in = dim_model
-n_hidden = 512
-batchsize = 32
-depth = 8
+n_hidden = 16
+batchsize = 8
+depth = 4
 AN = Array{ActNorm}(undef, depth)
 L = Array{CouplingLayerHINT}(undef, depth)
 Params = Array{Parameter}(undef, 0)
@@ -98,13 +100,13 @@ function backward(ΔX, X)
 end
 
 
-##### Optimizer #####
-η = 0.001
+# Optimizer
+η = 0.01
 opt = Flux.ADAM(η)
-lr_step = 2500
-lr_decay_fn = Flux.ExpDecay(1f-3, .9, lr_step, 0.)
+lr_step = 2000
+lr_decay_fn = Flux.ExpDecay(η, .3, lr_step, 0.)
 
-##### Loss function #####
+# Loss function
 function loss(z_in, y_in)
 	x̂, logdet = forward(z_in)
 
@@ -117,8 +119,8 @@ function loss(z_in, y_in)
 end
 
 
-##### Implementation of scenario 2 at HINT paper #####
-N = 1000
+# Implementation of scenario 2 at HINT paper
+N = 5000
 z = randn(Float32, 1, 1, dim_model, N)
 max_itr = 5000
 fval = zeros(Float32, max_itr)
@@ -137,10 +139,11 @@ for j = 1:max_itr
         update!(lr_decay_fn, p.data, p.grad)
 	end
 	clear_grad!(Params)
+
 end
 
 
-##### Validation #####
+# Validation
 
 x̂ = forward(z)[1][1, 1, :, :]
 
@@ -148,46 +151,49 @@ x̂ = forward(z)[1][1, 1, :, :]
 Σ_est = cov(x̂; dims=2, corrected=true)
 
 
+
 # Training loss
-fig = figure("training logs - net", dpi=150, figsize=(7, 2.5))
-plot(fval); title("training loss")
-grid()
+fig = plt.figure("training logs - net", dpi=150, figsize=(7, 2.5))
+plt.plot(fval); plt.title("training loss")
+plt.grid()
 
 # Comparing estimated and true mean
-figure("Posterior mean", dpi=150, figsize=(12, 2.5))
-plot(μ_est, label="Estimated posterior mean")
-plot(μ_post, label="True posterior mean")
-legend(loc="upper right")
-grid()
+fig = plt.figure("Posterior mean", dpi=150, figsize=(12, 2.5))
+plt.plot(μ_est, label="Estimated posterior mean")
+plt.plot(μ_post, label="True posterior mean")
+plt.legend(loc="upper right")
+plt.grid()
+
 
 # Comparing estimated and true covariance matrix
-figure("Posterior covariance", dpi=150, figsize=(8, 4)); 
-subplot(121); imshow(Σ_post, vmin=-maximum(Σ_post), vmax=maximum(Σ_post), 
+fig = plt.figure("Posterior covariance", dpi=150, figsize=(8, 4)); 
+plt.subplot(121); plt.imshow(Σ_post, vmin=-maximum(Σ_post), vmax=maximum(Σ_post), 
 	cmap="RdBu")
-title("True posterior covariance")
-colorbar(fraction=0.0475, pad=0.03)
-subplot(122); imshow(Σ_est, vmin=-maximum(Σ_post), vmax=maximum(Σ_post), 
+plt.title("True posterior covariance")
+plt.colorbar(fraction=0.0475, pad=0.03)
+plt.subplot(122); plt.imshow(Σ_est, vmin=-maximum(Σ_post), vmax=maximum(Σ_post), 
 	cmap="RdBu")
-title("Estimated posterior covariance")
-colorbar(fraction=0.0475, pad=0.03)
+plt.title("Estimated posterior covariance")
+plt.colorbar(fraction=0.0475, pad=0.03)
+
 
 # Sammpling from true posterior
-true_samples = zeros(Float32, dim_model, max_itr)
-for j = 1:N
+true_samples = zeros(Float32, dim_model, 100)
+for j = 1:100
 	true_samples[:, j] = post_dist_sample()
 end
 
 # Samples from estimated and true posterior
-figure("samples from posterior", dpi=150, figsize=(7, 6))
-subplot(211); 
+fig = plt.figure("samples from posterior", dpi=150, figsize=(7, 6))
+plt.subplot(211); 
 for j = 1:100
-	plot(true_samples[:, j], alpha=0.5)
-grid()
+	plt.plot(true_samples[:, j], linewidth=0.8, alpha=0.5, color="#22c1d6")
+plt.grid()
 end
-title("Samples from true posterior")
-subplot(212); 
+plt.title("Samples from true posterior")
+plt.subplot(212); 
 for j =1:100
-	plot(x̂[:, j], alpha=0.5)
-grid()
-title("Samples from estimated posterior")
+	plt.plot(x̂[:, j], linewidth=0.8, alpha=0.5, color="k")
+plt.grid()
+plt.title("Samples from estimated posterior")
 end
