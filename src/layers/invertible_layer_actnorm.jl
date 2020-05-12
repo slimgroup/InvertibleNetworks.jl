@@ -47,6 +47,7 @@ struct ActNorm <: NeuralNetLayer
     forward::Function
     inverse::Function
     backward::Function
+    is_inverse::Bool
 end
 
 # Constructor: Initialize with nothing
@@ -56,12 +57,13 @@ function ActNorm(k; logdet=false)
     return ActNorm(k, s, b, logdet,
         X -> actnorm_forward(X, k, s, b, logdet),
         Y -> actnorm_inverse(Y, k, s, b),
-        (ΔY, Y) -> actnorm_backward(ΔY, Y, k, s, b, logdet)
+        (ΔY, Y) -> actnorm_backward(ΔY, Y, k, s, b, logdet),
+        false
     )
 end
 
 # 2D Foward pass: Input X, Output Y
-function actnorm_forward(X::Array{Float32, 4}, k, s, b, logdet)
+function actnorm_forward(X::AbstractArray{Float32, 4}, k, s, b, logdet)
     nx, ny, n_in, batchsize = size(X)
 
     # Initialize during first pass such that
@@ -79,7 +81,7 @@ function actnorm_forward(X::Array{Float32, 4}, k, s, b, logdet)
 end
 
 # 3D Foward pass: Input X, Output Y
-function actnorm_forward(X::Array{Float32, 5}, k, s, b, logdet)
+function actnorm_forward(X::AbstractArray{Float32, 5}, k, s, b, logdet)
     nx, ny, nz, n_in, batchsize = size(X)
 
     # Initialize during first pass such that
@@ -93,21 +95,31 @@ function actnorm_forward(X::Array{Float32, 5}, k, s, b, logdet)
     Y = X .* reshape(s.data, 1, 1, 1, :, 1) .+ reshape(b.data, 1, 1, 1, :, 1)
 
     # If logdet true, return as second ouput argument
-    logdet == true ? (return Y, logdet_forward(nx, ny, s)) : (return Y)
+    logdet == true ? (return Y, logdet_forward(nx, ny, nz, s)) : (return Y)
 end
 
 # 2D Inverse pass: Input Y, Output X
-function actnorm_inverse(Y::Array{Float32, 4}, k, s, b)
-    return (Y .- reshape(b.data, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, :, 1)
+function actnorm_inverse(Y::AbstractArray{Float32, 4}, k, s, b; logdet::Bool=false)
+    nx, ny, _, _ = size(Y)
+
+    X = (Y .- reshape(b.data, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, :, 1)
+
+    # If logdet true, return as second ouput argument
+    logdet == true ? (return X, -logdet_forward(nx, ny, s)) : (return X)
 end
 
 # 3D Inverse pass: Input Y, Output X
-function actnorm_inverse(Y::Array{Float32, 5}, k, s, b; logdet::Bool = false)
-    return (Y .- reshape(b.data, 1, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, 1, :, 1)
+function actnorm_inverse(Y::AbstractArray{Float32, 5}, k, s, b; logdet::Bool=false)
+    nx, ny, nz, _, _ = size(Y)
+
+    X = (Y .- reshape(b.data, 1, 1, 1, :, 1)) ./ reshape(s.data, 1, 1, 1, :, 1)
+
+    # If logdet true, return as second ouput argument
+    logdet == true ? (return X, -logdet_forward(nx, ny, nz, s)) : (return X)
 end
 
 # 2D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function actnorm_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, k, s, b, logdet)
+function actnorm_backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, k, s, b, logdet)
     nx, ny, n_in, batchsize = size(Y)
     X = actnorm_inverse(Y, k, s, b)
     ΔX = ΔY .* reshape(s.data, 1, 1, :, 1)
@@ -120,7 +132,7 @@ function actnorm_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, k, s, b,
 end
 
 # 3D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function actnorm_backward(ΔY::Array{Float32, 5}, Y::Array{Float32, 5}, k, s, b, logdet)
+function actnorm_backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, k, s, b, logdet)
     nx, ny, nz, n_in, batchsize = size(Y)
     X = actnorm_inverse(Y, k, s, b)
     ΔX = ΔY .* reshape(s.data, 1, 1, 1, :, 1)
@@ -130,6 +142,19 @@ function actnorm_backward(ΔY::Array{Float32, 5}, Y::Array{Float32, 5}, k, s, b,
     s.grad = Δs
     b.grad = Δb
     return ΔX, X
+end
+
+# 2D Backward pass (inverse): Input (ΔX, X), Output (ΔX, X)
+function actnorm_backward_inv(ΔX::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, k, s, b, logdet)
+    nx, ny, n_in, batchsize = size(X)
+    Y = actnorm_forward(X, k, s, b, false)
+    ΔY = ΔX ./ reshape(s.data, 1, 1, :, 1)
+    Δs = -sum(ΔX .* X ./ reshape(s.data, 1, 1, :, 1), dims=(1,2,4))[1, 1, :, 1]
+    logdet == true && (Δs += logdet_backward(nx, ny, s))
+    Δb = -sum(ΔX ./ reshape(s.data, 1, 1, :, 1), dims=(1,2,4))[1, 1, :, 1]
+    s.grad = Δs
+    b.grad = Δb
+    return ΔY, Y
 end
 
 # Clear gradients
@@ -144,7 +169,7 @@ function reset!(AN::ActNorm)
     AN.b.data = nothing
 end
 
-function reset!(AN::Array{ActNorm, 1})
+function reset!(AN::AbstractArray{ActNorm, 1})
     for j=1:length(AN)
         AN[j].s.data = nothing
         AN[j].b.data = nothing
@@ -164,13 +189,19 @@ logdet_backward(nx, ny, nz, s) = nx*ny*nz ./ s.data
 
 # Inverse network
 function inverse(AN::ActNorm)
-    ANinv = deepcopy(AN); inverse!(ANinv)
-    return ANinv
-end
-
-function inverse!(AN::ActNorm)
-    sinv = 1f0 ./ AN.s.data
-    binv = -AN.b.data ./ AN.s.data
-    AN.s.data .= sinv
-    AN.b.data .= binv
+    if AN.is_inverse == false
+        return ActNorm(AN.k, AN.s, AN.b, AN.logdet,
+            Y -> actnorm_inverse(Y, AN.k, AN.s, AN.b; logdet=AN.logdet),
+            X -> actnorm_forward(X, AN.k, AN.s, AN.b, false),
+            (ΔX, X) -> actnorm_backward_inv(ΔX, X, AN.k, AN.s, AN.b, AN.logdet),
+            ~AN.is_inverse
+        )
+    elseif AN.is_inverse == true
+        return ActNorm(AN.k, AN.s, AN.b, AN.logdet,
+            X -> actnorm_forward(X, AN.k, AN.s, AN.b, AN.logdet),
+            Y -> actnorm_inverse(Y, AN.k, AN.s, AN.b),
+            (ΔY, Y) -> actnorm_backward(ΔY, Y, AN.k, AN.s, AN.b, AN.logdet),
+            ~AN.is_inverse
+        )
+    end
 end

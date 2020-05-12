@@ -1,5 +1,7 @@
 
-using InvertibleNetworks, Test, LinearAlgebra
+using InvertibleNetworks, Test, LinearAlgebra, Random
+
+Random.seed!(11)
 
 X = randn(Float32, 28, 28, 2, 4)
 
@@ -19,7 +21,6 @@ Y = randn(Float32, 14, 14, 8, 4)
 a = dot(Y, wavelet_squeeze(X))
 b = dot(X, wavelet_unsqueeze(Y))
 @test isapprox(a/b - 1f0, 0f0; atol=1f-5)
-
 
 # Split and cat
 @test isapprox(norm(X - tensor_cat(tensor_split(X))), 0f0; atol=1f-5)

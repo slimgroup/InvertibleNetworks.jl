@@ -43,7 +43,7 @@ export NetworkHyperbolic
 """
 struct NetworkHyperbolic <: InvertibleNetwork
     AL::AffineLayer
-    HL::Array{HyperbolicLayer, 1}
+    HL::AbstractArray{HyperbolicLayer, 1}
     logdet::Bool
     forward::Function
     inverse::Function

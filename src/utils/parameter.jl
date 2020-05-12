@@ -29,11 +29,11 @@ size(x::Parameter) = size(x.data)
 
 or
 
-    clear_grad!(P::Array{Parameter, 1})
+    clear_grad!(P::AbstractArray{Parameter, 1})
 
  Set gradients of each `Parameter` in the network layer to `nothing`. 
 """
-function clear_grad!(P::Array{Parameter, 1})
+function clear_grad!(P::AbstractArray{Parameter, 1})
     for j=1:length(P)
         P[j].grad = nothing
     end

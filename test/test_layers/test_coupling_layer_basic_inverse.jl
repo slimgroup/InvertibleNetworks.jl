@@ -28,10 +28,25 @@ dXb = Xb - Xb0
 
 # 1x1 convolution and residual blocks
 RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
-L = CouplingLayerBasic_inverse(RB; logdet=true)
+Linv = CouplingLayerBasic(RB; logdet=true)
+L = inverse(Linv)
 
 ###################################################################################################
-# Invertibility tests
+# Invertibility tests (1)
+
+Ya, Yb = L.forward(Xa, Xb)
+Xa_, Xb_ = Linv.forward(Ya, Yb)
+@test isapprox(norm(Xa - Xa_)/norm(Xa), 0f0; atol=1e-2)
+@test isapprox(norm(Xb - Xb_)/norm(Xb), 0f0; atol=1e-2)
+
+Ya, Yb = L.inverse(Xa, Xb)
+Xa_, Xb_ = Linv.inverse(Ya, Yb)
+@test isapprox(norm(Xa - Xa_)/norm(Xa), 0f0; atol=1e-2)
+@test isapprox(norm(Xb - Xb_)/norm(Xb), 0f0; atol=1e-2)
+
+
+###################################################################################################
+# Invertibility tests (2)
 
 Ya, Yb = L.forward(Xa, Xb)
 Xa_, Xb_ = L.inverse(Ya, Yb)
@@ -46,24 +61,6 @@ Xa_, Xb_ = L.backward(Ya.*0f0, Yb.*0f0, Ya, Yb)[3:4]
 
 Ya, Yb = L.inverse(Xa, Xb)
 Xa_, Xb_ = L.forward(Ya, Yb)
-@test isapprox(norm(Xa - Xa_)/norm(Xa), 0f0; atol=1e-2)
-@test isapprox(norm(Xb - Xb_)/norm(Xb), 0f0; atol=1e-2)
-
-
-###################################################################################################
-# Invertibility tests (other)
-
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
-L = CouplingLayerBasic(RB; logdet=true)
-Linv = inverse(L)
-
-Ya, Yb = L.forward(Xa, Xb)
-Xa_, Xb_ = Linv.forward(Ya, Yb)
-@test isapprox(norm(Xa - Xa_)/norm(Xa), 0f0; atol=1e-2)
-@test isapprox(norm(Xb - Xb_)/norm(Xb), 0f0; atol=1e-2)
-
-Ya, Yb = L.inverse(Xa, Xb)
-Xa_, Xb_ = Linv.inverse(Ya, Yb)
 @test isapprox(norm(Xa - Xa_)/norm(Xa), 0f0; atol=1e-2)
 @test isapprox(norm(Xb - Xb_)/norm(Xb), 0f0; atol=1e-2)
 
@@ -85,8 +82,8 @@ end
 
 # Invertible layers
 RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
-L01 = CouplingLayerBasic_inverse(RB; logdet=true)
-L02 = CouplingLayerBasic_inverse(RB0; logdet=true)
+L01 = inverse(CouplingLayerBasic(RB; logdet=true))
+L02 = inverse(CouplingLayerBasic(RB0; logdet=true))
 
 
 # Gradient test w.r.t. input X0

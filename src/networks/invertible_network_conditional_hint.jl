@@ -46,9 +46,9 @@ export NetworkConditionalHINT
  See also: [`ActNorm`](@ref), [`ConditionalLayerHINT!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct NetworkConditionalHINT <: InvertibleNetwork
-    AN_X::Array{ActNorm, 1}
-    AN_Y::Array{ActNorm, 1}
-    CL::Array{ConditionalLayerHINT, 1}
+    AN_X::AbstractArray{ActNorm, 1}
+    AN_Y::AbstractArray{ActNorm, 1}
+    CL::AbstractArray{ConditionalLayerHINT, 1}
     forward::Function
     inverse::Function
     backward::Function
