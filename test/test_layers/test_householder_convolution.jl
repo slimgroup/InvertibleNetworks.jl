@@ -56,6 +56,7 @@ err3 = norm(X - X_)/norm(X)
 
 @test isapprox(err3, 0f0; atol=1f-6)
 
+
 ###################################################################################################
 # Test gradients are set in inverse pass
 

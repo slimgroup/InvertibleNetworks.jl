@@ -5,25 +5,25 @@
 export CouplingLayerHINT
 
 """
-    H = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; 
+    H = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize;
         logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1) (2D)
 
-    H = CouplingLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize; 
+    H = CouplingLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize;
         logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1) (3D)
 
- Create a recursive HINT-style invertible layer based on coupling blocks. 
+ Create a recursive HINT-style invertible layer based on coupling blocks.
 
- *Input*: 
+ *Input*:
 
  - `nx`, `ny`, `nz`: spatial dimensions of input
- 
+
  - `n_in`, `n_hidden`: number of input and hidden channels
 
  - `logdet`: bool to indicate whether to return the log determinant. Default is `false`.
 
  - `permute`: string to specify permutation. Options are `"none"`, `"lower"`, `"both"` or `"full"`.
 
- - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
+ - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third
     operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
@@ -31,7 +31,7 @@ export CouplingLayerHINT
  - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
  *Output*:
- 
+
  - `H`: Recursive invertible HINT coupling layer.
 
  *Usage:*
@@ -57,6 +57,8 @@ struct CouplingLayerHINT <: NeuralNetLayer
     forward::Function
     inverse::Function
     backward::Function
+    permute_type::String
+    is_inverse::Bool
 end
 
 # Get layer depth for recursion
@@ -71,14 +73,14 @@ function get_depth(n_in)
 end
 
 # 2D Constructor from input dimensions
-function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; 
+function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64;
     logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
     # Create basic coupling layers
     n = get_depth(n_in)
-    CL = Array{CouplingLayerBasic}(undef, n) 
+    CL = Array{CouplingLayerBasic}(undef, n)
     for j=1:n
-        CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize; 
+        CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize;
             k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
     end
 
@@ -93,20 +95,22 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
 
     return CouplingLayerHINT(CL, C, logdet,
         X -> forward_hint(X, CL, C; logdet=logdet, permute=permute),
-        Y -> inverse_hint(Y, CL, C, permute=permute),
-        (ΔY, Y) -> backward_hint(ΔY, Y, CL, C, permute=permute)
+        (Y; logdet=false) -> inverse_hint(Y, CL, C; logdet=logdet, permute=permute),
+        (ΔY, Y) -> backward_hint(ΔY, Y, CL, C; permute=permute),
+        permute,
+        false
         )
 end
 
 # 3D Constructor from input dimensions
-function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; 
+function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64;
     logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
     # Create basic coupling layers
     n = get_depth(n_in)
-    CL = Array{CouplingLayerBasic}(undef, n) 
+    CL = Array{CouplingLayerBasic}(undef, n)
     for j=1:n
-        CL[j] = CouplingLayerBasic(nx, ny, nz, Int(n_in/2^j), n_hidden, batchsize; 
+        CL[j] = CouplingLayerBasic(nx, ny, nz, Int(n_in/2^j), n_hidden, batchsize;
             k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
     end
 
@@ -121,8 +125,10 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidde
 
     return CouplingLayerHINT(CL, C, logdet,
         X -> forward_hint(X, CL, C; logdet=logdet, permute=permute),
-        Y -> inverse_hint(Y, CL, C, permute=permute),
-        (ΔY, Y) -> backward_hint(ΔY, Y, CL, C, permute=permute)
+        (Y; logdet=false) -> inverse_hint(Y, CL, C; logdet=logdet, permute=permute),
+        (ΔY, Y) -> backward_hint(ΔY, Y, CL, C; permute=permute),
+        permute,
+        false
         )
 end
 
@@ -140,7 +146,7 @@ function forward_hint(X, CL, C; scale=1, logdet=false, permute="none")
     elseif typeof(X) == Array{Float32, 5} && size(X, 4) > 4
         recursive = true
     end
-    
+
     if recursive
         # Call function recursively
         Ya, logdet1 = forward_hint(Xa, CL, C; scale=scale+1, logdet=logdet)
@@ -172,7 +178,7 @@ function forward_hint(X, CL, C; scale=1, logdet=false, permute="none")
 end
 
 # Input is tensor Y
-function inverse_hint(Y, CL, C; scale=1, permute="none")
+function inverse_hint(Y, CL, C; scale=1, logdet=false, permute="none")
     permute == "both" && (Y = C.forward(Y))
     Ya, Yb = tensor_split(Y)
     recursive = false
@@ -182,18 +188,33 @@ function inverse_hint(Y, CL, C; scale=1, permute="none")
         recursive = true
     end
     if recursive
-        Xa = inverse_hint(Ya, CL, C; scale=scale+1)
-        Xb = inverse_hint(CL[scale].inverse(Xa, Yb)[2], CL, C; scale=scale+1)
+        Xa, logdet1 = inverse_hint(Ya, CL, C; scale=scale+1, logdet=logdet)
+        if logdet==false
+            Y_temp = CL[scale].inverse(Xa, Yb)[2]
+            logdet2 = 0f0
+        else
+            Y_temp, logdet2 = CL[scale].inverse(Xa, Yb; logdet=true)[[2,3]]
+        end
+        Xb, logdet3 = inverse_hint(Y_temp, CL, C; scale=scale+1, logdet=logdet)
+        logdet_full = logdet1 + logdet2 + logdet3
     else
         Xa = copy(Ya)
-        Xb = CL[scale].inverse(Ya, Yb)[2]
+        if logdet == false
+            Xb = CL[scale].inverse(Ya, Yb)[2]
+            logdet_full = 0f0
+        else
+            Xb, logdet_full = CL[scale].inverse(Ya, Yb; logdet=true)[[2,3]]
+        end
     end
     permute == "lower" && (Xb = C.inverse(Xb))
     X = tensor_cat(Xa, Xb)
-    if permute == "full" || permute == "both"
-        X = C.inverse(X)
+    permute == "full" || permute == "both" && (X = C.inverse(X))
+
+    if scale==1 && logdet==false
+        return X
+    else
+        return X, logdet_full
     end
-    return X
 end
 
 # Input are two tensors ΔY, Y
@@ -227,6 +248,37 @@ function backward_hint(ΔY, Y, CL, C; scale=1, permute="none")
     return ΔX, X
 end
 
+# Input are two tensors ΔX, X
+function backward_hint_inv(ΔX, X, CL, C; scale=1, permute="none")
+
+    permute == "full" || permute == "both" && ((ΔX, X) = C.forward((ΔX, X)))
+    ΔXa, ΔXb = tensor_split(ΔX)
+    Xa, Xb = tensor_split(X)
+    permute == "lower" && ((ΔXb, Xb) = C.forward((ΔXb, Xb)))
+
+    recursive = false
+    if typeof(X) == Array{Float32, 4} && size(X, 3) > 4
+        recursive = true
+    elseif typeof(X) == Array{Float32, 5} && size(X, 4) > 4
+        recursive = true
+    end
+
+    if recursive
+        ΔY_temp, Y_temp = backward_hint_inv(ΔXb, Xb, CL, C; scale=scale+1)
+        ΔYa_temp, ΔYb, Yb = coupling_layer_backward_inv(0f0.*ΔXa, ΔY_temp, Xa, Y_temp, CL[scale].RB, CL[scale].logdet)[[1,2,4]]
+        ΔYa, Ya = backward_hint_inv(ΔXa+ΔYa_temp, Xa, CL, C; scale=scale+1)
+    else
+        ΔYa = copy(ΔXa)
+        Ya = copy(Xa)
+        ΔYa_temp, ΔYb, Yb = coupling_layer_backward_inv(0f0.*ΔYa, ΔXb, Xa, Xb, CL[scale].RB, CL[scale].logdet)[[1,2,4]]
+        ΔYa += ΔYa_temp
+    end
+    ΔY = tensor_cat(ΔYa, ΔYb)
+    Y = tensor_cat(Ya, Yb)
+    permute == "both" && ((ΔY, Y) = C.inverse((ΔY, Y)))
+    return ΔY, Y
+end
+
 # Clear gradients
 function clear_grad!(H::CouplingLayerHINT)
     for j=1:length(H.CL)
@@ -246,4 +298,25 @@ function get_params(H::CouplingLayerHINT)
     end
     ~isnothing(H.C) && (p = cat(p, get_params(H.C); dims=1))
     return p
+end
+
+# Inverse network
+function inverse(L::CouplingLayerHINT)
+    if L.is_inverse == true
+        return CouplingLayerHINT(L.CL, L.C, L.logdet,
+            X -> forward_hint(X, L.CL, L.C; logdet=L.logdet, permute=L.permute_type),
+            (Y; logdet=false) -> inverse_hint(Y, L.CL, L.C; logdet=logdet, permute=L.permute_type),
+            (ΔY, Y) -> backward_hint(ΔY, Y, L.CL, L.C; permute=L.permute_type),
+            L.permute_type,
+            false
+            )
+    elseif L.is_inverse == false
+        return CouplingLayerHINT(L.CL, L.C, L.logdet,
+            Y -> inverse_hint(Y, L.CL, L.C; logdet=L.logdet, permute=L.permute_type),
+            (X; logdet=false) -> forward_hint(X, L.CL, L.C; logdet=logdet, permute=L.permute_type),
+            (ΔX, X) -> backward_hint_inv(ΔX, X, L.CL, L.C; permute=L.permute_type),
+            L.permute_type,
+            true
+            )
+    end
 end

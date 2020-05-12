@@ -15,8 +15,8 @@ batchsize = 1
 X = rand(Float32, nx, ny, nc, batchsize)
 
 # Actnorm and initialize
-AN = ActNorm(nc; logdet=true)
-AN.forward(X)
+ANinv = ActNorm(nc; logdet=true); ANinv.forward(randn(Float32, nx, ny, nc, batchsize))
+AN = inverse(ANinv)
 
 # Explicitely compute logdet of Jacobian through probing
 # for small number of dimensions
@@ -49,29 +49,26 @@ batchsize = 1
 X = rand(Float32, nx, ny, nc, batchsize)
 
 # Layer and
-AN = ActNorm(nc)
-Y = AN.forward(X)
+ANinv = ActNorm(nc); ANinv.forward(randn(Float32, nx, ny, nc, batchsize))
+AN = inverse(ANinv)
 
-# Test initialization
-@test isapprox(mean(Y), 0f0; atol=1f-6)
-@test isapprox(var(Y), 1f0; atol=1f-3)
+# Test invertibility (1)
+@test isapprox(norm(X - ANinv.forward(AN.forward(X)))/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - ANinv.inverse(AN.inverse(X)))/norm(X), 0f0, atol=1f-6)
 
-# Test invertibility
+# Test invertibility (2)
 @test isapprox(norm(X - AN.inverse(AN.forward(X)))/norm(X), 0f0, atol=1f-6)
 @test isapprox(norm(X - AN.forward(AN.inverse(X)))/norm(X), 0f0, atol=1f-6)
 
 ###############################################################################
 # Gradient Test
 
-AN = ActNorm(nc; logdet=true)
+ANinv = ActNorm(nc; logdet=true); ANinv.forward(randn(Float32, nx, ny, nc, batchsize))
+AN = inverse(ANinv)
 X = randn(Float32, nx, ny, nc, batchsize)
 X0 = randn(Float32, nx, ny, nc, batchsize)
 dX = X - X0
-if AN.logdet == true
-    Y = AN.forward(X)[1]
-else
-    Y = AN.forward(X)
-end
+Y = AN.forward(X)[1]
 
 function loss(AN, X, Y)
 
@@ -116,7 +113,8 @@ end
 
 
 # Gradient test for parameters
-AN0 = ActNorm(nc; logdet=true); AN0.forward(randn(Float32, nx, ny, nc, batchsize))
+AN0inv = ActNorm(nc; logdet=true); AN0inv.forward(randn(Float32, nx, ny, nc, batchsize))
+AN0 = inverse(AN0inv)
 AN_ini = deepcopy(AN0)
 ds = AN.s.data - AN0.s.data
 db = AN.b.data - AN0.b.data
