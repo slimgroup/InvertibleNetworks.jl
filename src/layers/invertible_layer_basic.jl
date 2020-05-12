@@ -223,7 +223,7 @@ function inverse(L::CouplingLayerBasic)
     if L.is_inverse == false
         return CouplingLayerBasic(L.RB, L.logdet,
             (Y1, Y2) -> coupling_layer_inverse(Y1, Y2, L.RB; logdet=L.logdet),
-            (X1, X2) -> coupling_layer_forward(X1, X2, L.RB, false),
+            (X1, X2; logdet=false) -> coupling_layer_forward(X1, X2, L.RB, logdet),
             (ΔX1, ΔX2, X1, X2) -> coupling_layer_backward_inv(ΔX1, ΔX2, X1, X2, L.RB, L.logdet),
             true
             )
