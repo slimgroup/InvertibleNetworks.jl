@@ -95,7 +95,7 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
 
     return CouplingLayerHINT(CL, C, logdet,
         X -> forward_hint(X, CL, C; logdet=logdet, permute=permute),
-        Y -> inverse_hint(Y, CL, C; permute=permute),
+        (Y; logdet=false) -> inverse_hint(Y, CL, C; logdet=logdet, permute=permute),
         (ΔY, Y) -> backward_hint(ΔY, Y, CL, C; permute=permute),
         permute,
         false
@@ -125,7 +125,7 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidde
 
     return CouplingLayerHINT(CL, C, logdet,
         X -> forward_hint(X, CL, C; logdet=logdet, permute=permute),
-        Y -> inverse_hint(Y, CL, C; permute=permute),
+        (Y; logdet=false) -> inverse_hint(Y, CL, C; logdet=logdet, permute=permute),
         (ΔY, Y) -> backward_hint(ΔY, Y, CL, C; permute=permute),
         permute,
         false
@@ -301,7 +301,7 @@ function inverse(L::CouplingLayerHINT)
     if L.is_inverse == true
         return CouplingLayerHINT(L.CL, L.C, L.logdet,
             X -> forward_hint(X, L.CL, L.C; logdet=L.logdet, permute=L.permute_type),
-            Y -> inverse_hint(Y, L.CL, L.C; permute=L.permute_type),
+            (Y; logdet=false) -> inverse_hint(Y, L.CL, L.C; logdet=logdet, permute=L.permute_type),
             (ΔY, Y) -> backward_hint(ΔY, Y, L.CL, L.C; permute=L.permute_type),
             L.permute_type,
             false
@@ -309,7 +309,7 @@ function inverse(L::CouplingLayerHINT)
     elseif L.is_inverse == false
         return CouplingLayerHINT(L.CL, L.C, L.logdet,
             Y -> inverse_hint(Y, L.CL, L.C; logdet=L.logdet, permute=L.permute_type),
-            X -> forward_hint(X, L.CL, L.C; logdet=false, permute=L.permute_type),
+            (X; logdet=false) -> forward_hint(X, L.CL, L.C; logdet=logdet, permute=L.permute_type),
             (ΔX, X) -> backward_hint_inv(ΔX, X, L.CL, L.C; permute=L.permute_type),
             L.permute_type,
             true

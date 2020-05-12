@@ -56,7 +56,7 @@ function ActNorm(k; logdet=false)
     b = Parameter(nothing)
     return ActNorm(k, s, b, logdet,
         X -> actnorm_forward(X, k, s, b, logdet),
-        Y -> actnorm_inverse(Y, k, s, b),
+        (Y; logdet=false) -> actnorm_inverse(Y, k, s, b; logdet=logdet),
         (ΔY, Y) -> actnorm_backward(ΔY, Y, k, s, b, logdet),
         false
     )
@@ -192,14 +192,14 @@ function inverse(AN::ActNorm)
     if AN.is_inverse == false
         return ActNorm(AN.k, AN.s, AN.b, AN.logdet,
             Y -> actnorm_inverse(Y, AN.k, AN.s, AN.b; logdet=AN.logdet),
-            X -> actnorm_forward(X, AN.k, AN.s, AN.b, false),
+            (X; logdet=false) -> actnorm_forward(X, AN.k, AN.s, AN.b, logdet),
             (ΔX, X) -> actnorm_backward_inv(ΔX, X, AN.k, AN.s, AN.b, AN.logdet),
             ~AN.is_inverse
         )
     elseif AN.is_inverse == true
         return ActNorm(AN.k, AN.s, AN.b, AN.logdet,
             X -> actnorm_forward(X, AN.k, AN.s, AN.b, AN.logdet),
-            Y -> actnorm_inverse(Y, AN.k, AN.s, AN.b),
+            (Y; logdet=false) -> actnorm_inverse(Y, AN.k, AN.s, AN.b; logdet=logdet),
             (ΔY, Y) -> actnorm_backward(ΔY, Y, AN.k, AN.s, AN.b, AN.logdet),
             ~AN.is_inverse
         )
