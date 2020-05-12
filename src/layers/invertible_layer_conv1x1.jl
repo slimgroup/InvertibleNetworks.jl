@@ -279,15 +279,3 @@ end
 
 # Get parameters
 get_params(C::Conv1x1) = [C.v1, C.v2, C.v3]
-
-# Inverse network
-function inverse(C::Conv1x1)
-    Cinv = deepcopy(C); inverse!(Cinv)
-    return Cinv
-end
-
-function inverse!(C::Conv1x1)
-    v1inv = C.v3.data
-    C.v3.data = C.v1.data
-    C.v1.data = v1inv
-end

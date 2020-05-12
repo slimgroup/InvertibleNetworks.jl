@@ -1,30 +1,34 @@
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
+Random.seed!(11)
+
 # Input
 nx = 16
 ny = 16
+nz = 16
 n_in = 2
 n_hidden = 4
 batchsize = 2
 maxiter = 2
 
 # Observed data
-nrec = 14
+nxrec = 10
+nyrec = 12
 nt = 8
-d = randn(Float32, nt, nrec, 1, batchsize)
+d = randn(Float32, nt, nxrec*nyrec, 1, batchsize)
 
 # Modeling/imaging operator
-J = randn(Float32, nt*nrec, nx*ny)
+J = randn(Float32, nt*nxrec*nyrec, nx*ny*nz)
 
 # Link function
 Ψ(η) = identity(η)
 
 # Unrolled loop
-L = NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ)
+L = NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; type="HINT")
 
 # Initializations
-η = randn(Float32, nx, ny, 1, batchsize)
-s = randn(Float32, nx, ny, n_in-1, batchsize)
+η = randn(Float32, nx, ny, nz, 1, batchsize)
+s = randn(Float32, nx, ny, nz, n_in-1, batchsize)
 
 ###################################################################################################
 
@@ -48,10 +52,10 @@ s = randn(Float32, nx, ny, n_in-1, batchsize)
 ###################################################################################################
 
 # Initializations
-η = randn(Float32, nx, ny, 1, batchsize)
-s = randn(Float32, nx, ny, n_in-1, batchsize)
-η0 = randn(Float32, nx, ny, 1, batchsize)
-s0 = randn(Float32, nx, ny, n_in-1, batchsize)
+η = randn(Float32, nx, ny, nz, 1, batchsize)
+s = randn(Float32, nx, ny, nz, n_in-1, batchsize)
+η0 = randn(Float32, nx, ny, nz, 1, batchsize)
+s0 = randn(Float32, nx, ny, nz, n_in-1, batchsize)
 Δη = η - η0
 Δs = s - s0
 
@@ -64,7 +68,7 @@ function loss(L, η0, s0, d, η, s)
     Δs = s_ - s    # no "observed" s, so Δs=0
     f = .5f0*norm(Δη)^2 + .5f0*norm(Δs)^2
     Δη_, Δs_ = L.backward(Δη, Δs, η_, s_, d, J)[1:2]
-    return f, Δη_, Δs_, L.L[1].C.v1.grad, L.L[1].RB.W1.grad
+    return f, Δη_, Δs_, L.L[1].C.v1.grad, L.L[1].CL[1].RB.W1.grad
 end
 
 # Gradient test for input
@@ -88,10 +92,10 @@ end
 
 
 # Gradient test for weights
-L0 = NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ)
+L0 = NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; type="HINT")
 L_ini = deepcopy(L0)
 dv = L.L[1].C.v1.data - L0.L[1].C.v1.data   # just test for 2 parameters
-dW = L.L[1].RB.W1.data - L0.L[1].RB.W1.data
+dW = L.L[1].CL[1].RB.W1.data - L0.L[1].CL[1].RB.W1.data
 f0, gη, gs, gv, gW = loss(L0, η, s, d, η_, s_)
 h = 0.1f0
 maxiter = 5
@@ -101,7 +105,7 @@ err4 = zeros(Float32, maxiter)
 print("\nGradient test loop unrolling\n")
 for j=1:maxiter
     L0.L[1].C.v1.data = L_ini.L[1].C.v1.data + h*dv
-    L0.L[1].RB.W1.data = L_ini.L[1].RB.W1.data + h*dW
+    L0.L[1].CL[1].RB.W1.data = L_ini.L[1].CL[1].RB.W1.data + h*dW
     f = loss(L0, η, s, d, η_, s_)[1]
     err3[j] = abs(f - f0)
     err4[j] = abs(f - f0 - h*dot(dv, gv) - h*dot(dW, gW))

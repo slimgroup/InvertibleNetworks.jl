@@ -188,7 +188,7 @@ end
 # Functions
 
 # Forward 2D
-function residual_forward(X1::Array{Float32, 4}, W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3; save=false)
+function residual_forward(X1::AbstractArray{Float32, 4}, W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3; save=false)
 
     Y1 = conv(X1, W1.data, cdims1) .+ reshape(b1.data, 1, 1, :, 1)
     X2 = ReLU(Y1)
@@ -207,7 +207,7 @@ function residual_forward(X1::Array{Float32, 4}, W1, W2, W3, b1, b2, fan, cdims1
 end
 
 # Forward 3D
-function residual_forward(X1::Array{Float32, 5}, W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3; save=false)
+function residual_forward(X1::AbstractArray{Float32, 5}, W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3; save=false)
 
     Y1 = conv(X1, W1.data, cdims1) .+ reshape(b1.data, 1, 1, 1, :, 1)
     X2 = ReLU(Y1)
@@ -226,7 +226,7 @@ function residual_forward(X1::Array{Float32, 5}, W1, W2, W3, b1, b2, fan, cdims1
 end
 
 # Backward 2D
-function residual_backward(ΔX4::Array{Float32, 4}, X1::Array{Float32, 4}, W1, W2, W3, b1, b2, 
+function residual_backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}, W1, W2, W3, b1, b2, 
     fan, cdims1, cdims2, cdims3)
 
     # Recompute forward states from input X
@@ -258,7 +258,7 @@ function residual_backward(ΔX4::Array{Float32, 4}, X1::Array{Float32, 4}, W1, W
 end
 
 # Backward 3D
-function residual_backward(ΔX4::Array{Float32, 5}, X1::Array{Float32, 5}, W1, W2, W3, b1, b2, 
+function residual_backward(ΔX4::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5}, W1, W2, W3, b1, b2, 
     fan, cdims1, cdims2, cdims3)
 
     # Recompute forward states from input X

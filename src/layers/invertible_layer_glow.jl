@@ -90,7 +90,7 @@ function CouplingLayerGlow(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
 end
 
 # Forward pass: Input X, Output Y
-function coupling_layer_forward(X::Array{Float32, 4}, C, RB, logdet)
+function coupling_layer_forward(X::AbstractArray{Float32, 4}, C, RB, logdet)
 
     # Get dimensions
     k = Int(C.k/2)
@@ -109,7 +109,7 @@ function coupling_layer_forward(X::Array{Float32, 4}, C, RB, logdet)
 end
 
 # Inverse pass: Input Y, Output X
-function coupling_layer_inverse(Y::Array{Float32, 4}, C, RB; save=false)
+function coupling_layer_inverse(Y::AbstractArray{Float32, 4}, C, RB; save=false)
 
     # Get dimensions
     k = Int(C.k/2)
@@ -127,7 +127,7 @@ function coupling_layer_inverse(Y::Array{Float32, 4}, C, RB; save=false)
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function coupling_layer_backward(ΔY::Array{Float32, 4}, Y::Array{Float32, 4}, C, RB, logdet)
+function coupling_layer_backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, C, RB, logdet)
 
     # Recompute forward state
     k = Int(C.k/2)

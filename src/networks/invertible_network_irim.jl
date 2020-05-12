@@ -56,8 +56,8 @@ export NetworkLoop
  See also: [`CouplingLayerIRIM`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct NetworkLoop <: InvertibleNetwork
-    L::Array{CouplingLayerIRIM, 1}
-    AN::Array{ActNorm, 1}
+    L::Union{AbstractArray{CouplingLayerIRIM, 1}, AbstractArray{CouplingLayerHINT}}
+    AN::AbstractArray{ActNorm, 1}
     Ψ::Function
     forward::Function
     inverse::Function
@@ -65,12 +65,21 @@ struct NetworkLoop <: InvertibleNetwork
 end
 
 # 2D Constructor
-function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
+function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive")
     
-    L = Array{CouplingLayerIRIM}(undef, maxiter)
+    if type == "additive"
+        L = Array{CouplingLayerIRIM}(undef, maxiter)
+    elseif type == "HINT"
+        L = Array{CouplingLayerHINT}(undef, maxiter)
+    end
+
     AN = Array{ActNorm}(undef, maxiter)
     for j=1:maxiter
-        L[j] = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+        if type == "additive"
+            L[j] = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+        elseif type == "HINT"
+            L[j] = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; logdet=false, permute="both", k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+        end
         AN[j] = ActNorm(1)
     end
     
@@ -82,12 +91,21 @@ function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3,
 end
 
 # 3D Constructor
-function NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
+function NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive")
     
-    L = Array{CouplingLayerIRIM}(undef, maxiter)
+    if type == "additive"
+        L = Array{CouplingLayerIRIM}(undef, maxiter)
+    elseif type == "HINT"
+        L = Array{CouplingLayerHINT}(undef, maxiter)
+    end
     AN = Array{ActNorm}(undef, maxiter)
     for j=1:maxiter
-        L[j] = CouplingLayerIRIM(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+        if type == "additive"
+            L[j] = CouplingLayerIRIM(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+        elseif type == "HINT"
+            L[j] = CouplingLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize; logdet=false, 
+                permute="both", k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+        end
         AN[j] = ActNorm(1)
     end
     
@@ -99,7 +117,7 @@ function NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k
 end
 
 # 2D Forward loop: Input (η, s), Output (η, s)
-function loop_forward(η::Array{Float32, 4}, s::Array{Float32, 4}, d, L, AN, J, Ψ)
+function loop_forward(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
@@ -121,7 +139,7 @@ function loop_forward(η::Array{Float32, 4}, s::Array{Float32, 4}, d, L, AN, J, 
 end
 
 # 3D Forward loop: Input (η, s), Output (η, s)
-function loop_forward(η::Array{Float32, 5}, s::Array{Float32, 5}, d, L, AN, J, Ψ)
+function loop_forward(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, nz, n_s, batchsize = size(s)
@@ -143,7 +161,7 @@ function loop_forward(η::Array{Float32, 5}, s::Array{Float32, 5}, d, L, AN, J, 
 end
 
 # 2D Inverse loop: Input (η, s), Output (η, s)
-function loop_inverse(η::Array{Float32, 4}, s::Array{Float32, 4}, d, L, AN, J, Ψ)
+function loop_inverse(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
@@ -165,7 +183,7 @@ function loop_inverse(η::Array{Float32, 4}, s::Array{Float32, 4}, d, L, AN, J, 
 end
 
 # 3D Inverse loop: Input (η, s), Output (η, s)
-function loop_inverse(η::Array{Float32, 5}, s::Array{Float32, 5}, d, L, AN, J, Ψ)
+function loop_inverse(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, nz, n_s, batchsize = size(s)
@@ -187,8 +205,8 @@ function loop_inverse(η::Array{Float32, 5}, s::Array{Float32, 5}, d, L, AN, J, 
 end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function loop_backward(Δη::Array{Float32, 4}, Δs::Array{Float32, 4}, 
-    η::Array{Float32, 4}, s::Array{Float32, 4}, d, L, AN, J, Ψ)
+function loop_backward(Δη::AbstractArray{Float32, 4}, Δs::AbstractArray{Float32, 4}, 
+    η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
@@ -218,8 +236,8 @@ function loop_backward(Δη::Array{Float32, 4}, Δs::Array{Float32, 4},
 end
 
 # 3D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function loop_backward(Δη::Array{Float32, 5}, Δs::Array{Float32, 5}, 
-    η::Array{Float32, 5}, s::Array{Float32, 5}, d, L, AN, J, Ψ)
+function loop_backward(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5}, 
+    η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, L, AN, J, Ψ)
 
     # Dimensions
     nx, ny, nz, n_s, batchsize = size(s)
@@ -252,8 +270,7 @@ end
 function clear_grad!(UL::NetworkLoop)
     maxiter = length(UL.L)
     for j=1:maxiter
-        clear_grad!(UL.L[j].C)
-        clear_grad!(UL.L[j].RB)
+        clear_grad!(UL.L[j])
         clear_grad!(UL.AN[j])
         UL.AN[j].s.data = nothing
         UL.AN[j].b.data = nothing
