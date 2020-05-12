@@ -224,7 +224,7 @@ end
 
 # Clear gradients
 function clear_grad!(L::CouplingLayerIRIM)
-    clear_grad!(L.U)
+    clear_grad!(L.C)
     clear_grad!(L.RB)
 end
 
