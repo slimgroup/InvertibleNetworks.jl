@@ -47,6 +47,8 @@ struct NetworkHyperbolic <: InvertibleNetwork
     logdet::Bool
 end
 
+@Flux.functor NetworkHyperbolic
+
 # Constructor
 function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, L::Int64, K::Int64; 
         k=3, s=1, p=1, logdet=true, α=1f0, hidden_factor=1, ncenter=1)

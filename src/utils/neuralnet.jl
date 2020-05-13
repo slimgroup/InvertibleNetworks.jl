@@ -8,15 +8,15 @@ abstract type InvertibleNetwork end
 
 function Base.getproperty(obj::Union{InvertibleNetwork,NeuralNetLayer}, sym::Symbol)
     if sym == :forward
-        return (args...) -> forward(args..., obj)
+        return (args...;kwargs...) -> forward(args..., obj;kwargs...)
     elseif sym == :inverse
-        return (args...) -> inverse(args..., obj)
+        return (args...;kwargs...) -> inverse(args..., obj;kwargs...)
     elseif sym == :backward
-        return (args...) -> backward(args..., obj)
+        return (args...;kwargs...) -> backward(args..., obj;kwargs...)
     elseif sym == :inverse_Y
-        return (args...) -> inverse_Y(args..., obj)
+        return (args...;kwargs...) -> inverse_Y(args..., obj;kwargs...)
     elseif sym == :forward_Y
-        return (args...) -> forward_Y(args..., obj)
+        return (args...;kwargs...) -> forward_Y(args..., obj;kwargs...)
     else
          # fallback to getfield
         return getfield(obj, sym)
@@ -27,23 +27,25 @@ abstract type InverseLayer end
 
 function Base.getproperty(obj::InverseLayer, sym::Symbol)
     if sym == :forward
-        return (args...) -> inverse(args..., obj.layer)
+        return (args...;kwargs...) -> inverse(args..., obj.layer;kwargs...)
     elseif sym == :inverse
-        return (args...) -> forward(args..., obj.layer)
+        return (args...;kwargs...) -> forward(args..., obj.layer;kwargs...)
     elseif sym == :backward
-        return (args...) -> backward_inv(args..., obj.layer)
+        return (args...;kwargs...) -> backward_inv(args..., obj.layer;kwargs...)
     elseif sym == :inverse_Y
-        return (args...) -> forward_Y(args..., obj.layer)
+        return (args...;kwargs...) -> forward_Y(args..., obj.layer;kwargs...)
     elseif sym == :forward_Y
-        return (args...) -> inverse_Y(args..., obj.layer)
+        return (args...;kwargs...) -> inverse_Y(args..., obj.layer;kwargs...)
+    elseif sym == :layer
+        return getfield(obj, sym)
     else
          # fallback to getfield
-        return getfield(obj, sym)
+        return getfield(obj.layer, sym)
     end
 end
 
 
-struct Inv
+struct Inv <: InverseLayer
     layer::NeuralNetLayer
 end
 
@@ -52,6 +54,6 @@ function inverse(L::NeuralNetLayer)
     return Inv(L)
 end
 
-function inverse(IL::Inv)
+function inverse(IL::InverseLayer)
     return IL.layer
 end

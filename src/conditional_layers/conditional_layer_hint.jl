@@ -59,9 +59,11 @@ struct ConditionalLayerHINT <: NeuralNetLayer
     C_Y::Union{Conv1x1, Nothing}
 end
 
+@Flux.functor ConditionalLayerHINT
+
 # 2D Constructor from input dimensions
 function ConditionalLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; 
-    k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true)
+                              k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true)
 
     # Create basic coupling layers
     CL_X = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute="none")
@@ -77,7 +79,7 @@ end
 
 # 3D Constructor from input dimensions
 function ConditionalLayerHINT(nx::Int64, ny::Int64, nz:: Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; 
-    k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true)
+                              k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, permute=true)
 
     # Create basic coupling layers
     CL_X = CouplingLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, permute="none")
@@ -98,7 +100,7 @@ function forward(X, Y, CH::ConditionalLayerHINT)
     Zy, logdet2 = CH.CL_Y.forward(Yp)
 
     # X-lane: coupling layer
-    ~isnothing(CH.C_X) ? (Xp =CH. C_X.forward(X)) : (Xp = copy(X))
+    ~isnothing(CH.C_X) ? (Xp = CH.C_X.forward(X)) : (Xp = copy(X))
     X, logdet1 = CH.CL_X.forward(Xp)
 
     # X-lane: conditional layer
@@ -111,7 +113,7 @@ end
 function inverse(Zx, Zy, CH::ConditionalLayerHINT)
 
     # Y-lane
-    Yp = CH.CL_Y.inverse(Zy)
+    Yp = CH.CL_Y.inverse(Zy; logdet=false)
     ~isnothing(CH.C_Y) ? (Y = CH.C_Y.inverse(Yp)) : (Y = copy(Yp))
 
     # X-lane: conditional layer
@@ -119,7 +121,7 @@ function inverse(Zx, Zy, CH::ConditionalLayerHINT)
     X = CH.CL_YX.inverse(Yp, Zx)[2]
 
     # X-lane: coupling layer
-    Xp = CH.CL_X.inverse(X)
+    Xp = CH.CL_X.inverse(X; logdet=false)
     ~isnothing(CH.C_X) ? (X = CH.C_X.inverse(Xp)) : (X = copy(Xp))
 
     return X, Y
@@ -150,13 +152,13 @@ end
 
 function forward_Y(Y, CH::ConditionalLayerHINT)
     ~isnothing(CH.C_Y) ? (Yp = CH.C_Y.forward(Y)) : (Yp = copy(Y))
-    Zy = CH.CL_Y.forward(Yp)[1]
+    Zy = CH.CL_Y.forward(Yp; logdet=false)
     return Zy
 
 end
 
 function inverse_Y(Zy, CH::ConditionalLayerHINT)
-    Yp = CH.CL_Y.inverse(Zy)
+    Yp = CH.CL_Y.inverse(Zy; logdet=false)
     ~isnothing(CH.C_Y) ? (Y = CH.C_Y.inverse(Yp)) : (Y = copy(Yp))
     return Y
 end

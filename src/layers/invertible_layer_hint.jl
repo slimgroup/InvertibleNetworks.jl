@@ -119,8 +119,9 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidde
 end
 
 # Input is tensor X
-function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing)
-     isnothing(permute) ? permute = H.permute : permute = permute
+function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing)
+    isnothing(logdet) ? logdet = H.logdet : logdet = logdet
+    isnothing(permute) ? permute = H.permute : permute = permute
     if permute == "full" || permute == "both"
         X = H.C.forward(X)
     end
@@ -138,7 +139,7 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing)
         # Call function recursively
         Ya, logdet1 = forward(Xa, H; scale=scale+1, permute="none")
         Y_temp, logdet2 = forward(Xb, H; scale=scale+1, permute="none")
-        if H.logdet == false
+        if logdet == false
             Yb = H.CL[scale].forward(Xa, Y_temp)[2]
             logdet3 = 0f0
         else
@@ -148,7 +149,7 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing)
     else
         # Finest layer
         Ya = copy(Xa)
-        if H.logdet==false
+        if logdet==false
             Yb = H.CL[scale].forward(Xa, Xb)[2]
             logdet_full = 0f0
         else
@@ -157,7 +158,7 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing)
     end
     Y = tensor_cat(Ya, Yb)
     permute == "both" && (Y = H.C.inverse(Y))
-    if scale==1 && H.logdet==false
+    if scale==1 && logdet==false
         return Y
     else
         return Y, logdet_full
@@ -165,9 +166,10 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing)
 end
 
 # Input is tensor Y
-function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing)
+function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing)
+    isnothing(logdet) ? logdet = H.logdet : logdet = logdet
     isnothing(permute) ? permute = H.permute : permute = permute
-    permute == "both" && (Y = H.C.forward(Y))
+    permute == "both" && (Y = H.C.forward(Y; logdet=false))
     Ya, Yb = tensor_split(Y)
     recursive = false
     if typeof(Y) <: AbstractArray{Float32, 4} && size(Y, 3) > 4
@@ -178,20 +180,20 @@ function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing)
     if recursive
         Xa, logdet1 = inverse(Ya, H; scale=scale+1, permute="none")
         if logdet==false
-            Y_temp = CL[scale].inverse(Xa, Yb)[2]
+            Y_temp = H.CL[scale].inverse(Xa, Yb)[2]
             logdet2 = 0f0
         else
-            Y_temp, logdet2 = CL[scale].inverse(Xa, Yb; logdet=true)[[2,3]]
+            Y_temp, logdet2 = H.CL[scale].inverse(Xa, Yb; logdet=true)[[2,3]]
         end
         Xb, logdet3 = inverse(Y_temp, H; scale=scale+1, permute="none")
         logdet_full = logdet1 + logdet2 + logdet3
     else
         Xa = copy(Ya)
         if logdet == false
-            Xb = CL[scale].inverse(Ya, Yb)[2]
+            Xb = H.CL[scale].inverse(Ya, Yb)[2]
             logdet_full = 0f0
         else
-            Xb, logdet_full = CL[scale].inverse(Ya, Yb; logdet=true)[[2,3]]
+            Xb, logdet_full = H.CL[scale].inverse(Ya, Yb)[[2,3]]
         end
     end
     permute == "lower" && (Xb = H.C.inverse(Xb))
@@ -199,6 +201,7 @@ function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing)
     if permute == "full" || permute == "both"
         X = H.C.inverse(X)
     end
+
     if scale==1 && logdet==false
         return X
     else
@@ -255,12 +258,12 @@ function backward_inv(ΔX, X, H::CouplingLayerHINT; scale=1, permute=nothing)
 
     if recursive
         ΔY_temp, Y_temp = backward_inv(ΔXb, Xb, H; scale=scale+1, permute="none")
-        ΔYa_temp, ΔYb, Yb = H.CL.backward_inv(0f0.*ΔXa, ΔY_temp, Xa, Y_temp)[[1,2,4]]
+        ΔYa_temp, ΔYb, Yb = backward_inv(0f0.*ΔXa, ΔY_temp, Xa, Y_temp, H.CL[scale])[[1,2,4]]
         ΔYa, Ya = backward_inv(ΔXa+ΔYa_temp, Xa, H; scale=scale+1, permute="none")
     else
         ΔYa = copy(ΔXa)
         Ya = copy(Xa)
-        ΔYa_temp, ΔYb, Yb = H.CL.backward_inv(0f0.*ΔYa, ΔXb, Xa, Xb)[[1,2,4]]
+        ΔYa_temp, ΔYb, Yb = backward_inv(0f0.*ΔYa, ΔXb, Xa, Xb, H.CL[scale])[[1,2,4]]
         ΔYa += ΔYa_temp
     end
     ΔY = tensor_cat(ΔYa, ΔYb)

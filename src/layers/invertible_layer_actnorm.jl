@@ -56,7 +56,8 @@ function ActNorm(k; logdet=false)
 end
 
 # 2D Foward pass: Input X, Output Y
-function forward(X::AbstractArray{Float32, 4}, AN::ActNorm)
+function forward(X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
+    isnothing(logdet) ? logdet = AN.logdet : logdet = logdet
     nx, ny, n_in, batchsize = size(X)
 
     # Initialize during first pass such that
@@ -70,11 +71,12 @@ function forward(X::AbstractArray{Float32, 4}, AN::ActNorm)
     Y = X .* reshape(AN.s.data, 1, 1, :, 1) .+ reshape(AN.b.data, 1, 1, :, 1)
 
     # If logdet true, return as second ouput argument
-    AN.logdet == true ? (return Y, logdet_forward(nx, ny, AN.s)) : (return Y)
+    logdet == true ? (return Y, logdet_forward(nx, ny, AN.s)) : (return Y)
 end
 
 # 3D Foward pass: Input X, Output Y
-function forward(X::AbstractArray{Float32, 5}, AN::ActNorm)
+function forward(X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
+    isnothing(logdet) ? logdet = AN.logdet : logdet = logdet
     nx, ny, nz, n_in, batchsize = size(X)
 
     # Initialize during first pass such that
@@ -88,33 +90,35 @@ function forward(X::AbstractArray{Float32, 5}, AN::ActNorm)
     Y = X .* reshape(AN.s.data, 1, 1, 1, :, 1) .+ reshape(AN.b.data, 1, 1, 1, :, 1)
 
     # If logdet true, return as second ouput argument
-    AN.logdet == true ? (return Y, logdet_forward(nx, ny, nz, s)) : (return Y)
+    logdet == true ? (return Y, logdet_forward(nx, ny, nz, AN.s)) : (return Y)
 end
 
 # 2D Inverse pass: Input Y, Output X
-function inverse(Y::AbstractArray{Float32, 4}, AN::ActNorm)
+function inverse(Y::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
+    isnothing(logdet) ? logdet = AN.logdet : logdet = logdet
     nx, ny, _, _ = size(Y)
 
     X = (Y .- reshape(AN.b.data, 1, 1, :, 1)) ./ reshape(AN.s.data, 1, 1, :, 1)
 
     # If logdet true, return as second ouput argument
-    AN.logdet == true ? (return X, -logdet_forward(nx, ny, AN.s)) : (return X)
+    logdet == true ? (return X, -logdet_forward(nx, ny, AN.s)) : (return X)
 end
 
 # 3D Inverse pass: Input Y, Output X
-function inverse(Y::AbstractArray{Float32, 5}, AN::ActNorm)
+function inverse(Y::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
+    isnothing(logdet) ? logdet = AN.logdet : logdet = logdet
     nx, ny, nz, _, _ = size(Y)
 
     X = (Y .- reshape(AN.b.data, 1, 1, 1, :, 1)) ./ reshape(AN.s.data, 1, 1, 1, :, 1)
 
     # If logdet true, return as second ouput argument
-    AN.logdet == true ? (return X, -logdet_forward(nx, ny, nz, AN.s)) : (return X)
+    logdet == true ? (return X, -logdet_forward(nx, ny, nz, AN.s)) : (return X)
 end
 
 # 2D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
 function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, AN::ActNorm)
     nx, ny, n_in, batchsize = size(Y)
-    X = inverse(Y, AN)
+    X = inverse(Y, AN; logdet=false)
     ΔX = ΔY .* reshape(AN.s.data, 1, 1, :, 1)
     Δs = sum(ΔY .* X, dims=(1,2,4))[1, 1, :, 1]
     AN.logdet == true && (Δs -= logdet_backward(nx, ny, AN.s))
@@ -127,7 +131,7 @@ end
 # 3D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
 function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, AN::ActNorm)
     nx, ny, nz, n_in, batchsize = size(Y)
-    X = inverse(Y, AN)
+    X = inverse(Y, AN; logdet=false)
     ΔX = ΔY .* reshape(AN.s.data, 1, 1, 1, :, 1)
     Δs = sum(ΔY .* X, dims=(1,2,3,5))[1, 1, 1, :, 1]
     AN.logdet == true && (Δs -= logdet_backward(nx, ny, nz, AN.s))
@@ -138,15 +142,15 @@ function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, 
 end
 
 # 2D Backward pass (inverse): Input (ΔX, X), Output (ΔX, X)
-function backward_inv(ΔX::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, k, s, b, logdet)
+function backward_inv(ΔX::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, AN::ActNorm)
     nx, ny, n_in, batchsize = size(X)
-    Y = actnorm_forward(X, k, s, b, false)
-    ΔY = ΔX ./ reshape(s.data, 1, 1, :, 1)
-    Δs = -sum(ΔX .* X ./ reshape(s.data, 1, 1, :, 1), dims=(1,2,4))[1, 1, :, 1]
-    logdet == true && (Δs += logdet_backward(nx, ny, s))
-    Δb = -sum(ΔX ./ reshape(s.data, 1, 1, :, 1), dims=(1,2,4))[1, 1, :, 1]
-    s.grad = Δs
-    b.grad = Δb
+    Y = forward(X, AN; logdet=false)
+    ΔY = ΔX ./ reshape(AN.s.data, 1, 1, :, 1)
+    Δs = -sum(ΔX .* X ./ reshape(AN.s.data, 1, 1, :, 1), dims=(1,2,4))[1, 1, :, 1]
+    AN.logdet == true && (Δs += logdet_backward(nx, ny, AN.s))
+    Δb = -sum(ΔX ./ reshape(AN.s.data, 1, 1, :, 1), dims=(1,2,4))[1, 1, :, 1]
+    AN.s.grad = Δs
+    AN.b.grad = Δb
     return ΔY, Y
 end
 

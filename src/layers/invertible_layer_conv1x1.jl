@@ -172,7 +172,8 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 5}, ΔY::AbstractArray{Float32
 end
 
 # Forward pass
-function forward(X::AbstractArray{Float32, 4}, C::Conv1x1; logdet=true)
+function forward(X::AbstractArray{Float32, 4}, C::Conv1x1; logdet=nothing)
+    isnothing(logdet) ? logdet = C.logdet : logdet = logdet
     nx, ny, n_in, batchsize = size(X)
     Y = cuzeros(X, nx, ny, n_in, batchsize)
     
@@ -185,11 +186,13 @@ function forward(X::AbstractArray{Float32, 4}, C::Conv1x1; logdet=true)
         Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
         Y[:,:,:,i] = reshape(Yi, nx, ny, n_in, 1)
     end
-    C.logdet && logdet ? (return Y, 0f0) : (return Y)   # logdet always 0
+
+    logdet == true ? (return Y, 0f0) : (return Y)   # logdet always 0
 end
 
 # Forward pass
-function forward(X::AbstractArray{Float32, 5}, C::Conv1x1; logdet=true)
+function forward(X::AbstractArray{Float32, 5}, C::Conv1x1; logdet=nothing)
+    isnothing(logdet) ? logdet = C.logdet : logdet = logdet
     nx, ny, nz, n_in, batchsize = size(X)
     Y = cuzeros(X, nx, ny, nz, n_in, batchsize)
     v1 = C.v1.data
@@ -201,7 +204,7 @@ function forward(X::AbstractArray{Float32, 5}, C::Conv1x1; logdet=true)
         Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
         Y[:,:,:,:,i] = reshape(Yi, nx, ny, nz, n_in, 1)
     end
-    C.logdet && logdet ? (return Y, 0f0) : (return Y)   # logdet always 0
+    logdet == true ? (return Y, 0f0) : (return Y)   # logdet always 0
 end
 
 # Forward pass and update weights
@@ -218,7 +221,8 @@ function forward(X_tuple::Tuple, C::Conv1x1)
 end
 
 # Inverse pass
-function inverse(Y::AbstractArray{Float32, 4}, C::Conv1x1; logdet=true)
+function inverse(Y::AbstractArray{Float32, 4}, C::Conv1x1; logdet=nothing)
+    isnothing(logdet) ? logdet = C.logdet : logdet = logdet
     nx, ny, n_in, batchsize = size(Y)
     X = cuzeros(Y, nx, ny, n_in, batchsize)
     v1 = C.v1.data
@@ -230,11 +234,12 @@ function inverse(Y::AbstractArray{Float32, 4}, C::Conv1x1; logdet=true)
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
         X[:,:,:,i] = reshape(Xi, nx, ny, n_in, 1)
     end
-    C.logdet && logdet ? (return X, 0f0) : (return X)   # logdet always 0
+   logdet == true ? (return X, 0f0) : (return X)   # logdet always 0
 end
 
 # Inverse pass
-function inverse(Y::AbstractArray{Float32, 5}, C::Conv1x1; logdet=true)
+function inverse(Y::AbstractArray{Float32, 5}, C::Conv1x1; logdet=nothing)
+    isnothing(logdet) ? logdet = C.logdet : logdet = logdet
     nx, ny, nz, n_in, batchsize = size(Y)
     X = cuzeros(Y, nx, ny, nz, n_in, batchsize)
     v1 = C.v1.data
@@ -246,12 +251,12 @@ function inverse(Y::AbstractArray{Float32, 5}, C::Conv1x1; logdet=true)
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
         X[:,:,:,:,i] = reshape(Xi, nx, ny, nz, n_in, 1)
     end
-    C.logdet && logdet ? (return X, 0f0) : (return X)   # logdet always 0
+    logdet == true ? (return X, 0f0) : (return X)   # logdet always 0
 end
 
 # Inverse pass and update weights
 function inverse(Y_tuple::Tuple, C::Conv1x1)
-    ΔY = Y_tuple[1] 
+    ΔY = Y_tuple[1]
     Y = Y_tuple[2]
     ΔX = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
     X = inverse(Y, C; logdet=false)  # recompute forward state

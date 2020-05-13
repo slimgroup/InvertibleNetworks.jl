@@ -57,6 +57,8 @@ struct NetworkGlow <: InvertibleNetwork
     K::Int64
 end
 
+@Flux.functor NetworkGlow
+
 # Constructor
 function NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
 
