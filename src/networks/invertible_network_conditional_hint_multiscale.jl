@@ -60,6 +60,8 @@ struct NetworkMultiScaleConditionalHINT <: InvertibleNetwork
     split_scales::Bool
 end
 
+@Flux.functor NetworkMultiScaleConditionalHINT
+
 # Constructor
 function NetworkMultiScaleConditionalHINT(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64,
                                           n_hidden::Int64, L::Int64, K::Int64;
@@ -174,8 +176,8 @@ function inverse(Zx, Zy, CH::NetworkMultiScaleConditionalHINT)
         end
         for j=CH.K:-1:1
             Zx_, Zy_ = CH.CL[i, j].inverse(Zx, Zy)
-            Zy = CH.AN_Y[i, j].inverse(Zy_)
-            Zx = CH.AN_X[i, j].inverse(Zx_)
+            Zy = CH.AN_Y[i, j].inverse(Zy_; logdet=false)
+            Zx = CH.AN_X[i, j].inverse(Zx_; logdet=false)
         end
         Zx = wavelet_unsqueeze(Zx)
         Zy = wavelet_unsqueeze(Zy)
@@ -241,7 +243,7 @@ function inverse_Y(Zy, CH::NetworkMultiScaleConditionalHINT)
         end
         for j=CH.K:-1:1
             Zy_ = CH.CL[i, j].inverse_Y(Zy)
-            Zy = CH.AN_Y[i, j].inverse(Zy_)
+            Zy = CH.AN_Y[i, j].inverse(Zy_; logdet=false)
         end
         Zy = wavelet_unsqueeze(Zy)
     end

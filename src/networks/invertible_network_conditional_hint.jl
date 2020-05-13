@@ -51,6 +51,8 @@ struct NetworkConditionalHINT <: InvertibleNetwork
     CL::AbstractArray{ConditionalLayerHINT, 1}
 end
 
+@Flux.functor NetworkConditionalHINT
+
 # Constructor
 function NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 

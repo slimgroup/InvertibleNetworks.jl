@@ -61,6 +61,8 @@ struct NetworkLoop <: InvertibleNetwork
     Ψ::Function
 end
 
+@Flux.functor NetworkLoop
+
 # 2D Constructor
 function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive")
     
@@ -112,7 +114,7 @@ function forward(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d,
     nx, ny, n_s, batchsize = size(s)
     n_in = n_s + 1
     maxiter = length(L)
-    N = zeros(Float32, nx, ny, n_in-2, batchsize)
+    N = N = cuzeros(η, nx, ny, n_in-2, batchsize)
 
     for j=1:maxiter
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
@@ -134,7 +136,7 @@ function forward(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d,
     nx, ny, nz, n_s, batchsize = size(s)
     n_in = n_s + 1
     maxiter = length(UL.L)
-    N = zeros(Float32, nx, ny, nz, n_in-2, batchsize)
+    N = cuzeros(η, nx, ny, nz, n_in-2, batchsize)
 
     for j=1:maxiter
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
@@ -156,7 +158,7 @@ function inverse(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d,
     nx, ny, n_s, batchsize = size(s)
     n_in = n_s + 1
     maxiter = length(UL.L)
-    N = zeros(Float32, nx, ny, n_in-2, batchsize)
+    N = cuzeros(η, nx, ny, n_in-2, batchsize)
 
     for j=maxiter:-1:1
         ηs_ = UL.L[j].inverse(tensor_cat(η, s))
@@ -178,7 +180,7 @@ function inverse(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d,
     nx, ny, nz, n_s, batchsize = size(s)
     n_in = n_s + 1
     maxiter = length(UL.L)
-    N = zeros(Float32, nx, ny, nz, n_in-2, batchsize)
+    N = cuzeros(η, nx, ny, nz, n_in-2, batchsize)
 
     for j=maxiter:-1:1
         ηs_ = UL.L[j].inverse(tensor_cat(η, s))
@@ -201,7 +203,7 @@ function backward(Δη::AbstractArray{Float32, 4}, Δs::AbstractArray{Float32, 4
     nx, ny, n_s, batchsize = size(s)
     n_in = n_s + 1
     maxiter = length(UL.L)
-    N = zeros(Float32, nx, ny, n_in-2, batchsize)
+    N = cuzeros(Δη, nx, ny, n_in-2, batchsize)
     typeof(Δs) == Float32 && (Δs = 0f0.*s)  # make Δs zero tensor
 
     for j=maxiter:-1:1
@@ -232,7 +234,7 @@ function backward(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5
     nx, ny, nz, n_s, batchsize = size(s)
     n_in = n_s + 1
     maxiter = length(UL.L)
-    N = zeros(Float32, nx, ny, nz, n_in-2, batchsize)
+    N = cuzeros(Δη, nx, ny, nz, n_in-2, batchsize)
     typeof(Δs) == Float32 && (Δs = 0f0.*s)  # make Δs zero tensor
 
     for j=maxiter:-1:1

@@ -64,6 +64,8 @@ struct ConditionalLayerSLIM <: NeuralNetLayer
     C_Y::Conv1x1
 end
 
+@Flux.functor ConditionalLayerSLIM
+
 # Constructor from input dimensions
 function ConditionalLayerSLIM(nx1::Int64, nx2::Int64, nx_in::Int64, nx_hidden::Int64, ny1::Int64, ny2::Int64, ny_in::Int64, ny_hidden::Int64,
     batchsize::Int64; type="affine", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
@@ -118,7 +120,7 @@ function inverse(Zx, Zy, Op, CI::ConditionalLayerSLIM)
 
     # Y-lane
     Zy = wavelet_squeeze(Zy)
-    Yp = CI.CL_Y.inverse(Zy)
+    Yp = CI.CL_Y.inverse(Zy)[1]
     Ys = CI.C_Y.inverse(Yp)
     Y = wavelet_unsqueeze(Ys)
 
@@ -128,7 +130,7 @@ function inverse(Zx, Zy, Op, CI::ConditionalLayerSLIM)
     else
         X = CI.CL_XY.inverse(Zx, reshape(Y, :, size(Y, 4)), Op)
     end
-    Xp = CI.CL_X.inverse(X)
+    Xp = CI.CL_X.inverse(X)[1]
     X = CI.C_X.inverse(Xp)
 
     return X, Y
@@ -167,7 +169,7 @@ end
 
 function inverse_Y(Zy, CI::ConditionalLayerSLIM)
     Zy = wavelet_squeeze(Zy)
-    Yp = CI.CL_Y.inverse(Zy)
+    Yp = CI.CL_Y.inverse(Zy)[1]
     Ys = CI.C_Y.inverse(Yp)
     Y = wavelet_unsqueeze(Ys)
     return Y

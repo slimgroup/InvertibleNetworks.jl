@@ -88,8 +88,9 @@ function CouplingLayerBasic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidd
 end
 
 # 2D Forward pass: Input X, Output Y
-function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L::CouplingLayerBasic; save=false)
-
+function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L::CouplingLayerBasic;
+                 save::Bool=false, logdet=nothing)
+    isnothing(logdet) ? logdet = L.logdet : logdet = logdet
     # Coupling layer
     k = size(X1, 3)
     Y1 = copy(X1)
@@ -98,7 +99,7 @@ function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L
     T = logS_T[:, :, k+1:end, :]
     Y2 = S.*X2 + T
 
-    if L.logdet == true
+    if logdet == true
         save ? (return Y1, Y2, coupling_logdet_forward(S), S) : (return Y1, Y2, coupling_logdet_forward(S))
     else
         save ? (return Y1, Y2, S) : (return Y1, Y2)
@@ -106,8 +107,9 @@ function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L
 end
 
 # 3D Forward pass: Input X, Output Y
-function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save::Bool=false)
-
+function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L::CouplingLayerBasic;
+                 save::Bool=false, logdet=nothing)
+    isnothing(logdet) ? logdet = L.logdet : logdet = logdet
     # Coupling layer
     k = size(X1, 4)
     Y1 = copy(X1)
@@ -116,7 +118,7 @@ function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L
     T = logS_T[:, :, :, k+1:end, :]
     Y2 = S.*X2 + T
 
-    if L.logdet == true
+    if logdet == true
         save ? (return Y1, Y2, coupling_logdet_forward(S), S) : (return Y1, Y2, coupling_logdet_forward(S))
     else
         save ? (return Y1, Y2, S) : (return Y1, Y2)
@@ -124,8 +126,9 @@ function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L
 end
 
 # 2D Inverse pass: Input Y, Output X
-function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L::CouplingLayerBasice; save::Bool=false)
-
+function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L::CouplingLayerBasic;
+                 save::Bool=false, logdet=nothing)
+    isnothing(logdet) ? logdet = L.logdet : logdet = logdet
     # Inverse layer
     k = size(Y1, 3)
     X1 = copy(Y1)
@@ -134,7 +137,7 @@ function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L
     T = logS_T[:, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
 
-    if L.logdet
+    if logdet == true
         save == true ? (return X1, X2, -coupling_logdet_forward(S), S) : (return X1, X2, -coupling_logdet_forward(S))
     else
         save == true ? (return X1, X2, S) : (return X1, X2)
@@ -142,8 +145,9 @@ function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L
 end
 
 # 3D Inverse pass: Input Y, Output X
-function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save=false)
-
+function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L::CouplingLayerBasic;
+                 save=false, logdet=true)
+    isnothing(logdet) ? logdet = L.logdet : logdet = logdet
     # Inverse layer
     k = size(Y1, 4)
     X1 = copy(Y1)
@@ -152,7 +156,7 @@ function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L
     T = logS_T[:, :, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
 
-    if logdet
+    if logdet == true
         save == true ? (return X1, X2, -coupling_logdet_forward(S), S) : (return X1, X2, -coupling_logdet_forward(S))
     else
         save == true ? (return X1, X2, S) : (return X1, X2)
@@ -163,7 +167,7 @@ end
 function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
 
     # Recompute forward state
-    X1, X2, S = inverse(Y1, Y2, L; save=true)
+    X1, X2, S = inverse(Y1, Y2, L; save=true, logdet=false)
 
     # Backpropagate residual
     ΔT = copy(ΔY2)
@@ -179,12 +183,12 @@ end
 function backward_inv(ΔX1, ΔX2, X1, X2, L::CouplingLayerBasic)
 
     # Recompute inverse state
-    Y1, Y2, S = forward(X1, X2, L; save=true)
+    Y1, Y2, S = forward(X1, X2, L; save=true, logdet=false)
 
     # Backpropagate residual
     ΔT = -ΔX2 ./ S
     ΔS = X2 .* ΔT
-    logdet == true && (ΔS += coupling_logdet_backward(S))
+    L.logdet == true && (ΔS += coupling_logdet_backward(S))
     ΔY1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), Y1) + ΔX1
     ΔY2 = - ΔT
 

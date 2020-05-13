@@ -42,7 +42,7 @@ function squeeze(X::AbstractArray{T,4}; pattern="column") where T
     nx_out = Int(round(nx_in/2))
     ny_out = Int(round(ny_in/2))
     nc_out = Int(round(nc_in*4))
-    Y = zeros(T, nx_out, ny_out, nc_out, batchsize)
+    Y = cuzeros(X, nx_out, ny_out, nc_out, batchsize)
 
     if pattern == "column"
         Y = reshape(X, nx_out, ny_out, nc_out, batchsize)
@@ -98,7 +98,7 @@ function unsqueeze(Y::AbstractArray{T,4}; pattern="column") where T
     nx_out = Int(round(nx_in*2))
     ny_out = Int(round(ny_in*2))
     nc_out = Int(round(nc_in/4))
-    X = zeros(T, nx_out, ny_out, nc_out, batchsize)
+    X = cuzeros(Y, nx_out, ny_out, nc_out, batchsize)
 
     if pattern == "column"
         X = reshape(Y, nx_out, ny_out, nc_out, batchsize)
@@ -152,7 +152,7 @@ function wavelet_squeeze(X::AbstractArray{T,4}; type=WT.db1) where T
     nx_out = Int(round(nx_in/2))
     ny_out = Int(round(ny_in/2))
     nc_out = Int(round(nc_in*4))
-    Y = zeros(T, nx_out, ny_out, nc_out, batchsize)
+    Y = cuzeros(X, nx_out, ny_out, nc_out, batchsize)
     for i=1:batchsize
         for j=1:nc_in
             Ycurr = dwt(X[:,:,j,i], wavelet(type), 1)
@@ -189,7 +189,7 @@ function wavelet_unsqueeze(Y::AbstractArray{T,4}; type=WT.db1) where T
     nx_out = Int(round(nx_in*2))
     ny_out = Int(round(ny_in*2))
     nc_out = Int(round(nc_in/4))
-    X = zeros(T, nx_out, ny_out, nc_out, batchsize)
+    X = cuzeros(Y, nx_out, ny_out, nc_out, batchsize)
     for i=1:batchsize
         for j=1:nc_out
             Ycurr = unsqueeze(Y[:, :, (j-1)*4 + 1: j*4, i:i]; pattern="patch")[:, :, 1, 1]
