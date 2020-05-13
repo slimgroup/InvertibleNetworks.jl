@@ -208,8 +208,9 @@ function inverse_hint(Y, CL, C; scale=1, logdet=false, permute="none")
     end
     permute == "lower" && (Xb = C.inverse(Xb))
     X = tensor_cat(Xa, Xb)
-    permute == "full" || permute == "both" && (X = C.inverse(X))
-
+    if permute == "full" || permute == "both"
+        X = C.inverse(X)
+    end
     if scale==1 && logdet==false
         return X
     else
