@@ -19,23 +19,41 @@ batchsize = 2
 # Input image
 X = randn(Float32, nx, ny, n_channel, batchsize)
 
-# Create HINT layer
-HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower")
+# Loop overa all possible permutation options
+options = ["none", "lower", "both", "full"]
+for j=1:length(options)
+    
+    # Create HINT layer
+    permute = options[j]
+    HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute)
 
-# Test 
-Y = HL.forward(X)
-X_ = HL.inverse(Y)
+    # Test 
+    Y = HL.forward(X)
+    X_ = HL.inverse(Y)
+    @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
 
-@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+    Y = HL.forward(X)
+    X_ = HL.backward(0f0.*Y, Y)[2]
+    @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
 
-Y = HL.forward(X)
-X_ = HL.backward(0f0.*Y, Y)[2]
+    # Test with logdet
+    HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=true)
 
-@test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+    Y, logdet = HL.forward(X)
+    X_ = HL.inverse(Y)
+    @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+
+    Y, logdet = HL.forward(X)
+    X_ = HL.backward(0f0.*Y, Y)[2]
+    @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-6)
+end
 
 
 #######################################################################################################################
 # Gradient test
+
+# Layer
+HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower", logdet=false)
 
 # Input image
 X = randn(Float32, nx, ny, n_channel, batchsize)

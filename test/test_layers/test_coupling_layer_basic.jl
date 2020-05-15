@@ -33,19 +33,19 @@ L = CouplingLayerBasic(RB; logdet=true)
 ###################################################################################################
 # Invertibility tests
 
-Ya, Yb = L.forward(Xa, Xb)
+Ya, Yb, logdet = L.forward(Xa, Xb)
 Xa_, Xb_ = L.inverse(Ya, Yb)
 @test isapprox(norm(Xa - Xa_)/norm(Xa), 0f0; atol=1e-2)
 @test isapprox(norm(Xb - Xb_)/norm(Xb), 0f0; atol=1e-2)
 
-Ya, Yb = L.forward(Xa, Xb)
+Ya, Yb, logdet = L.forward(Xa, Xb)
 Xa_, Xb_ = L.backward(Ya.*0f0, Yb.*0f0, Ya, Yb)[3:4]
 @test isapprox(norm(Xa - Xa_)/norm(Xa), 0f0; atol=1e-2)
 @test isapprox(norm(Xb - Xb_)/norm(Xb), 0f0; atol=1e-2)
 
 
 Ya, Yb = L.inverse(Xa, Xb)
-Xa_, Xb_ = L.forward(Ya, Yb)
+Xa_, Xb_, logdet = L.forward(Ya, Yb)
 @test isapprox(norm(Xa - Xa_)/norm(Xa), 0f0; atol=1e-2)
 @test isapprox(norm(Xb - Xb_)/norm(Xb), 0f0; atol=1e-2)
 
