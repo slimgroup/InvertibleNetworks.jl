@@ -56,9 +56,10 @@ or
 
  See also: [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct CouplingLayerBasic <: NeuralNetLayer
+mutable struct CouplingLayerBasic <: NeuralNetLayer
     RB::ResidualBlock
     logdet::Bool
+    is_reversed::Bool
 end
 
 @Flux.functor CouplingLayerBasic
@@ -66,7 +67,7 @@ end
 # Constructor from 1x1 convolution and residual block
 function CouplingLayerBasic(RB::ResidualBlock; logdet=false)
     RB.fan == false && throw("Set ResidualBlock.fan == true")
-    return CouplingLayerBasic(RB, logdet)
+    return CouplingLayerBasic(RB, logdet, false)
 end
 
 # 2D Constructor from input dimensions
@@ -75,7 +76,7 @@ function CouplingLayerBasic(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, 
     # 1x1 Convolution and residual block for invertible layer
     RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true)
 
-    return CouplingLayerBasic(RB, logdet)
+    return CouplingLayerBasic(RB, logdet, false)
 end
 
 # 3D Constructor from input dimensions
@@ -84,7 +85,7 @@ function CouplingLayerBasic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidd
     # 1x1 Convolution and residual block for invertible layer
     RB = ResidualBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true)
 
-    return CouplingLayerBasic(RB, logdet)
+    return CouplingLayerBasic(RB, logdet, false)
 end
 
 # 2D Forward pass: Input X, Output Y
@@ -99,7 +100,7 @@ function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L
     T = logS_T[:, :, k+1:end, :]
     Y2 = S.*X2 + T
 
-    if logdet == true
+    if logdet == true && L.is_reversed == false
         save ? (return Y1, Y2, coupling_logdet_forward(S), S) : (return Y1, Y2, coupling_logdet_forward(S))
     else
         save ? (return Y1, Y2, S) : (return Y1, Y2)
@@ -118,7 +119,7 @@ function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L
     T = logS_T[:, :, :, k+1:end, :]
     Y2 = S.*X2 + T
 
-    if logdet == true
+    if logdet == true && L.is_reversed == false
         save ? (return Y1, Y2, coupling_logdet_forward(S), S) : (return Y1, Y2, coupling_logdet_forward(S))
     else
         save ? (return Y1, Y2, S) : (return Y1, Y2)
@@ -137,7 +138,7 @@ function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L
     T = logS_T[:, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
 
-    if logdet == true
+    if logdet == true && L.is_reversed == true
         save == true ? (return X1, X2, -coupling_logdet_forward(S), S) : (return X1, X2, -coupling_logdet_forward(S))
     else
         save == true ? (return X1, X2, S) : (return X1, X2)
@@ -156,7 +157,7 @@ function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L
     T = logS_T[:, :, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
 
-    if logdet == true
+    if logdet == true && L.is_reversed == true
         save == true ? (return X1, X2, -coupling_logdet_forward(S), S) : (return X1, X2, -coupling_logdet_forward(S))
     else
         save == true ? (return X1, X2, S) : (return X1, X2)
@@ -200,6 +201,12 @@ clear_grad!(L::CouplingLayerBasic) = clear_grad!(L.RB)
 
 # Get parameters
 get_params(L::CouplingLayerBasic) = get_params(L.RB)
+
+# Set is_reversed flag
+function tag_as_reversed!(L::CouplingLayerBasic, tag::Bool)
+    L.is_reversed = tag
+    return L
+end
 
 # Logdet (correct?)
 coupling_logdet_forward(S) = sum(log.(abs.(S))) / size(S, 4)

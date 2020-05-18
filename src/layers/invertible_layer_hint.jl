@@ -50,11 +50,12 @@ export CouplingLayerHINT
 
  See also: [`CouplingLayerBasic`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct CouplingLayerHINT <: NeuralNetLayer
+mutable struct CouplingLayerHINT <: NeuralNetLayer
     CL::AbstractArray{CouplingLayerBasic, 1}
     C::Union{Conv1x1, Nothing}
     logdet::Bool
-    permute
+    permute::String
+    is_reversed::Bool
 end
 
 @Flux.functor CouplingLayerHINT
@@ -91,7 +92,7 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
         C = nothing
     end
 
-    return CouplingLayerHINT(CL, C, logdet, permute)
+    return CouplingLayerHINT(CL, C, logdet, permute, false)
 end
 
 # 3D Constructor from input dimensions
@@ -115,19 +116,22 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidde
         C = nothing
     end
 
-    return CouplingLayerHINT(CL, C, logdet, permute)
+    return CouplingLayerHINT(CL, C, logdet, permute, false)
 end
 
 # Input is tensor X
 function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing)
     isnothing(logdet) ? logdet = H.logdet : logdet = logdet
     isnothing(permute) ? permute = H.permute : permute = permute
+
+    # Permutation
     if permute == "full" || permute == "both"
         X = H.C.forward(X)
     end
     Xa, Xb = tensor_split(X)
     permute == "lower" && (Xb = H.C.forward(Xb))
 
+    # Determine whether to continue recursion
     recursive = false
     if typeof(X) <: AbstractArray{Float32, 4} && size(X, 3) > 4
         recursive = true
@@ -135,30 +139,34 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
         recursive = true
     end
 
+    # HINT coupling
     if recursive
         # Call function recursively
         Ya, logdet1 = forward(Xa, H; scale=scale+1, permute="none")
         Y_temp, logdet2 = forward(Xb, H; scale=scale+1, permute="none")
-        if logdet == false
+        if logdet == true && H.is_reversed == false
+            Yb, logdet3 = H.CL[scale].forward(Xa, Y_temp)[[2,3]]
+        else
             Yb = H.CL[scale].forward(Xa, Y_temp)[2]
             logdet3 = 0f0
-        else
-            Yb, logdet3 = H.CL[scale].forward(Xa, Y_temp)[[2,3]]
         end
         logdet_full = logdet1 + logdet2 + logdet3
     else
         # Finest layer
         Ya = copy(Xa)
-        if logdet==false
+        if logdet == true && H.is_reversed == false
+            Yb, logdet_full = H.CL[scale].forward(Xa, Xb)[[2,3]]
+        else
             Yb = H.CL[scale].forward(Xa, Xb)[2]
             logdet_full = 0f0
-        else
-            Yb, logdet_full = H.CL[scale].forward(Xa, Xb)[[2,3]]
         end
     end
+    
     Y = tensor_cat(Ya, Yb)
     permute == "both" && (Y = H.C.inverse(Y))
-    if scale==1 && logdet==false
+    if scale == 1 && logdet == true && H.is_reversed == false
+        return Y, logdet_full
+    elseif scale == 1
         return Y
     else
         return Y, logdet_full
@@ -169,40 +177,49 @@ end
 function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing)
     isnothing(logdet) ? logdet = H.logdet : logdet = logdet
     isnothing(permute) ? permute = H.permute : permute = permute
-    permute == "both" && (Y = H.C.forward(Y; logdet=false))
+
+    # Permutation
+    permute == "both" && (Y = H.C.forward(Y))
     Ya, Yb = tensor_split(Y)
+
+    # Check for recursion
     recursive = false
     if typeof(Y) <: AbstractArray{Float32, 4} && size(Y, 3) > 4
         recursive = true
     elseif typeof(Y) <: AbstractArray{Float32, 5} && size(Y, 4) > 4
         recursive = true
     end
+
+    # Coupling layer
     if recursive
         Xa, logdet1 = inverse(Ya, H; scale=scale+1, permute="none")
-        if logdet==false
+        if logdet == true && H.is_reversed == true
+            Y_temp, logdet2 = H.CL[scale].inverse(Xa, Yb; logdet=true)[[2,3]]
+        else
             Y_temp = H.CL[scale].inverse(Xa, Yb)[2]
             logdet2 = 0f0
-        else
-            Y_temp, logdet2 = H.CL[scale].inverse(Xa, Yb; logdet=true)[[2,3]]
         end
         Xb, logdet3 = inverse(Y_temp, H; scale=scale+1, permute="none")
         logdet_full = logdet1 + logdet2 + logdet3
     else
         Xa = copy(Ya)
-        if logdet == false
+        if logdet == true && H.is_reversed == true
+            Xb, logdet_full = H.CL[scale].inverse(Ya, Yb)[[2,3]]
+        else
             Xb = H.CL[scale].inverse(Ya, Yb)[2]
             logdet_full = 0f0
-        else
-            Xb, logdet_full = H.CL[scale].inverse(Ya, Yb)[[2,3]]
         end
     end
+    
+    # Initial permutation
     permute == "lower" && (Xb = H.C.inverse(Xb))
     X = tensor_cat(Xa, Xb)
     if permute == "full" || permute == "both"
         X = H.C.inverse(X)
     end
-
-    if scale==1 && logdet==false
+    if scale == 1 && logdet == true && H.is_reversed == true
+        return X, logdet_full
+    elseif scale == 1
         return X
     else
         return X, logdet_full
@@ -244,11 +261,16 @@ end
 # Input are two tensors ΔX, X
 function backward_inv(ΔX, X, H::CouplingLayerHINT; scale=1, permute=nothing)
     isnothing(permute) ? permute = H.permute : permute = permute
-    permute == "full" || permute == "both" && ((ΔX, X) = H.C.forward((ΔX, X)))
+
+    # Permutation
+    if permute == "full" || permute == "both"
+        (ΔX, X) = H.C.forward((ΔX, X))
+    end
     ΔXa, ΔXb = tensor_split(ΔX)
     Xa, Xb = tensor_split(X)
     permute == "lower" && ((ΔXb, Xb) = H.C.forward((ΔXb, Xb)))
 
+    # Check whether to continue recursion
     recursive = false
     if typeof(X) <: AbstractArray{Float32, 4} && size(X, 3) > 4
         recursive = true
@@ -256,6 +278,7 @@ function backward_inv(ΔX, X, H::CouplingLayerHINT; scale=1, permute=nothing)
         recursive = true
     end
 
+    # Coupling layer backprop
     if recursive
         ΔY_temp, Y_temp = backward_inv(ΔXb, Xb, H; scale=scale+1, permute="none")
         ΔYa_temp, ΔYb, Yb = backward_inv(0f0.*ΔXa, ΔY_temp, Xa, Y_temp, H.CL[scale])[[1,2,4]]
@@ -291,4 +314,14 @@ function get_params(H::CouplingLayerHINT)
     end
     ~isnothing(H.C) && (p = cat(p, get_params(H.C); dims=1))
     return p
+end
+
+# Set is_reversed flag in full network tree
+function tag_as_reversed!(H::CouplingLayerHINT, tag::Bool)
+    H.is_reversed = tag
+    nlayers = length(H.CL)
+    for j=1:nlayers
+        H.CL[j].is_reversed = tag
+    end
+    return H
 end

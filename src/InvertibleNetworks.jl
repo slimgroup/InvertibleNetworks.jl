@@ -4,7 +4,7 @@
 
 module InvertibleNetworks
 
-import Base.size, Base.getindex, Flux.glorot_uniform
+import Base.size, Base.getindex, Flux.glorot_uniform, Base.reverse, Base.reverse!
 using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets
 
 export clear_grad!, glorot_uniform, get_params
