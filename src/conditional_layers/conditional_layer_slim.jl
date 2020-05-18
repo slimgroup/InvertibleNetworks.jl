@@ -120,7 +120,7 @@ function inverse(Zx, Zy, Op, CI::ConditionalLayerSLIM)
 
     # Y-lane
     Zy = wavelet_squeeze(Zy)
-    Yp = CI.CL_Y.inverse(Zy)[1]
+    Yp = CI.CL_Y.inverse(Zy)
     Ys = CI.C_Y.inverse(Yp)
     Y = wavelet_unsqueeze(Ys)
 
@@ -130,7 +130,7 @@ function inverse(Zx, Zy, Op, CI::ConditionalLayerSLIM)
     else
         X = CI.CL_XY.inverse(Zx, reshape(Y, :, size(Y, 4)), Op)
     end
-    Xp = CI.CL_X.inverse(X)[1]
+    Xp = CI.CL_X.inverse(X)
     X = CI.C_X.inverse(Xp)
 
     return X, Y
@@ -169,7 +169,7 @@ end
 
 function inverse_Y(Zy, CI::ConditionalLayerSLIM)
     Zy = wavelet_squeeze(Zy)
-    Yp = CI.CL_Y.inverse(Zy)[1]
+    Yp = CI.CL_Y.inverse(Zy)
     Ys = CI.C_Y.inverse(Yp)
     Y = wavelet_unsqueeze(Ys)
     return Y

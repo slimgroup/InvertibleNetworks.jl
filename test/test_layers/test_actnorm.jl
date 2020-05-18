@@ -48,8 +48,8 @@ nc = 4
 batchsize = 1
 X = rand(Float32, nx, ny, nc, batchsize)
 
-# Layer and
-AN = ActNorm(nc)
+# Layer and initialization
+AN = ActNorm(nc; logdet=false)
 Y = AN.forward(X)
 
 # Test initialization
@@ -60,6 +60,43 @@ Y = AN.forward(X)
 @test isapprox(norm(X - AN.inverse(AN.forward(X)))/norm(X), 0f0, atol=1f-6)
 @test isapprox(norm(X - AN.forward(AN.inverse(X)))/norm(X), 0f0, atol=1f-6)
 
+# Reversed layer (all combinations)
+AN_rev = reverse(AN)
+
+@test isapprox(norm(X - AN_rev.inverse(AN_rev.forward(X)))/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN_rev.forward(AN_rev.inverse(X)))/norm(X), 0f0, atol=1f-6)
+
+@test isapprox(norm(X - AN_rev.forward(AN.forward(X)))/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN_rev.inverse(AN.inverse(X)))/norm(X), 0f0, atol=1f-6)
+
+@test isapprox(norm(X - AN.forward(AN_rev.forward(X)))/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN.inverse(AN_rev.inverse(X)))/norm(X), 0f0, atol=1f-6)
+
+# Test with logdet enabled
+AN = ActNorm(nc; logdet=true)
+Y, lgdt = AN.forward(X)
+
+# Test initialization
+@test isapprox(mean(Y), 0f0; atol=1f-6)
+@test isapprox(var(Y), 1f0; atol=1f-3)
+
+# Test invertibility
+@test isapprox(norm(X - AN.inverse(AN.forward(X)[1]))/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN.forward(AN.inverse(X))[1])/norm(X), 0f0, atol=1f-6)
+
+# Reversed layer (all combinations)
+AN_rev = reverse(AN)
+
+@test isapprox(norm(X - AN_rev.inverse(AN_rev.forward(X)[1]))/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN_rev.forward(AN_rev.inverse(X))[1])/norm(X), 0f0, atol=1f-6)
+
+@test isapprox(norm(X - AN_rev.forward(AN.forward(X)[1])[1])/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN_rev.inverse(AN.inverse(X)))/norm(X), 0f0, atol=1f-6)
+
+@test isapprox(norm(X - AN.forward(AN_rev.forward(X)[1])[1])/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN.inverse(AN_rev.inverse(X)))/norm(X), 0f0, atol=1f-6)
+
+
 ###############################################################################
 # Gradient Test
 
@@ -67,20 +104,14 @@ AN = ActNorm(nc; logdet=true)
 X = randn(Float32, nx, ny, nc, batchsize)
 X0 = randn(Float32, nx, ny, nc, batchsize)
 dX = X - X0
-if AN.logdet == true
-    Y = AN.forward(X)[1]
-else
-    Y = AN.forward(X)
-end
+
+# Forward pass
+Y = AN.forward(X)[1]
 
 function loss(AN, X, Y)
 
     # Forward pass
-    if AN.logdet == true
-        Y_, lgdet = AN.forward(X)
-    else
-        Y_ = AN.forward(X)
-    end
+    Y_, lgdet = AN.forward(X)
 
     # Residual and function value
     ΔY = Y_ - Y
@@ -138,3 +169,77 @@ end
 
 @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+
+###############################################################################
+# Gradient Test reversed layer
+
+AN = reverse(ActNorm(nc; logdet=true))
+X = randn(Float32, nx, ny, nc, batchsize)
+X0 = randn(Float32, nx, ny, nc, batchsize)
+dX = X - X0
+
+# Forward pass
+Y = AN.forward(X)[1]
+
+function loss(AN, X, Y)
+
+    # Forward pass
+    Y_, lgdet = AN.forward(X)
+
+    # Residual and function value
+    ΔY = Y_ - Y
+    f = .5f0/batchsize*norm(ΔY)^2
+    AN.logdet == true && (f -= lgdet)
+
+    # Back propagation
+    ΔX, X_ = AN.backward(ΔY./batchsize, Y)
+
+    # Check invertibility
+    isapprox(norm(X - X_)/norm(X), 0f0, atol=1f-6)
+
+    return f, ΔX, AN.s.grad, AN.b.grad
+end
+
+# Gradient test for X
+maxiter = 6
+print("\nGradient test actnorm\n")
+f0, ΔX = loss(AN, X0, Y)[1:2]
+h = .1f0
+err5 = zeros(Float32, maxiter)
+err6 = zeros(Float32, maxiter)
+for j=1:maxiter
+    f = loss(AN, X0 + h*dX, Y)[1]
+    err5[j] = abs(f - f0)
+    err6[j] = abs(f - f0 - h*dot(dX, ΔX))
+    print(err5[j], "; ", err6[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+
+# Gradient test for parameters
+AN0 = reverse(ActNorm(nc; logdet=true)); AN0.forward(randn(Float32, nx, ny, nc, batchsize))
+AN_ini = deepcopy(AN0)
+ds = AN.s.data - AN0.s.data
+db = AN.b.data - AN0.b.data
+maxiter = 6
+print("\nGradient test actnorm\n")
+f0, ΔX, Δs, Δb = loss(AN0, X, Y)
+h = 1f0
+err7 = zeros(Float32, maxiter)
+err8 = zeros(Float32, maxiter)
+for j=1:maxiter
+    AN0.s.data = AN_ini.s.data + h*ds
+    AN0.b.data = AN_ini.b.data + h*db
+    f = loss(AN0, X, Y)[1]
+    err7[j] = abs(f - f0)
+    err8[j] = abs(f - f0 - h*dot(ds, Δs) - h*dot(db, Δb))
+    print(err7[j], "; ", err8[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err7[end] / (err7[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err8[end] / (err8[1]/4^(maxiter-1)), 1f0; atol=1f1)
