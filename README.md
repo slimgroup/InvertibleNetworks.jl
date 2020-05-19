@@ -44,7 +44,7 @@ Building blocks for invertible neural networks in the Julia programming language
 - Glow: Generative flow with invertible 1x1 convolutions (Kingma and Dhariwal, 2018) ([generic example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/networks/network_glow.jl), [source](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/src/networks/invertible_network_glow.jl))
 
 
-## To Do
+## GPU support
 
 GPU support is supported via Flux/CuArray. To use the GPU, move the input and the network layer to GPU via `|> gpu`
 
