@@ -4,7 +4,7 @@
 
 module InvertibleNetworks
 
-import Base.size, Base.getindex, Flux.glorot_uniform
+import Base.size, Base.getindex, Flux.glorot_uniform, Base.reverse, Base.reverse!
 using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets
 
 export clear_grad!, glorot_uniform, get_params
@@ -24,6 +24,7 @@ include("utils/objective_functions.jl")
 include("utils/dimensionality_operations.jl")
 include("utils/activation_functions.jl")
 include("utils/test_distributions.jl")
+include("utils/neuralnet.jl")
 
 # Single network layers (invertible and non-invertible)
 include("conditional_layers/conditional_layer_residual_block.jl")
@@ -51,5 +52,7 @@ include("conditional_layers/conditional_layer_slim.jl")
 include("networks/invertible_network_conditional_hint.jl")
 include("networks/invertible_network_conditional_hint_multiscale.jl")
 
+# gpu
+include("utils/cuda.jl")
 
 end
