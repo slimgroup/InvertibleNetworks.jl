@@ -45,10 +45,9 @@ struct NetworkHyperbolic <: InvertibleNetwork
     AL::AffineLayer
     HL::AbstractArray{HyperbolicLayer, 1}
     logdet::Bool
-    forward::Function
-    inverse::Function
-    backward::Function
 end
+
+@Flux.functor NetworkHyperbolic
 
 # Constructor
 function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, L::Int64, K::Int64; 
@@ -95,20 +94,16 @@ function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, 
         end
     end
 
-    return NetworkHyperbolic(AL, HL, logdet, 
-        X -> hyperbolic_forward(X, AL, HL),
-        Y -> hyperbolic_inverse(Y, AL, HL),
-        (ΔY, Y) -> hyperbolic_backward(ΔY, Y, AL, HL)
-    )
+    return NetworkHyperbolic(AL, HL, logdet)
 end
 
 # Forward pass
-function hyperbolic_forward(X, AL, HL)
+function forward(X, H::NetworkHyperbolic)
     X = wavelet_squeeze(X)
-    X, logdet = AL.forward(X)
+    X, logdet = H.AL.forward(X)
     X_prev, X_curr = tensor_split(X)
-    for j=1:length(HL)
-        X_prev, X_curr = HL[j].forward(X_prev, X_curr)
+    for j=1:length(H.HL)
+        X_prev, X_curr = H.HL[j].forward(X_prev, X_curr)
     end
     X = tensor_cat(X_prev, X_curr)
     X = wavelet_unsqueeze(X)
@@ -116,30 +111,30 @@ function hyperbolic_forward(X, AL, HL)
 end
 
 # Inverse pass
-function hyperbolic_inverse(Y, AL, HL)
+function inverse(Y, H::NetworkHyperbolic)
     Y = wavelet_squeeze(Y)
     Y_curr, Y_new = tensor_split(Y)
-    for j=length(HL):-1:1
-        Y_curr, Y_new = HL[j].inverse(Y_curr, Y_new)
+    for j=length(H.HL):-1:1
+        Y_curr, Y_new = H.HL[j].inverse(Y_curr, Y_new)
     end
     Y = tensor_cat(Y_curr, Y_new)
-    Y = AL.inverse(Y)
+    Y = H.AL.inverse(Y)
     Y = wavelet_unsqueeze(Y)
     return Y
 end
 
 # Backward pass
-function hyperbolic_backward(ΔY, Y, AL, HL)
+function backward(ΔY, Y, H::NetworkHyperbolic)
     ΔY = wavelet_squeeze(ΔY)
     Y = wavelet_squeeze(Y)
     ΔY_curr, ΔY_new = tensor_split(ΔY)
     Y_curr, Y_new = tensor_split(Y)
-    for j=length(HL):-1:1
-        ΔY_curr, ΔY_new, Y_curr, Y_new = HL[j].backward(ΔY_curr, ΔY_new, Y_curr, Y_new)
+    for j=length(H.HL):-1:1
+        ΔY_curr, ΔY_new, Y_curr, Y_new = H.HL[j].backward(ΔY_curr, ΔY_new, Y_curr, Y_new)
     end
     ΔY = tensor_cat(ΔY_curr, ΔY_new)
     Y = tensor_cat(Y_curr, Y_new)
-    ΔY, Y = AL.backward(ΔY, Y)
+    ΔY, Y = H.AL.backward(ΔY, Y)
     ΔY = wavelet_unsqueeze(ΔY)
     Y = wavelet_unsqueeze(Y)
     return ΔY, Y

@@ -18,7 +18,7 @@ export GaLU, GaLUgrad
  See also: [`ReLUgrad`](@ref)
 """
 function ReLU(x)
-    y = zeros(Float32, size(x))
+    y = 0f0.*x
     y[x.>=0f0] = x[x.>=0f0]
     return y
 end
@@ -41,7 +41,7 @@ end
  See also: [`ReLU`](@ref)
 """
 function ReLUgrad(Δy, x)
-    Δx = zeros(Float32, size(x))
+    Δx = 0f0.*x
     Δx[x.>=0f0] = Δy[x.>=0f0]
     return Δx
 end
@@ -57,7 +57,7 @@ end
  See also: [`LeakyReLUinv`](@ref), [`LeakyReLUgrad`](@ref)
 """
 function LeakyReLU(x; slope=0.01f0)
-    y = zeros(Float32, size(x))
+    y = 0f0.*x
     y[x.>=0f0] = x[x.>=0f0]
     y[x.<0f0] = slope*x[x.<0f0]
     return y
@@ -71,7 +71,7 @@ end
  See also: [`LeakyReLU`](@ref), [`LeakyReLUgrad`](@ref)
 """
 function LeakyReLUinv(y; slope=0.01f0)
-    x = zeros(Float32, size(y))
+    x = 0f0.*y
     x[y.>=0f0] = y[y.>=0f0]
     x[y.<0f0] = 1f0./slope*y[y.<0f0]
     return x
@@ -98,7 +98,7 @@ end
 """
 function LeakyReLUgrad(Δy, y; slope=0.01f0)
     x = LeakyReLUinv(y; slope=slope)  # recompute forward state
-    Δx = zeros(Float32, size(y))
+    Δx = 0f0.*y
     Δx[x.>=0f0] = Δy[x.>=0f0]
     Δx[x.<0f0] = slope*Δy[x.<0f0]
     return Δx
@@ -207,7 +207,7 @@ function GaLUgrad(Δy::AbstractArray{Float32, 4}, x::AbstractArray{Float32, 4})
     k = Int(size(x, 3) / 2)
     x1 = x[:, :, 1:k, :]
     x2 = x[:, :, k+1:end, :]
-    Δx = zeros(Float32, size(x))
+    Δx = 0f0.*x
     Δx[:, :, 1:k, :] = Sigmoid(x2) .* Δy
     Δx[:, :, k+1:end, :] = SigmoidGrad(Δy, nothing; x=x2) .* x1
     return Δx
@@ -217,7 +217,7 @@ function GaLUgrad(Δy::AbstractArray{Float32, 5}, x::AbstractArray{Float32, 5})
     k = Int(size(x, 4) / 2)
     x1 = x[:, :, :, 1:k, :]
     x2 = x[:, :, :, k+1:end, :]
-    Δx = zeros(Float32, size(x))
+    Δx = 0f0.*x
     Δx[:, :, :, 1:k, :] = Sigmoid(x2) .* Δy
     Δx[:, :, :, k+1:end, :] = SigmoidGrad(Δy, nothing; x=x2) .* x1
     return Δx

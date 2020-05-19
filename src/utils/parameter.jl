@@ -2,7 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export NeuralNetLayer, Parameter
+export Parameter
 
 mutable struct Parameter
     data
@@ -24,6 +24,8 @@ Parameter(x) = Parameter(x, nothing)
 
 size(x::Parameter) = size(x.data)
 
+@Flux.functor Parameter
+
 """
     clear_grad!(NL::NeuralNetLayer)
 
@@ -38,7 +40,3 @@ function clear_grad!(P::AbstractArray{Parameter, 1})
         P[j].grad = nothing
     end
 end
-
-abstract type NeuralNetLayer end
-
-abstract type InvertibleNetwork end

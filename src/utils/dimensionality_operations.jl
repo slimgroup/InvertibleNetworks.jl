@@ -42,7 +42,7 @@ function squeeze(X::AbstractArray{T,4}; pattern="column") where T
     nx_out = Int(round(nx_in/2))
     ny_out = Int(round(ny_in/2))
     nc_out = Int(round(nc_in*4))
-    Y = zeros(T, nx_out, ny_out, nc_out, batchsize)
+    Y = cuzeros(X, nx_out, ny_out, nc_out, batchsize)
 
     if pattern == "column"
         Y = reshape(X, nx_out, ny_out, nc_out, batchsize)
@@ -98,7 +98,7 @@ function unsqueeze(Y::AbstractArray{T,4}; pattern="column") where T
     nx_out = Int(round(nx_in*2))
     ny_out = Int(round(ny_in*2))
     nc_out = Int(round(nc_in/4))
-    X = zeros(T, nx_out, ny_out, nc_out, batchsize)
+    X = cuzeros(Y, nx_out, ny_out, nc_out, batchsize)
 
     if pattern == "column"
         X = reshape(Y, nx_out, ny_out, nc_out, batchsize)
@@ -152,7 +152,7 @@ function wavelet_squeeze(X::AbstractArray{T,4}; type=WT.db1) where T
     nx_out = Int(round(nx_in/2))
     ny_out = Int(round(ny_in/2))
     nc_out = Int(round(nc_in*4))
-    Y = zeros(T, nx_out, ny_out, nc_out, batchsize)
+    Y = cuzeros(X, nx_out, ny_out, nc_out, batchsize)
     for i=1:batchsize
         for j=1:nc_in
             Ycurr = dwt(X[:,:,j,i], wavelet(type), 1)
@@ -189,7 +189,7 @@ function wavelet_unsqueeze(Y::AbstractArray{T,4}; type=WT.db1) where T
     nx_out = Int(round(nx_in*2))
     ny_out = Int(round(ny_in*2))
     nc_out = Int(round(nc_in/4))
-    X = zeros(T, nx_out, ny_out, nc_out, batchsize)
+    X = cuzeros(Y, nx_out, ny_out, nc_out, batchsize)
     for i=1:batchsize
         for j=1:nc_out
             Ycurr = unsqueeze(Y[:, :, (j-1)*4 + 1: j*4, i:i]; pattern="patch")[:, :, 1, 1]
@@ -263,7 +263,34 @@ end
 
  See also: [`tensor_split`](@ref)
 """
-tensor_cat(X::AbstractArray{T,4}, Y::AbstractArray{T,4}) where T = cat(X, Y; dims=3)
-tensor_cat(X::AbstractArray{T,5}, Y::AbstractArray{T,5}) where T = cat(X, Y; dims=4)
-tensor_cat(X::AbstractArray{T,1}, Y::AbstractArray{T,1}) where T = cat(X, Y; dims=1)
+function tensor_cat(X::AbstractArray{T,4}, Y::AbstractArray{T,4}) where T 
+    if size(X, 3) == 0
+        return Y
+    elseif size(Y, 3) == 0
+        return X
+    else
+        return cat(X, Y; dims=3)
+    end
+end
+
+function tensor_cat(X::AbstractArray{T,5}, Y::AbstractArray{T,5}) where T
+    if size(X, 4) == 0
+        return Y
+    elseif size(Y, 4) == 0
+        return X
+    else
+        return cat(X, Y; dims=4)
+    end
+end
+
+function tensor_cat(X::AbstractArray{T,1}, Y::AbstractArray{T,1}) where T
+    if size(X, 1) == 0
+        return Y
+    elseif size(Y, 1) == 0
+        return X
+    else
+        return cat(X, Y; dims=1)
+    end
+end
+
 tensor_cat(X::Tuple{AbstractArray{T,4}, AbstractArray{T,4}}) where T = tensor_cat(X[1], X[2])

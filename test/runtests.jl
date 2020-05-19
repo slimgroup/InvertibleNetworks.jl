@@ -19,19 +19,16 @@ if test_suite == "all" || test_suite == "layers"
         include("test_layers/test_residual_block.jl")
         include("test_layers/test_householder_convolution.jl")
         include("test_layers/test_coupling_layer_basic.jl")
-        include("test_layers/test_coupling_layer_basic_inverse.jl")
         include("test_layers/test_coupling_layer_irim.jl")
         include("test_layers/test_coupling_layer_glow.jl")
         include("test_layers/test_coupling_layer_hint.jl")
-        include("test_layers/test_coupling_layer_hint_inverse.jl")
         include("test_layers/test_coupling_layer_slim.jl")
         include("test_layers/test_coupling_layer_slim_learned.jl")
         include("test_layers/test_conditional_layer_hint.jl")
         include("test_layers/test_conditional_layer_slim.jl")
         include("test_layers/test_conditional_res_block.jl")
-	    include("test_layers/test_hyperbolic_layer.jl")
+	include("test_layers/test_hyperbolic_layer.jl")
         include("test_layers/test_actnorm.jl")
-        include("test_layers/test_actnorm_inverse.jl")
     end
 end
 
