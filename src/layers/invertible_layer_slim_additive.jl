@@ -75,7 +75,7 @@ function AdditiveCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::
 end
 
 # Forward pass: Input X, Output Y
-function forward(X::AbstractArray{Float32, 4}, J, D, CS::AdditiveCouplingLayerSLIM; logdet=false)
+function forward(X::AbstractArray{Float32, 4}, D, J, CS::AdditiveCouplingLayerSLIM)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(X)
@@ -95,12 +95,12 @@ function forward(X::AbstractArray{Float32, 4}, J, D, CS::AdditiveCouplingLayerSL
     Y2_ = X2_ + CS.RB.forward(gs)
     Y_ = tensor_cat(Y1_, Y2_)
 
-    isnothing(C) ? (Y = copy(Y_)) : (Y = C.inverse(Y_))
-    logdet == true ? (return Y, 0f0) : (return Y)
+    isnothing(CS.C) ? (Y = copy(Y_)) : (Y = CS.C.inverse(Y_))
+    CS.logdet == true ? (return Y, 0f0) : (return Y)
 end
 
 # Inverse pass: Input Y, Output X
-function inverse(Y::AbstractArray{Float32, 4}, J, D, CS::AdditiveCouplingLayerSLIM; logdet=false, save=false)
+function inverse(Y::AbstractArray{Float32, 4}, D, J, CS::AdditiveCouplingLayerSLIM; save=false)
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(Y)
@@ -124,11 +124,10 @@ function inverse(Y::AbstractArray{Float32, 4}, J, D, CS::AdditiveCouplingLayerSL
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, J, D, CS::AdditiveCouplingLayerSLIM;
-                 logdet=false, permute=false)
+function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, J, CS::AdditiveCouplingLayerSLIM; permute=false)
 
     # Recompute forward states
-    X, X_, g, gn, gs = inverse(Y, J, D, CS; logdet=logdet, save=true)
+    X, X_, g, gn, gs = inverse(Y, D, J, CS; save=true)
     nx1, nx2, nx_in, batchsize = size(X)
 
     # Backpropagation

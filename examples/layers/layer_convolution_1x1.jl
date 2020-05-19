@@ -12,11 +12,11 @@ k = 10  # no. of channels
 batchsize = 4
 
 # Input image: nx x ny x k x batchsize
-X = glorot_uniform(nx, ny, k, batchsize) |> gpu
+X = glorot_uniform(nx, ny, k, batchsize)
 
 # 1x1 convolution operators
-C = Conv1x1(k) |> gpu
-C0 = Conv1x1(k) |> gpu
+C = Conv1x1(k)
+C0 = Conv1x1(k)
 
 # Generate "true/observed" data with the same dimension as X
 Y = C.forward(X)

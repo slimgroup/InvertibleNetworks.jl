@@ -9,19 +9,19 @@ using CuArrays
 import Flux.Optimise.update!
 
 # Define network
-nx = 512     # must be multiple of 2
-ny = 512
+nx = 64     # must be multiple of 2
+ny = 64
 n_in = 3
 n_hidden = 32
-batchsize = 20
-L = 4   # number of scales
-K = 4   # number of flow steps per scale
+batchsize = 10
+L = 2   # number of scales
+K = 2   # number of flow steps per scale
 
 # Input
-X = rand(Float32, nx, ny, n_in, batchsize) |> gpu
+X = rand(Float32, nx, ny, n_in, batchsize) #|> gpu
 
 # Glow network
-G = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K) |>gpu
+G = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K) #|>gpu
 
 # Objective function
 function loss(X)
