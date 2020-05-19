@@ -46,8 +46,26 @@ Building blocks for invertible neural networks in the Julia programming language
 
 ## To Do
 
-- GPU support
+GPU support is supported via Flux/CuArray. To use the GPU, move the input and the network layer to GPU via `|> gpu`
 
+```
+using InvertibleNetworks, Flux
+
+# Input
+nx = 64
+ny = 64
+k = 10
+batchsize = 4
+
+# Input image: nx x ny x k x batchsize
+X = randn(Float32, nx, ny, k, batchsize) |> gpu
+
+# Activation normalization
+AN = ActNorm(k; logdet=true) |> gpu
+
+# Test invertibility
+Y_, logdet = AN.forward(X)
+```
 
 ## Acknowledgments
 
