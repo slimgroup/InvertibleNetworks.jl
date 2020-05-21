@@ -98,3 +98,14 @@ function reverse(RN::ReverseNetwork)
     tag_as_reversed!(R.network, false)
     return R.network
 end
+
+# Clear grad functionality for reversed layers/networks
+
+function clear_grad!(RL::ReverseLayer)
+    clear_grad!(RL.layer)
+end
+
+
+function clear_grad!(RN::ReverseNetwork)
+    clear_grad!(RN.network)
+end
