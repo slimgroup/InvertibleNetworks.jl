@@ -109,3 +109,13 @@ end
 function clear_grad!(RN::ReverseNetwork)
     clear_grad!(RN.network)
 end
+
+# Get params for reversed layers/networks
+
+function get_params(RL::ReverseLayer)
+    return get_params(RL.layer)
+end
+
+function get_params(RN::ReverseNetwork)
+    return get_params(RN.network)
+end

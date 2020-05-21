@@ -129,7 +129,7 @@ end
 function forward_Y(Y, CH::NetworkConditionalHINT)
     depth = length(CH.CL)
     for j=1:depth
-        Y_ = CH.AN_Y[j].forward(Y)[1]
+        Y_ = CH.AN_Y[j].forward(Y; logdet=false)
         Y = CH.CL[j].forward_Y(Y_)
     end
     return Y
@@ -140,7 +140,7 @@ function inverse_Y(Zy, CH::NetworkConditionalHINT)
     depth = length(CH.CL)
     for j=depth:-1:1
         Zy_ = CH.CL[j].inverse_Y(Zy)
-        Zy = CH.AN_Y[j].inverse(Zy_)
+        Zy = CH.AN_Y[j].inverse(Zy_; logdet=false)
     end
     return Zy
 end
