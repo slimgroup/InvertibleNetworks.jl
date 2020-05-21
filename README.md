@@ -86,10 +86,12 @@ This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl),
 
  - Jakob Kruse, Gianluca Detommaso, Robert Scheichl and Ullrich Köthe, "HINT: Hierarchical Invertible Neural Transport for Density Estimation and Bayesian Inference", arXiv Statistics and Machine Learning, 2020. https://arxiv.org/abs/1905.10687
 
-## Author
+## Authors
 
- - Philipp Witte, Georgia Institute of Technology 
+ - Philipp Witte, Georgia Institute of Technology (pwitte3@gatech.edu)
 
- - Contact at pwitte3@gatech.edu 
+ - Gabrio Rizzuti, Georgia Institute of Technology
 
+ - Mathias Louboutin, Georgia Institute of Technology
 
+ - Ali Siahkoohi, Georgia Institute of Technology
