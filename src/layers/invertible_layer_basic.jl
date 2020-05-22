@@ -89,9 +89,9 @@ function CouplingLayerBasic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidd
 end
 
 # 2D Forward pass: Input X, Output Y
-function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L::CouplingLayerBasic;
-                 save::Bool=false, logdet=nothing)
-    isnothing(logdet) ? logdet = L.logdet : logdet = logdet
+function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing)
+    isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
+    
     # Coupling layer
     k = size(X1, 3)
     Y1 = copy(X1)
@@ -100,7 +100,7 @@ function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L
     T = logS_T[:, :, k+1:end, :]
     Y2 = S.*X2 + T
 
-    if logdet == true && L.is_reversed == false
+    if logdet
         save ? (return Y1, Y2, coupling_logdet_forward(S), S) : (return Y1, Y2, coupling_logdet_forward(S))
     else
         save ? (return Y1, Y2, S) : (return Y1, Y2)
@@ -108,9 +108,9 @@ function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L
 end
 
 # 3D Forward pass: Input X, Output Y
-function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L::CouplingLayerBasic;
-                 save::Bool=false, logdet=nothing)
-    isnothing(logdet) ? logdet = L.logdet : logdet = logdet
+function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing)
+    isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
+    
     # Coupling layer
     k = size(X1, 4)
     Y1 = copy(X1)
@@ -119,7 +119,7 @@ function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L
     T = logS_T[:, :, :, k+1:end, :]
     Y2 = S.*X2 + T
 
-    if logdet == true && L.is_reversed == false
+    if logdet
         save ? (return Y1, Y2, coupling_logdet_forward(S), S) : (return Y1, Y2, coupling_logdet_forward(S))
     else
         save ? (return Y1, Y2, S) : (return Y1, Y2)
@@ -127,9 +127,9 @@ function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L
 end
 
 # 2D Inverse pass: Input Y, Output X
-function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L::CouplingLayerBasic;
-                 save::Bool=false, logdet=nothing)
-    isnothing(logdet) ? logdet = L.logdet : logdet = logdet
+function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing)
+    isnothing(logdet) ? logdet = (L.logdet && L.is_reversed) : logdet = logdet
+
     # Inverse layer
     k = size(Y1, 3)
     X1 = copy(Y1)
@@ -138,7 +138,7 @@ function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L
     T = logS_T[:, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
 
-    if logdet == true && L.is_reversed == true
+    if logdet
         save == true ? (return X1, X2, -coupling_logdet_forward(S), S) : (return X1, X2, -coupling_logdet_forward(S))
     else
         save == true ? (return X1, X2, S) : (return X1, X2)
@@ -146,9 +146,9 @@ function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L
 end
 
 # 3D Inverse pass: Input Y, Output X
-function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L::CouplingLayerBasic;
-                 save=false, logdet=true)
-    isnothing(logdet) ? logdet = L.logdet : logdet = logdet
+function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save=false, logdet=true)
+    isnothing(logdet) ? logdet = (L.logdet && L.is_reversed) : logdet = logdet
+
     # Inverse layer
     k = size(Y1, 4)
     X1 = copy(Y1)
@@ -157,7 +157,7 @@ function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L
     T = logS_T[:, :, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
 
-    if logdet == true && L.is_reversed == true
+    if logdet
         save == true ? (return X1, X2, -coupling_logdet_forward(S), S) : (return X1, X2, -coupling_logdet_forward(S))
     else
         save == true ? (return X1, X2, S) : (return X1, X2)

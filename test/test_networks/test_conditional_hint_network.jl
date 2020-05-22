@@ -13,15 +13,12 @@ n_hidden = 4
 batchsize = 2
 L = 2
 K = 2
-# multiscale = true
-multiscale = false
 
-if multiscale
-    CH0 = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
-else
-    CH0 = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
-end
-nets = [CH0, reverse(CH0)]
+# Multi-scale and single scale network
+CH0 = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
+CH1 = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
+
+nets = [CH0, CH1, reverse(CH1)]
 
 # Loop over networks and reversed counterpart
 for j = 1:length(nets)
@@ -49,12 +46,9 @@ for j = 1:length(nets)
     @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
 
     # Y-lane only
-    if ~CH.is_reversed
-        Zyy = CH.forward_Y(Y)
-        Yy = CH.inverse_Y(Zyy)
-        @test isapprox(norm(Y - Yy)/norm(Y), 0f0; atol=1f-3)
-    end
-
+    Zyy = CH.forward_Y(Y)
+    Yy = CH.inverse_Y(Zyy)
+    @test isapprox(norm(Y - Yy)/norm(Y), 0f0; atol=1f-3)
 end
 
 ###################################################################################################
@@ -71,12 +65,10 @@ function loss(CH, X, Y)
 end
 
 # Gradient test w.r.t. input
-if multiscale
-    CH0 = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
-else
-    CH0 = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
-end
-nets = [CH0, reverse(CH0)]
+CH0 = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
+CH1 = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
+
+nets = [CH0, CH1, reverse(CH1)]
 
 # Loop over networks and reversed counterpart
 for j = 1:length(nets)
@@ -108,5 +100,4 @@ for j = 1:length(nets)
 
     @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
     @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
-
 end
