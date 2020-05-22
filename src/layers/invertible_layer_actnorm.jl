@@ -102,10 +102,10 @@ function inverse(Y::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
     # Initialize during first pass such that
     # output has zero mean and unit variance
     if AN.s.data == nothing && AN.is_reversed == true
-        μ = mean(Y; dims=(1, 2, 4))[1, 1, : ,1]
-        σ_sqr = var(Y; dims=(1, 2, 4))[1, 1, :, 1]
-        AN.s.data = 1f0 ./ sqrt.(σ_sqr)
-        AN.b.data = -μ ./ sqrt.(σ_sqr)
+        μ = mean(Y; dims=(1,2,4))[1,1,:,1]
+        σ_sqr = var(Y; dims=(1,2,4))[1,1,:,1]
+        AN.s.data = sqrt.(σ_sqr)
+        AN.b.data = μ
     end
     X = (Y .- reshape(AN.b.data, 1, 1, :, 1)) ./ reshape(AN.s.data, 1, 1, :, 1)
 
@@ -121,10 +121,10 @@ function inverse(Y::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
     # Initialize during first pass such that
     # output has zero mean and unit variance
     if AN.s.data == nothing && AN.is_reversed == true
-        μ = mean(Y; dims=(1, 2, 4))[1, 1, :, 1]
-        σ_sqr = var(Y; dims=(1, 2, 4))[1, 1, :, 1]
-        AN.s.data = 1f0 ./ sqrt.(σ_sqr)
-        AN.b.data = -μ ./ sqrt.(σ_sqr)
+        μ = mean(Y; dims=(1,2,3,5))[1,1,1,:,1]
+        σ_sqr = var(Y; dims=(1,2,3,5))[1,1,1,:,1]
+        AN.s.data = sqrt.(σ_sqr)
+        AN.b.data = μ
     end
     X = (Y .- reshape(AN.b.data, 1, 1, 1, :, 1)) ./ reshape(AN.s.data, 1, 1, 1, :, 1)
 
