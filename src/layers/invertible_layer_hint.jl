@@ -121,7 +121,7 @@ end
 
 # Input is tensor X
 function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing)
-    isnothing(logdet) ? logdet = H.logdet : logdet = logdet
+    isnothing(logdet) ? logdet = (H.logdet && ~H.is_reversed) : logdet = logdet
     isnothing(permute) ? permute = H.permute : permute = permute
 
     # Permutation
@@ -144,7 +144,7 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
         # Call function recursively
         Ya, logdet1 = forward(Xa, H; scale=scale+1, permute="none")
         Y_temp, logdet2 = forward(Xb, H; scale=scale+1, permute="none")
-        if logdet == true && H.is_reversed == false
+        if logdet
             Yb, logdet3 = H.CL[scale].forward(Xa, Y_temp)[[2,3]]
         else
             Yb = H.CL[scale].forward(Xa, Y_temp)[2]
@@ -154,7 +154,7 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
     else
         # Finest layer
         Ya = copy(Xa)
-        if logdet == true && H.is_reversed == false
+        if logdet
             Yb, logdet_full = H.CL[scale].forward(Xa, Xb)[[2,3]]
         else
             Yb = H.CL[scale].forward(Xa, Xb)[2]
@@ -164,10 +164,8 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
 
     Y = tensor_cat(Ya, Yb)
     permute == "both" && (Y = H.C.inverse(Y))
-    if scale == 1 && logdet == true && H.is_reversed == false
-        return Y, logdet_full
-    elseif scale == 1
-        return Y
+    if scale == 1
+        logdet ? (return Y, logdet_full) : (return Y)
     else
         return Y, logdet_full
     end
@@ -175,7 +173,7 @@ end
 
 # Input is tensor Y
 function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing)
-    isnothing(logdet) ? logdet = H.logdet : logdet = logdet
+    isnothing(logdet) ? logdet = (H.logdet && H.is_reversed) : logdet = logdet
     isnothing(permute) ? permute = H.permute : permute = permute
 
     # Permutation
@@ -193,7 +191,7 @@ function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
     # Coupling layer
     if recursive
         Xa, logdet1 = inverse(Ya, H; scale=scale+1, permute="none")
-        if logdet == true && H.is_reversed == true
+        if logdet
             Y_temp, logdet2 = H.CL[scale].inverse(Xa, Yb; logdet=true)[[2,3]]
         else
             Y_temp = H.CL[scale].inverse(Xa, Yb)[2]
@@ -203,7 +201,7 @@ function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
         logdet_full = logdet1 + logdet2 + logdet3
     else
         Xa = copy(Ya)
-        if logdet == true && H.is_reversed == true
+        if logdet
             Xb, logdet_full = H.CL[scale].inverse(Ya, Yb)[[2,3]]
         else
             Xb = H.CL[scale].inverse(Ya, Yb)[2]
@@ -217,10 +215,9 @@ function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
     if permute == "full" || permute == "both"
         X = H.C.inverse(X)
     end
-    if scale == 1 && logdet == true && H.is_reversed == true
-        return X, logdet_full
-    elseif scale == 1
-        return X
+
+    if scale == 1 
+        logdet ? (return X, logdet_full) : (return X)
     else
         return X, logdet_full
     end

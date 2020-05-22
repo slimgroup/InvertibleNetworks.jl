@@ -58,7 +58,7 @@ end
 
 # 2D Foward pass: Input X, Output Y
 function forward(X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
-    isnothing(logdet) ? logdet = AN.logdet : logdet = logdet
+    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     nx, ny, n_in, batchsize = size(X)
 
     # Initialize during first pass such that
@@ -72,12 +72,12 @@ function forward(X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
     Y = X .* reshape(AN.s.data, 1, 1, :, 1) .+ reshape(AN.b.data, 1, 1, :, 1)
 
     # If logdet true, return as second ouput argument
-    logdet == true && AN.is_reversed == false ? (return Y, logdet_forward(nx, ny, AN.s)) : (return Y)
+    logdet ? (return Y, logdet_forward(nx, ny, AN.s)) : (return Y)
 end
 
 # 3D Foward pass: Input X, Output Y
 function forward(X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
-    isnothing(logdet) ? logdet = AN.logdet : logdet = logdet
+    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     nx, ny, nz, n_in, batchsize = size(X)
 
     # Initialize during first pass such that
@@ -91,12 +91,12 @@ function forward(X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
     Y = X .* reshape(AN.s.data, 1, 1, 1, :, 1) .+ reshape(AN.b.data, 1, 1, 1, :, 1)
 
     # If logdet true, return as second ouput argument
-    logdet == true && AN.is_reversed == false ? (return Y, logdet_forward(nx, ny, nz, AN.s)) : (return Y)
+    logdet ? (return Y, logdet_forward(nx, ny, nz, AN.s)) : (return Y)
 end
 
 # 2D Inverse pass: Input Y, Output X
 function inverse(Y::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
-    isnothing(logdet) ? logdet = AN.logdet : logdet = logdet
+    isnothing(logdet) ? logdet = (AN.logdet && AN.is_reversed) : logdet = logdet
     nx, ny, _, _ = size(Y)
 
     # Initialize during first pass such that
@@ -110,12 +110,12 @@ function inverse(Y::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
     X = (Y .- reshape(AN.b.data, 1, 1, :, 1)) ./ reshape(AN.s.data, 1, 1, :, 1)
 
     # If logdet true, return as second ouput argument
-    logdet == true && AN.is_reversed == true ? (return X, -logdet_forward(nx, ny, AN.s)) : (return X)
+    logdet ? (return X, -logdet_forward(nx, ny, AN.s)) : (return X)
 end
 
 # 3D Inverse pass: Input Y, Output X
 function inverse(Y::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
-    isnothing(logdet) ? logdet = AN.logdet : logdet = logdet
+    isnothing(logdet) ? logdet = (AN.logdet && AN.is_reversed) : logdet = logdet
     nx, ny, nz, _, _ = size(Y)
 
     # Initialize during first pass such that
@@ -129,7 +129,7 @@ function inverse(Y::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
     X = (Y .- reshape(AN.b.data, 1, 1, 1, :, 1)) ./ reshape(AN.s.data, 1, 1, 1, :, 1)
 
     # If logdet true, return as second ouput argument
-    logdet == true && AN.is_reversed == true ? (return X, -logdet_forward(nx, ny, nz, AN.s)) : (return X)
+    logdet ? (return X, -logdet_forward(nx, ny, nz, AN.s)) : (return X)
 end
 
 # 2D Backward pass: Input (ΔY, Y), Output (ΔY, Y)

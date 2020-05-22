@@ -203,7 +203,7 @@ end
 
 # Gradient test for X
 maxiter = 6
-print("\nGradient test actnorm\n")
+print("\nGradient test actnorm reveres\n")
 f0, ΔX = loss(AN, X0, Y)[1:2]
 h = .1f0
 err5 = zeros(Float32, maxiter)
@@ -226,7 +226,7 @@ AN_ini = deepcopy(AN0)
 ds = AN.s.data - AN0.s.data
 db = AN.b.data - AN0.b.data
 maxiter = 6
-print("\nGradient test actnorm\n")
+print("\nGradient test actnorm reverse\n")
 f0, ΔX, Δs, Δb = loss(AN0, X, Y)
 h = 1f0
 err7 = zeros(Float32, maxiter)
