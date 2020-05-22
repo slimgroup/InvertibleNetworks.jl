@@ -161,7 +161,7 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
             logdet_full = 0f0
         end
     end
-    
+
     Y = tensor_cat(Ya, Yb)
     permute == "both" && (Y = H.C.inverse(Y))
     if scale == 1 && logdet == true && H.is_reversed == false
@@ -210,7 +210,7 @@ function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
             logdet_full = 0f0
         end
     end
-    
+
     # Initial permutation
     permute == "lower" && (Xb = H.C.inverse(Xb))
     X = tensor_cat(Xa, Xb)
