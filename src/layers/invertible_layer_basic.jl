@@ -180,7 +180,7 @@ function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
     return ΔX1, ΔX2, X1, X2
 end
 
-# 2D/3D Backward pass: Input (ΔX, X), Output (ΔY, Y)
+# 2D/3D Reverse backward pass: Input (ΔX, X), Output (ΔY, Y)
 function backward_inv(ΔX1, ΔX2, X1, X2, L::CouplingLayerBasic)
 
     # Recompute inverse state

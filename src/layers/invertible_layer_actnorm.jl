@@ -64,8 +64,8 @@ function forward(X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
     # Initialize during first pass such that
     # output has zero mean and unit variance
     if AN.s.data == nothing && AN.is_reversed == false
-        μ = mean(X; dims=(1,2,4))[1,1,:,1]
-        σ_sqr = var(X; dims=(1,2,4))[1,1,:,1]
+        μ = mean(X; dims=(1, 2, 4))[1, 1, :, 1]
+        σ_sqr = var(X; dims=(1, 2, 4))[1, 1, :, 1]
         AN.s.data = 1f0 ./ sqrt.(σ_sqr)
         AN.b.data = -μ ./ sqrt.(σ_sqr)
     end
@@ -83,8 +83,8 @@ function forward(X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
     # Initialize during first pass such that
     # output has zero mean and unit variance
     if AN.s.data == nothing && AN.is_reversed == false
-        μ = mean(X; dims=(1,2,3,5))[1,1,1,:,1]
-        σ_sqr = var(X; dims=(1,2,3,5))[1,1,1,:,1]
+        μ = mean(X; dims=(1, 2, 3, 5))[1, 1, 1, :, 1]
+        σ_sqr = var(X; dims=(1, 2, 3, 5))[1, 1, 1, :, 1]
         AN.s.data = 1f0 ./ sqrt.(σ_sqr)
         AN.b.data = -μ ./ sqrt.(σ_sqr)
     end
@@ -137,9 +137,9 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
     nx, ny, n_in, batchsize = size(Y)
     X = inverse(Y, AN; logdet=false)
     ΔX = ΔY .* reshape(AN.s.data, 1, 1, :, 1)
-    Δs = sum(ΔY .* X, dims=(1,2,4))[1, 1, :, 1]
+    Δs = sum(ΔY .* X, dims=(1, 2, 4))[1, 1, :, 1]
     AN.logdet == true && (Δs -= logdet_backward(nx, ny, AN.s))
-    Δb = sum(ΔY, dims=(1,2,4))[1, 1, :, 1]
+    Δb = sum(ΔY, dims=(1, 2, 4))[1, 1, :, 1]
     AN.s.grad = Δs
     AN.b.grad = Δb
     return ΔX, X
@@ -150,9 +150,9 @@ function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, 
     nx, ny, nz, n_in, batchsize = size(Y)
     X = inverse(Y, AN; logdet=false)
     ΔX = ΔY .* reshape(AN.s.data, 1, 1, 1, :, 1)
-    Δs = sum(ΔY .* X, dims=(1,2,3,5))[1, 1, 1, :, 1]
+    Δs = sum(ΔY .* X, dims=(1, 2, 3, 5))[1, 1, 1, :, 1]
     AN.logdet == true && (Δs -= logdet_backward(nx, ny, nz, AN.s))
-    Δb = sum(ΔY, dims=(1,2,3,5))[1, 1, 1, :, 1]
+    Δb = sum(ΔY, dims=(1, 2, 3, 5))[1, 1, 1, :, 1]
     AN.s.grad = Δs
     AN.b.grad = Δb
     return ΔX, X
@@ -163,9 +163,22 @@ function backward_inv(ΔX::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 
     nx, ny, n_in, batchsize = size(X)
     Y = forward(X, AN; logdet=false)
     ΔY = ΔX ./ reshape(AN.s.data, 1, 1, :, 1)
-    Δs = -sum(ΔX .* X ./ reshape(AN.s.data, 1, 1, :, 1), dims=(1,2,4))[1, 1, :, 1]
+    Δs = -sum(ΔX .* X ./ reshape(AN.s.data, 1, 1, :, 1), dims=(1, 2, 4))[1, 1, :, 1]
     AN.logdet == true && (Δs += logdet_backward(nx, ny, AN.s))
-    Δb = -sum(ΔX ./ reshape(AN.s.data, 1, 1, :, 1), dims=(1,2,4))[1, 1, :, 1]
+    Δb = -sum(ΔX ./ reshape(AN.s.data, 1, 1, :, 1), dims=(1, 2, 4))[1, 1, :, 1]
+    AN.s.grad = Δs
+    AN.b.grad = Δb
+    return ΔY, Y
+end
+
+# 3D Backward pass (inverse): Input (ΔX, X), Output (ΔX, X)
+function backward_inv(ΔX::AbstractArray{Float32, 5}, X::AbstractArray{Float32, 5}, AN::ActNorm)
+    nx, ny, nz, n_in, batchsize = size(X)
+    Y = forward(X, AN; logdet=false)
+    ΔY = ΔX ./ reshape(AN.s.data, 1, 1, 1, :, 1)
+    Δs = -sum(ΔX .* X ./ reshape(AN.s.data, 1, 1, 1, :, 1), dims=(1, 2, 3, 5))[1, 1, 1, :, 1]
+    AN.logdet == true && (Δs += logdet_backward(nx, ny, AN.s))
+    Δb = -sum(ΔX ./ reshape(AN.s.data, 1, 1, 1, :, 1), dims=(1, 2, 3, 5))[1, 1, 1, :, 1]
     AN.s.grad = Δs
     AN.b.grad = Δb
     return ΔY, Y
