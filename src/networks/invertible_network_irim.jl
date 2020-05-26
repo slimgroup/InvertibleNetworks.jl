@@ -114,7 +114,7 @@ function forward(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d,
     nx, ny, n_s, batchsize = size(s)
     n_in = n_s + 1
     maxiter = length(UL.L)
-    N = N = cuzeros(η, nx, ny, n_in-2, batchsize)
+    N = cuzeros(η, nx, ny, n_in-2, batchsize)
 
     for j=1:maxiter
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
