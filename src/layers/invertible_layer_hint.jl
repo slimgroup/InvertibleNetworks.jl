@@ -71,6 +71,10 @@ function get_depth(n_in)
     return count +1
 end
 
+# Constructor for given coupling layer and 1 x 1 convolution
+CouplingLayerHINT(CL::AbstractArray{CouplingLayerBasic, 1}, C::Union{Conv1x1, Nothing};
+    logdet=false, permute="none") = CouplingLayerHINT(CL, C, logdet, permute, false)
+
 # 2D Constructor from input dimensions
 function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64;
     logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)

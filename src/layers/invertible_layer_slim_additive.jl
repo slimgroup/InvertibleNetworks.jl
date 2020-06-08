@@ -54,7 +54,7 @@ export AdditiveCouplingLayerSLIM
 """
 struct AdditiveCouplingLayerSLIM <: NeuralNetLayer
     C::Union{Conv1x1, Nothing}
-    RB::ResidualBlock
+    RB::Union{ResidualBlock, FluxBlock}
     AN::ActNorm
     Ψ::Function
     logdet::Bool

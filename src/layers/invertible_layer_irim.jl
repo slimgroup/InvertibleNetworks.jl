@@ -57,7 +57,7 @@ or
 """
 struct CouplingLayerIRIM <: NeuralNetLayer
     C::Conv1x1
-    RB::ResidualBlock
+    RB::Union{ResidualBlock, FluxBlock}
 end
 
 @Flux.functor CouplingLayerIRIM
