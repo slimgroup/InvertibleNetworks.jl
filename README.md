@@ -1,6 +1,7 @@
 # InvertibleNetworks.jl
 
 ![CI](https://github.com/slimgroup/InvertibleNetworks.jl/workflows/CI/badge.svg)
+[![DOI](https://zenodo.org/badge/239018318.svg)](https://zenodo.org/badge/latestdoi/239018318)
 
 Building blocks for invertible neural networks in the Julia programming language.
 
