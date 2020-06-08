@@ -58,7 +58,7 @@ or
 """
 struct CouplingLayerGlow <: NeuralNetLayer
     C::Conv1x1
-    RB::ResidualBlock
+    RB::Union{ResidualBlock, FluxBlock}
     logdet::Bool
 end
 
@@ -69,6 +69,9 @@ function CouplingLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false)
     RB.fan == false && throw("Set ResidualBlock.fan == true")
     return CouplingLayerGlow(C, RB, logdet)
 end
+
+# Constructor from 1x1 convolution and residual Flux block
+CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false) = CouplingLayerGlow(C, RB, logdet)
 
 # Constructor from input dimensions
 function CouplingLayerGlow(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false)

@@ -11,6 +11,7 @@ k = 20
 n_in = 10
 n_hidden = 20
 batchsize = 2
+type = "Flux"   # Flux CNN or residual block
 
 # Input image
 X = glorot_uniform(nx, ny, k, batchsize)
@@ -18,7 +19,21 @@ X0 = glorot_uniform(nx, ny, k, batchsize)
 
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+
+if type == "Flux"
+    # Flux residual block (needs twice the number of output as input channels)
+    model = Chain(
+        Conv((3,3), n_in => n_hidden; pad=1),
+        BatchNorm(n_hidden, relu),
+        Conv((3,3), n_hidden => n_hidden; pad=1),
+        BatchNorm(n_hidden, relu),
+        Conv((3,3), n_hidden => n_hidden; pad=1),
+        BatchNorm(n_hidden, relu)
+    )
+    RB = FluxBlock(model)
+else
+    RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+end
 
 # Invertible splitting layer
 L = CouplingLayerGlow(C, RB; logdet=true)   # compute logdet

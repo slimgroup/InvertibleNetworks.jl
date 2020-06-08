@@ -57,7 +57,7 @@ or
  See also: [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 mutable struct CouplingLayerBasic <: NeuralNetLayer
-    RB::ResidualBlock
+    RB::Union{ResidualBlock, FluxBlock}
     logdet::Bool
     is_reversed::Bool
 end
@@ -69,6 +69,8 @@ function CouplingLayerBasic(RB::ResidualBlock; logdet=false)
     RB.fan == false && throw("Set ResidualBlock.fan == true")
     return CouplingLayerBasic(RB, logdet, false)
 end
+
+CouplingLayerBasic(RB::FluxBlock; logdet=false) = CouplingLayerBasic(RB, logdet, false)
 
 # 2D Constructor from input dimensions
 function CouplingLayerBasic(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false)
