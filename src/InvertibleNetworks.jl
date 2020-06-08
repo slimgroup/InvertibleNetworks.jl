@@ -5,7 +5,7 @@
 module InvertibleNetworks
 
 import Base.size, Base.getindex, Flux.glorot_uniform, Base.reverse, Base.reverse!
-using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets
+using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote
 
 export clear_grad!, glorot_uniform, get_params
 
@@ -28,6 +28,7 @@ include("utils/neuralnet.jl")
 # Single network layers (invertible and non-invertible)
 include("conditional_layers/conditional_layer_residual_block.jl")
 include("layers/layer_residual_block.jl")
+include("layers/layer_flux_block.jl")
 include("layers/layer_affine.jl")
 include("layers/invertible_layer_actnorm.jl")
 include("layers/invertible_layer_conv1x1.jl")

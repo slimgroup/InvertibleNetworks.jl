@@ -17,6 +17,7 @@ if test_suite == "all" || test_suite == "layers"
 
         # Layers
         include("test_layers/test_residual_block.jl")
+        include("test_layers/test_flux_block.jl")
         include("test_layers/test_householder_convolution.jl")
         include("test_layers/test_coupling_layer_basic.jl")
         include("test_layers/test_coupling_layer_irim.jl")
