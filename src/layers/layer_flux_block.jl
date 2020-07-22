@@ -1,4 +1,3 @@
-# Residual block from Putzky and Welling (2019): https://arxiv.org/abs/1911.10914
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
@@ -36,9 +35,7 @@ end
 
 @Flux.functor FluxBlock
 
-#######################################################################################################################
 # Constructor
-
 function FluxBlock(model::Chain)
 
     # Collect Flux parameters
@@ -53,13 +50,9 @@ function FluxBlock(model::Chain)
     return FluxBlock(model, params)
 end
 
-
-#######################################################################################################################
 # Functions
-
 # Forward 
 forward(X::AbstractArray{Float32, 4}, FB::FluxBlock) = FB.model(X)
-
 
 # Backward 2D
 function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
@@ -76,7 +69,6 @@ function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, 
     end
     return ΔX
 end
-
 
 # Clear gradients
 function clear_grad!(FB::FluxBlock)

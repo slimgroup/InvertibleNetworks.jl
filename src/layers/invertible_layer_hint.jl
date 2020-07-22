@@ -6,10 +6,10 @@ export CouplingLayerHINT
 
 """
     H = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize;
-        logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1) (2D)
+            logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1) (2D)
 
     H = CouplingLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize;
-        logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1) (3D)
+            logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1) (3D)
 
  Create a recursive HINT-style invertible layer based on coupling blocks.
 
@@ -21,14 +21,19 @@ export CouplingLayerHINT
 
  - `logdet`: bool to indicate whether to return the log determinant. Default is `false`.
 
- - `permute`: string to specify permutation. Options are `"none"`, `"lower"`, `"both"` or `"full"`.
+ - `permute`: string to specify permutation. Options are `"none"`, `"lower"`, `"both"` or
+   `"full"`.
 
- - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third
+ - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the
+    first and third
+
     operator, `k2` is the kernel size of the second operator.
 
- - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
+ - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second
+    convolution (`p2`)
 
- - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
+ - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second
+    convolution (`s2`)
 
  *Output*:
 
@@ -48,7 +53,8 @@ export CouplingLayerHINT
 
  - Trainable parameters in coupling layers `H.CL`
 
- See also: [`CouplingLayerBasic`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
+ See also: [`CouplingLayerBasic`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref),
+           [`clear_grad!`](@ref)
 """
 mutable struct CouplingLayerHINT <: NeuralNetLayer
     CL::AbstractArray{CouplingLayerBasic, 1}
@@ -76,15 +82,15 @@ CouplingLayerHINT(CL::AbstractArray{CouplingLayerBasic, 1}, C::Union{Conv1x1, No
     logdet=false, permute="none") = CouplingLayerHINT(CL, C, logdet, permute, false)
 
 # 2D Constructor from input dimensions
-function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64;
-    logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64,
+    batchsize::Int64; logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
     # Create basic coupling layers
     n = get_depth(n_in)
     CL = Array{CouplingLayerBasic}(undef, n)
     for j=1:n
         CL[j] = CouplingLayerBasic(nx, ny, Int(n_in/2^j), n_hidden, batchsize;
-            k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
+                    k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
     end
 
     # Permutation using 1x1 convolution
@@ -100,15 +106,16 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, b
 end
 
 # 3D Constructor from input dimensions
-function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64;
-    logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidden::Int64,
+            batchsize::Int64; logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1,
+            s1=1, s2=1)
 
     # Create basic coupling layers
     n = get_depth(n_in)
     CL = Array{CouplingLayerBasic}(undef, n)
     for j=1:n
         CL[j] = CouplingLayerBasic(nx, ny, nz, Int(n_in/2^j), n_hidden, batchsize;
-            k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
+                    k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
     end
 
     # Permutation using 1x1 convolution
@@ -125,8 +132,8 @@ end
 
 # Input is tensor X
 function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing)
-    isnothing(logdet) ? logdet = (H.logdet && ~H.is_reversed) : logdet = logdet
-    isnothing(permute) ? permute = H.permute : permute = permute
+            isnothing(logdet) ? logdet = (H.logdet && ~H.is_reversed) : logdet = logdet
+            isnothing(permute) ? permute = H.permute : permute = permute
 
     # Permutation
     if permute == "full" || permute == "both"
