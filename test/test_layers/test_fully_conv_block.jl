@@ -14,22 +14,22 @@ k1 = 3
 k2 = 3
 
 # Input
-X = glorot_uniform(nx, ny, n_in, batchsize)
-X0 = glorot_uniform(nx, ny, n_in, batchsize)
+X = glorot_normal(nx, ny, n_in, batchsize)
+X0 = glorot_normal(nx, ny, n_in, batchsize)
 dX = X - X0
 
 # Weights
-W1 = glorot_uniform(k1, k1, n_in, n_hidden)
-W2 = glorot_uniform(k2, k2, n_hidden, n_hidden)
-W3 = glorot_uniform(k1, k1, 2*n_in, n_hidden)
-b1 = glorot_uniform(n_hidden)
-b2 = glorot_uniform(n_hidden)
+W1 = 0.1f0*glorot_normal(k1, k1, n_in, n_hidden)
+W2 = 0.1f0*glorot_normal(k2, k2, n_hidden, n_hidden)
+W3 = 0.1f0*glorot_normal(k1, k1, n_hidden, n_in)
+b1 = 0.1f0*glorot_normal(n_hidden)
+b2 = 0.1f0*glorot_normal(n_hidden)
 
-W01 = glorot_uniform(k1, k1, n_in, n_hidden)
-W02 = glorot_uniform(k2, k2, n_hidden, n_hidden)
-W03 = glorot_uniform(k1, k1, 2*n_in, n_hidden)
-b01 = glorot_uniform(n_hidden)
-b02 = glorot_uniform(n_hidden)
+W01 = 0.1f0*glorot_normal(k1, k1, n_in, n_hidden)
+W02 = 0.1f0*glorot_normal(k2, k2, n_hidden, n_hidden)
+W03 = 0.1f0*glorot_normal(k1, k1, n_hidden, n_in)
+b01 = 0.1f0*glorot_normal(n_hidden)
+b02 = 0.1f0*glorot_normal(n_hidden)
 
 dW1 = W1 - W01
 dW2 = W2 - W02

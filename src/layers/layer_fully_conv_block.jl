@@ -97,7 +97,7 @@ function FullyConvBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1, k1, n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2, k2, n_hidden, n_hidden))
-    W3 = Parameter(glorot_uniform(k1, k1, 2*n_in, n_hidden))
+    W3 = Parameter(glorot_uniform(k1, k1, n_hidden, n_in))
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
@@ -106,7 +106,7 @@ function FullyConvBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=
                 stride=(s1, s1), padding=(p1, p1))
     cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), n_hidden, batchsize),
                 (k2, k2, n_hidden, n_hidden); stride=(s2, s2), padding=(p2, p2))
-    cdims3 = DenseConvDims((nx, ny, 2*n_in, batchsize), (k1, k1, 2*n_in, n_hidden);
+    cdims3 = DenseConvDims((nx, ny, n_hidden, batchsize), (k1, k1, n_hidden, n_in);
                 stride=(s1, s1), padding=(p1 ,p1))
 
     return FullyConvBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
@@ -130,7 +130,7 @@ function FullyConvBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; p1=1, p2=1, s1=1,
                 stride=(s1, s1), padding=(p1, p1))
     cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), n_hidden, batchsize),
                 (k2, k2, n_hidden, n_hidden); stride=(s2, s2), padding=(p2, p2))
-    cdims3 = DenseConvDims((nx, ny, 2*n_in, batchsize), (k1, k1, 2*n_in, n_hidden);
+    cdims3 = DenseConvDims((nx, ny, n_hidden, batchsize), (k1, k1, n_hidden, n_in);
                 stride=(s1, s1), padding=(p1, p1))
 
     return FullyConvBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
@@ -145,7 +145,7 @@ function FullyConvBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1,
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1, k1, k1, n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2, k2, k2, n_hidden, n_hidden))
-    W3 = Parameter(glorot_uniform(k1, k1, k1, 2*n_in, n_hidden))
+    W3 = Parameter(glorot_uniform(k1, k1, k1, n_hidden, n_in))
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
@@ -155,8 +155,8 @@ function FullyConvBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1,
     cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), Int(nz/s1), n_hidden, batchsize),
                 (k2, k2, k2, n_hidden, n_hidden); stride=(s2, s2, s2),
                 padding=(p2, p2, p2))
-    cdims3 = DenseConvDims((nx, ny, nz, 2*n_in, batchsize),
-                (k1, k1, k1, 2*n_in, n_hidden); stride=(s1, s1, s1), padding=(p1, p1, p1))
+    cdims3 = DenseConvDims((nx, ny, nz, n_hidden, batchsize),
+                (k1, k1, k1, n_hidden, n_in); stride=(s1, s1, s1), padding=(p1, p1, p1))
 
     return FullyConvBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
 end
@@ -180,8 +180,8 @@ function FullyConvBlock(W1, W2, W3, b1, b2, nx::Int64, ny::Int64, nz::Int64,
     cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), Int(nz/s1), n_hidden, batchsize),
                 (k2, k2, k2, n_hidden, n_hidden); stride=(s2, s2, s2),
                 padding=(p2, p2, p2))
-    cdims3 = DenseConvDims((nx, ny, nz, 2*n_in, batchsize),
-                (k1, k1, k1, 2*n_in, n_hidden); stride=(s1, s1, s1), padding=(p1, p1, p1))
+    cdims3 = DenseConvDims((nx, ny, nz, n_hidden, batchsize),
+                (k1, k1, k1, n_hidden, n_in); stride=(s1, s1, s1), padding=(p1, p1, p1))
 
     return FullyConvBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
 end
@@ -197,11 +197,10 @@ function forward(X1::AbstractArray{Float32, 4}, RB::FullyConvBlock; save=false)
     Y2 = conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, :, 1)
     X3 = ReLU(Y2)
     
-    Y3 = ∇conv_data(X3, RB.W3.data, RB.cdims3)
-    RB.fan == true ? (X4 = ReLU(Y3)) : (X4 = GaLU(Y3))
+    Y3 = conv(X3, RB.W3.data, RB.cdims3)
 
     if save == false
-        return X4
+        return Y3
     else
         return Y1, Y2, Y3, X2, X3
     end
@@ -216,26 +215,25 @@ function forward(X1::AbstractArray{Float32, 5}, RB::FullyConvBlock; save=false)
     Y2 = conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, 1, :, 1)
     X3 = ReLU(Y2)
     
-    Y3 = ∇conv_data(X3, RB.W3.data, RB.cdims3)
-    RB.fan == true ? (X4 = ReLU(Y3)) : (X4 = GaLU(Y3))
+    Y3 = conv(X3, RB.W3.data, RB.cdims3)
 
     if save == false
-        return X4
+        return Y3
     else
         return Y1, Y2, Y3, X2, X3
     end
 end
 
 # Backward 2D
-function backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}, RB::FullyConvBlock)
+function backward(ΔY3::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4},
+            RB::FullyConvBlock)
 
     # Recompute forward states from input X
     Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
 
     # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
-    ΔX3 = conv(ΔY3, RB.W3.data, RB.cdims3)
-    ΔW3 = ∇conv_filter(ΔY3, X3, RB.cdims3)
+    ΔX3 = ∇conv_data(ΔY3, RB.W3.data, RB.cdims3)
+    ΔW3 = ∇conv_filter(X3, ΔY3, RB.cdims3)
 
     ΔY2 = ReLUgrad(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2)
@@ -258,15 +256,15 @@ function backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}
 end
 
 # Backward 3D
-function backward(ΔX4::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5}, RB::FullyConvBlock)
+function backward(ΔY3::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5},
+            RB::FullyConvBlock)
 
     # Recompute forward states from input X
     Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
 
     # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
-    ΔX3 = conv(ΔY3, RB.W3.data, RB.cdims3)
-    ΔW3 = ∇conv_filter(ΔY3, X3, RB.cdims3)
+    ΔX3 = ∇conv_data(ΔY3, RB.W3.data, RB.cdims3)
+    ΔW3 = ∇conv_filter(X3, ΔY3, RB.cdims3)
 
     ΔY2 = ReLUgrad(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2)
