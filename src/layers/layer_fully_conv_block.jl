@@ -96,7 +96,7 @@ function FullyConvBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1, k1, n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2, k2, n_hidden, n_hidden))
-    W3 = Parameter(glorot_uniform(k1, k1, 2*n_in, n_hidden))
+    W3 = Parameter(glorot_uniform(k1, k1, n_hidden, 2*n_in))
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
@@ -143,7 +143,7 @@ function FullyConvBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1,
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1, k1, k1, n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2, k2, k2, n_hidden, n_hidden))
-    W3 = Parameter(glorot_uniform(k1, k1, k1, 2*n_in, n_hidden))
+    W3 = Parameter(glorot_uniform(k1, k1, k1, n_hidden, 2*n_in))
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
