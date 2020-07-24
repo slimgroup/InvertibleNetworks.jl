@@ -82,16 +82,16 @@ end
 
  Backpropagate data residual through leaky ReLU function.
 
- *Input*: 
- 
- - `Δy`: residual 
- 
+ *Input*:
+
+ - `Δy`: residual
+
  - `y`: original output
 
  - `slope`: slope of non-active part of ReLU
 
  *Output*:
- 
+
  - `Δx`: backpropagated residual
 
  See also: [`LeakyReLU`](@ref), [`LeakyReLUinv`](@ref)
@@ -141,16 +141,16 @@ end
 
  Backpropagate data residual through Sigmoid function.
 
- *Input*: 
- 
- - `Δy`: residual 
- 
+ *Input*:
+
+ - `Δy`: residual
+
  - `y`: original output
 
  - `x`: original input, if y not available (in this case, set y=nothing)
 
  *Output*:
- 
+
  - `Δx`: backpropagated residual
 
  See also: [`Sigmoid`](@ref), [`SigmoidInv`](@ref)
@@ -191,14 +191,14 @@ end
 
  Backpropagate data residual through GaLU activation.
 
- *Input*: 
- 
- - `Δy`: residual 
- 
+ *Input*:
+
+ - `Δy`: residual
+
  - `x`: original input (since not invertible)
 
  *Output*:
- 
+
  - `Δx`: backpropagated residual
 
  See also: [`GaLU`](@ref)
@@ -221,4 +221,40 @@ function GaLUgrad(Δy::AbstractArray{Float32, 5}, x::AbstractArray{Float32, 5})
     Δx[:, :, :, 1:k, :] = Sigmoid(x2) .* Δy
     Δx[:, :, :, k+1:end, :] = SigmoidGrad(Δy, nothing; x=x2) .* x1
     return Δx
+end
+
+###############################################################################
+# Soft-clamped exponential function
+
+"""
+    y = ExpClamp(x)
+
+ Soft-clamped exponential function.
+
+ See also: [`ExpClampGrad`](@ref)
+"""
+function ExpClamp(x::Array{Float32}; clamp::Float32=2f0)
+    return exp.(clamp * 0.636f0 * atan.(x))
+end
+
+"""
+    Δx = ExpClampGrad(Δy, x; y=nothing)
+
+ Backpropagate data residual through soft-clamped exponential function.
+
+ *Input*:
+
+ - `Δy`: residual
+
+ - `x`: original input
+
+ *Output*:
+
+ - `Δx`: backpropagated residual
+
+ See also: [`ExpClamp`](@ref)
+"""
+function ExpClampGrad(Δy::Array{Float32}, x::Array{Float32}; y=nothing, clamp::Float32=2f0)
+    y==nothing && (y=ExpClamp(x; clamp=clamp))
+    return clamp * 0.636f0 * Δy .* y ./ (1f0 .+ x.^2f0)
 end
