@@ -198,6 +198,10 @@ X = glorot_uniform(nx, ny, n_in, batchsize)
 X0 = glorot_uniform(nx, ny, n_in, batchsize)
 dX = X - X0
 
+# Invertibility
+err = norm(X - ExpClampInv(ExpClamp(X))) / norm(X)
+@test isapprox(err, 0f0, atol=1f-5)
+
 # Gradient test
 function objective(X, Y)
     Y0 = ExpClamp(X)

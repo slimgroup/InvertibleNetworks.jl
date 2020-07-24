@@ -6,6 +6,7 @@ export ReLU, ReLUgrad
 export LeakyReLU, LeakyReLUinv, LeakyReLUgrad
 export Sigmoid, SigmoidInv, SigmoidGrad
 export GaLU, GaLUgrad
+export ExpClamp, ExpClampInv, ExpClampGrad
 
 ###############################################################################
 # Rectified linear unit (ReLU) (not invertible)
@@ -238,6 +239,22 @@ function ExpClamp(x::Array{Float32}; clamp::Float32=2f0)
 end
 
 """
+    x = ExpClampInv(y)
+
+ Inverse of ExpClamp function.
+
+ See also: [`ExpClamp`](@ref), [`ExpClampGrad`](@ref)
+"""
+function ExpClampInv(y; clamp::Float32=2f0)
+    if sum(isapprox.(y, 0f-6)) == 0
+        x = tan.(log.(y) / clamp / 0.636f0)
+    else
+        throw("Input contains zeros.")
+    end
+    return x
+end
+
+"""
     Δx = ExpClampGrad(Δy, x; y=nothing)
 
  Backpropagate data residual through soft-clamped exponential function.
@@ -254,7 +271,8 @@ end
 
  See also: [`ExpClamp`](@ref)
 """
-function ExpClampGrad(Δy::Array{Float32}, x::Array{Float32}; y=nothing, clamp::Float32=2f0)
+function ExpClampGrad(Δy::Array{Float32}, x::Array{Float32}; y=nothing,
+            clamp::Float32=2f0)
     y==nothing && (y=ExpClamp(x; clamp=clamp))
     return clamp * 0.636f0 * Δy .* y ./ (1f0 .+ x.^2f0)
 end
