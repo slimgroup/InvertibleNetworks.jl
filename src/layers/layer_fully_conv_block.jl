@@ -1,4 +1,5 @@
-# Fully convolutional block used in from Kruse et al and Welling (2019): hhttps://arxiv.org/pdf/1905.10687.pdf
+# Fully convolutional block used in from Kruse et al and Welling (2019): 
+# https://arxiv.org/pdf/1905.10687.pdf
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
@@ -19,13 +20,13 @@ or
     RB = FullyConvBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1,
             s1=1, s2=1, fan=false) (3D)
 
-Create a (non-invertible) residual block, consisting of three convolutional layers and
-activation functions.
+ Create a (non-invertible) residual block, consisting of three convolutional layers and
+ activation functions.
 
-The first convolution is a downsampling operation with a stride equal to the kernel
-dimension. The last convolution is the corresponding transpose operation and upsamples the
-data to either its original dimensions or to twice the number of input channels (for
-`fan=true`). The first and second layer contain a bias term.
+ The first convolution is a downsampling operation with a stride equal to the kernel
+ dimension. The last convolution is the corresponding transpose operation and upsamples the
+ data to either its original dimensions or to twice the number of input channels (for
+ `fan=true`). The first and second layer contain a bias term.
 
  *Input*: 
 
@@ -43,11 +44,9 @@ data to either its original dimensions or to twice the number of input channels 
     convolution (`s2`)
 
  - `fan`: bool to indicate whether the ouput has twice the number of input channels. For
-    `fan=false`, the last activation function is a gated linear unit (thereby bringing the
-    output back to the original dimensions).
-
-    For `fan=true`, the last activation is a ReLU, in which case the output has twice the
-    number of channels as the input.
+   `fan=false`, the last activation function is a gated linear unit (thereby bringing the
+    output back to the original dimensions). For `fan=true`, the last activation is a
+    ReLU, in which case the output has twice the number of channels as the input.
 
 or
 
@@ -58,7 +57,7 @@ or
  - `nx`, `ny`: spatial dimensions of input image
 
  *Output*:
-
+ 
  - `RB`: residual block layer
 
  *Usage:*
@@ -91,30 +90,30 @@ end
 
 # 2D Constructors
 # Constructor 2D
-function FullyConvBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1,
-            s2=1, fan=false)
+function FullyConvBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1,
+            s1=1, s2=1, fan=false)
 
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1, k1, n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2, k2, n_hidden, n_hidden))
-    W3 = Parameter(glorot_uniform(k1, k1, n_hidden, n_in))
+    W3 = Parameter(glorot_uniform(k1, k1, 2*n_in, n_hidden))
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
     # Dimensions for convolutions
-    cdims1 = DenseConvDims((nx, ny, n_in, batchsize), (k1, k1, n_in, n_hidden); 
+    cdims1 = DenseConvDims((nx, ny, n_in, batchsize), (k1, k1, n_in, n_hidden);
                 stride=(s1, s1), padding=(p1, p1))
     cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), n_hidden, batchsize),
                 (k2, k2, n_hidden, n_hidden); stride=(s2, s2), padding=(p2, p2))
-    cdims3 = DenseConvDims((nx, ny, n_hidden, batchsize), (k1, k1, n_hidden, n_in);
+    cdims3 = DenseConvDims((nx, ny, n_hidden, batchsize), (k1, k1, n_hidden, 2*n_in);
                 stride=(s1, s1), padding=(p1 ,p1))
 
     return FullyConvBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
 end
 
 # Constructor for given weights 2D
-function FullyConvBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; p1=1, p2=1, s1=1, s2=1,
-            fan=false)
+function FullyConvBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; p1=1, p2=1,
+            s1=1, s2=1, fan=false)
 
     # Make weights parameters
     W1 = Parameter(W1)
@@ -130,12 +129,11 @@ function FullyConvBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; p1=1, p2=1, s1=1,
                 stride=(s1, s1), padding=(p1, p1))
     cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), n_hidden, batchsize),
                 (k2, k2, n_hidden, n_hidden); stride=(s2, s2), padding=(p2, p2))
-    cdims3 = DenseConvDims((nx, ny, n_hidden, batchsize), (k1, k1, n_hidden, n_in);
+    cdims3 = DenseConvDims((nx, ny, n_hidden, batchsize), (k1, k1, n_hidden, 2*n_in);
                 stride=(s1, s1), padding=(p1, p1))
 
     return FullyConvBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
 end
-
 
 # 3D Constructors
 # Constructor 3D
@@ -145,7 +143,7 @@ function FullyConvBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1,
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1, k1, k1, n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2, k2, k2, n_hidden, n_hidden))
-    W3 = Parameter(glorot_uniform(k1, k1, k1, n_hidden, n_in))
+    W3 = Parameter(glorot_uniform(k1, k1, k1, 2*n_in, n_hidden))
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
@@ -156,7 +154,7 @@ function FullyConvBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1,
                 (k2, k2, k2, n_hidden, n_hidden); stride=(s2, s2, s2),
                 padding=(p2, p2, p2))
     cdims3 = DenseConvDims((nx, ny, nz, n_hidden, batchsize),
-                (k1, k1, k1, n_hidden, n_in); stride=(s1, s1, s1), padding=(p1, p1, p1))
+                (k1, k1, k1, n_hidden, 2*n_in); stride=(s1, s1, s1), padding=(p1, p1, p1))
 
     return FullyConvBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
 end
@@ -181,11 +179,10 @@ function FullyConvBlock(W1, W2, W3, b1, b2, nx::Int64, ny::Int64, nz::Int64,
                 (k2, k2, k2, n_hidden, n_hidden); stride=(s2, s2, s2),
                 padding=(p2, p2, p2))
     cdims3 = DenseConvDims((nx, ny, nz, n_hidden, batchsize),
-                (k1, k1, k1, n_hidden, n_in); stride=(s1, s1, s1), padding=(p1, p1, p1))
+                (k1, k1, k1, n_hidden, 2*n_in); stride=(s1, s1, s1), padding=(p1, p1, p1))
 
     return FullyConvBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
 end
-
 
 # Functions
 # Forward 2D
@@ -198,9 +195,10 @@ function forward(X1::AbstractArray{Float32, 4}, RB::FullyConvBlock; save=false)
     X3 = ReLU(Y2)
     
     Y3 = conv(X3, RB.W3.data, RB.cdims3)
+    RB.fan == true ? (X4 = Y3) : (X4 = GaLU(Y3))
 
     if save == false
-        return Y3
+        return X4
     else
         return Y1, Y2, Y3, X2, X3
     end
@@ -216,22 +214,24 @@ function forward(X1::AbstractArray{Float32, 5}, RB::FullyConvBlock; save=false)
     X3 = ReLU(Y2)
     
     Y3 = conv(X3, RB.W3.data, RB.cdims3)
+    RB.fan == true ? (X4 = Y3) : (X4 = GaLU(Y3))
 
     if save == false
-        return Y3
+        return X4
     else
         return Y1, Y2, Y3, X2, X3
     end
 end
 
 # Backward 2D
-function backward(ΔY3::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4},
+function backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4},
             RB::FullyConvBlock)
 
     # Recompute forward states from input X
     Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
 
     # Backpropagate residual ΔX4 and compute gradients
+    RB.fan == true ? (ΔY3 = ΔX4) : (ΔY3 = GaLUgrad(ΔX4, Y3))
     ΔX3 = ∇conv_data(ΔY3, RB.W3.data, RB.cdims3)
     ΔW3 = ∇conv_filter(X3, ΔY3, RB.cdims3)
 
@@ -256,13 +256,14 @@ function backward(ΔY3::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}
 end
 
 # Backward 3D
-function backward(ΔY3::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5},
+function backward(ΔX4::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5},
             RB::FullyConvBlock)
 
     # Recompute forward states from input X
     Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
 
     # Backpropagate residual ΔX4 and compute gradients
+    RB.fan == true ? (ΔY3 = ΔX4) : (ΔY3 = GaLUgrad(ΔX4, Y3))
     ΔX3 = ∇conv_data(ΔY3, RB.W3.data, RB.cdims3)
     ΔW3 = ∇conv_filter(X3, ΔY3, RB.cdims3)
 

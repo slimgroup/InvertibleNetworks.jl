@@ -7,7 +7,7 @@ export CouplingLayerGlow
 
 
 """
-    CL = CouplingLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false)
+    CL = CouplingLayerGlow(C::Conv1x1, RB::FullyConvBlock; logdet=false)
 
 or
 
@@ -15,13 +15,13 @@ or
             s1=1, s2=1, logdet=false)
 
 Create a Real NVP-style invertible coupling layer based on 1x1 convolutions and a
-residual block. 
+fully convolutional block. 
 
  *Input*: 
  
  - `C::Conv1x1`: 1x1 convolution layer
  
- - `RB::ResidualBlock`: residual block layer consisting of 3 convolutional layers with
+ - `RB::FullyConvBlock`: fully convolutional block layer consisting of 3 convolutional layers with
     ReLU activations.
 
  - `logdet`: bool to indicate whether to compte the logdet of the layer
@@ -32,7 +32,7 @@ residual block.
  
  - `n_in`, `n_hidden`: number of input and hidden channels
 
- - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the
+ - `k1`, `k2`: kernel size of convolutions in fully convolutional block. `k1` is the kernel of the
     first and third operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second
@@ -57,26 +57,26 @@ residual block.
 
  - None in `CL` itself
 
- - Trainable parameters in residual block `CL.RB` and 1x1 convolution layer `CL.C`
+ - Trainable parameters in fully convolutional block `CL.RB` and 1x1 convolution layer `CL.C`
 
- See also: [`Conv1x1`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref),
+ See also: [`Conv1x1`](@ref), [`FullyConvBlock`](@ref), [`get_params`](@ref),
            [`clear_grad!`](@ref)
 """
 struct CouplingLayerGlow <: NeuralNetLayer
     C::Conv1x1
-    RB::Union{ResidualBlock, FluxBlock}
+    RB::Union{FullyConvBlock, FluxBlock}
     logdet::Bool
 end
 
 @Flux.functor CouplingLayerGlow
 
-# Constructor from 1x1 convolution and residual block
-function CouplingLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false)
-    RB.fan == false && throw("Set ResidualBlock.fan == true")
+# Constructor from 1x1 convolution and fully convolutional block
+function CouplingLayerGlow(C::Conv1x1, RB::FullyConvBlock; logdet=false)
+    RB.fan == false && throw("Set FullyConvBlock.fan == true")
     return CouplingLayerGlow(C, RB, logdet)
 end
 
-# Constructor from 1x1 convolution and residual Flux block
+# Constructor from 1x1 convolution and fully convolutional Flux block
 CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false) = CouplingLayerGlow(C, RB,
     logdet)
 
@@ -84,9 +84,9 @@ CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false) = CouplingLayerGlow(C
 function CouplingLayerGlow(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64,
             batchsize::Int64; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false)
 
-    # 1x1 Convolution and residual block for invertible layer
+    # 1x1 Convolution and fully convolutional block for invertible layer
     C = Conv1x1(n_in)
-    RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1,
+    RB = FullyConvBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1,
             p2=p2, s1=s1, s2=s2, fan=true)
 
     return CouplingLayerGlow(C, RB, logdet)
@@ -136,7 +136,7 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
     k = Int(L.C.k/2)
     X, X1, X2, S = inverse(Y, L; save=true)
 
-    # Backpropagate residual
+    # Backpropagate fully convolutional
     ΔY1, ΔY2 = tensor_split(ΔY)
     ΔT = copy(ΔY1)
     ΔS = ΔY1 .* X1

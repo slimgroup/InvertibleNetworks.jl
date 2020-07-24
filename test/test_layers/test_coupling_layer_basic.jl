@@ -27,7 +27,7 @@ dXa = Xa - Xa0
 dXb = Xb - Xb0
 
 # 1x1 convolution and residual blocks
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+RB = FullyConvBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
 L = CouplingLayerBasic(RB; logdet=true)
 
 ###################################################################################################
@@ -102,7 +102,7 @@ function loss(L, Xa, Xb, Ya, Yb)
 end
 
 # Invertible layers
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+RB0 = FullyConvBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
 L = CouplingLayerBasic(RB; logdet=true)
 L01 = CouplingLayerBasic(RB; logdet=true)
 L02 = CouplingLayerBasic(RB0; logdet=true)
@@ -173,7 +173,7 @@ function loss(L, Xa, Xb, Ya, Yb)
 end
 
 # Invertible layers
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+RB0 = FullyConvBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
 L = reverse(CouplingLayerBasic(RB; logdet=true))
 L01 = reverse(CouplingLayerBasic(RB; logdet=true))
 L02 = reverse(CouplingLayerBasic(RB0; logdet=true))

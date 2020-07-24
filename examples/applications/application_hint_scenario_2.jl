@@ -1,6 +1,7 @@
 # Example for HINT scienario 2 (Kruse et al, 2020)
 # Obtaining samples from posterior for the following problem:
 # y = Ax + ϵ, x ~ N(μ_x, Σ_x), ϵ ~ N(μ_ϵ, Σ_ϵ), A ~ N(0, I/|x|)
+# Author: Ali Siahkoohi, alisk@gatech.edu
 
 using InvertibleNetworks, LinearAlgebra, Test
 using Distributions
@@ -53,7 +54,7 @@ R = cholesky(Σ_post, check=false).L
 standard_normal = MvNormal(zeros(Float32, dim_model), 1.0f0*I)
 
 function post_dist_sample()
-	return R*rand(standard_normal) + μ_post
+    return R*rand(standard_normal) + μ_post
 end
 
 
@@ -71,8 +72,8 @@ Params = Array{Parameter}(undef, 0)
 # Create layers
 for j=1:depth
     AN[j] = ActNorm(n_in; logdet=true)
-    L[j] = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; logdet=true, 
-    						permute="both", k1=1, k2=1, p1=0, p2=0)
+    L[j] = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; logdet=true,
+                permute="both", k1=1, k2=1, p1=0, p2=0)
 
     # Collect parameters
     global Params = cat(Params, get_params(AN[j]); dims=1)
@@ -108,14 +109,14 @@ lr_decay_fn = Flux.ExpDecay(η, .3, lr_step, 0.)
 
 # Loss function
 function loss(z_in, y_in)
-	x̂, logdet = forward(z_in)
+    x̂, logdet = forward(z_in)
 
-	f = (1f0/2)*(sum((A*x̂[1, 1, :, :] .- y_in)'*Λ_ϵ*(A*x̂[1, 1, :, :] .- y_in)) + 
-		sum((x̂[1, 1, :, :] .- μ_x)'*Λ_x*(x̂[1, 1, :, :] .- μ_x)))/batchsize - logdet
+    f = (1f0/2)*(sum((A*x̂[1, 1, :, :] .- y_in)'*Λ_ϵ*(A*x̂[1, 1, :, :] .- y_in)) + 
+        sum((x̂[1, 1, :, :] .- μ_x)'*Λ_x*(x̂[1, 1, :, :] .- μ_x)))/batchsize - logdet
 
-	ΔY = (A'*Λ_ϵ*(A*x̂[1, 1, :, :] .- y_in) + Λ_x*(x̂[1, 1, :, :] .- μ_x))/batchsize
-	ΔX = backward(permutedims(repeat(ΔY, 1, 1, 1, 1), [3, 4, 1, 2]), x̂)[1]
-	return f, ΔX
+    ΔY = (A'*Λ_ϵ*(A*x̂[1, 1, :, :] .- y_in) + Λ_x*(x̂[1, 1, :, :] .- μ_x))/batchsize
+    ΔX = backward(permutedims(repeat(ΔY, 1, 1, 1, 1), [3, 4, 1, 2]), x̂)[1]
+    return f, ΔX
 end
 
 
@@ -128,17 +129,17 @@ fval = zeros(Float32, max_itr)
 @printf " [*] Beginning training loop\n"
 for j = 1:max_itr
 
-	# Evaluate objective and gradients
-	idx = sample(1:N, batchsize; replace=false)
-	fval[j] = loss(z[:, :, :, idx], y)[1]
-	mod(j, 10) == 0 && (print("Iteration: ", j, "; f = ", fval[j], "\n"))
+    # Evaluate objective and gradients
+    idx = sample(1:N, batchsize; replace=false)
+    fval[j] = loss(z[:, :, :, idx], y)[1]
+    mod(j, 10) == 0 && (print("Iteration: ", j, "; f = ", fval[j], "\n"))
 
-	# Update params
-	for p in Params
-		update!(opt, p.data, p.grad)
+    # Update params
+    for p in Params
+        update!(opt, p.data, p.grad)
         update!(lr_decay_fn, p.data, p.grad)
-	end
-	clear_grad!(Params)
+    end
+    clear_grad!(Params)
 
 end
 
@@ -168,11 +169,11 @@ plt.grid()
 # Comparing estimated and true covariance matrix
 fig = plt.figure("Posterior covariance", dpi=150, figsize=(8, 4)); 
 plt.subplot(121); plt.imshow(Σ_post, vmin=-maximum(Σ_post), vmax=maximum(Σ_post), 
-	cmap="RdBu")
+    cmap="RdBu")
 plt.title("True posterior covariance")
 plt.colorbar(fraction=0.0475, pad=0.03)
 plt.subplot(122); plt.imshow(Σ_est, vmin=-maximum(Σ_post), vmax=maximum(Σ_post), 
-	cmap="RdBu")
+    cmap="RdBu")
 plt.title("Estimated posterior covariance")
 plt.colorbar(fraction=0.0475, pad=0.03)
 
@@ -180,20 +181,20 @@ plt.colorbar(fraction=0.0475, pad=0.03)
 # Sammpling from true posterior
 true_samples = zeros(Float32, dim_model, 100)
 for j = 1:100
-	true_samples[:, j] = post_dist_sample()
+    true_samples[:, j] = post_dist_sample()
 end
 
 # Samples from estimated and true posterior
 fig = plt.figure("samples from posterior", dpi=150, figsize=(7, 6))
 plt.subplot(211); 
 for j = 1:100
-	plt.plot(true_samples[:, j], linewidth=0.8, alpha=0.5, color="#22c1d6")
+    plt.plot(true_samples[:, j], linewidth=0.8, alpha=0.5, color="#22c1d6")
 plt.grid()
 end
 plt.title("Samples from true posterior")
 plt.subplot(212); 
 for j =1:100
-	plt.plot(x̂[:, j], linewidth=0.8, alpha=0.5, color="k")
+    plt.plot(x̂[:, j], linewidth=0.8, alpha=0.5, color="k")
 plt.grid()
 plt.title("Samples from estimated posterior")
 end

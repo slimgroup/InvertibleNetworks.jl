@@ -153,6 +153,7 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
     # HINT coupling
     if recursive
         # Call function recursively
+        print("recursive:", scale, "\n")
         Ya, logdet1 = forward(Xa, H; scale=scale+1, permute="none")
         Y_temp, logdet2 = forward(Xb, H; scale=scale+1, permute="none")
         if logdet
@@ -164,6 +165,7 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
         logdet_full = logdet1 + logdet2 + logdet3
     else
         # Finest layer
+        print("~recursive:", scale, "\n")
         Ya = copy(Xa)
         if logdet
             Yb, logdet_full = H.CL[scale].forward(Xa, Xb)[[2,3]]

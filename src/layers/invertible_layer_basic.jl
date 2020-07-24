@@ -7,7 +7,7 @@ export CouplingLayerBasic
 
 
 """
-    CL = CouplingLayerBasic(RB::ResidualBlock; logdet=false)
+    CL = CouplingLayerBasic(RB::FullyConvBlock; logdet=false)
 
 or
 
@@ -21,7 +21,7 @@ or
 
  *Input*:
 
- - `RB::ResidualBlock`: residual block layer consisting of 3 convolutional layers with
+ - `RB::FullyConvBlock`: residual block layer consisting of 3 convolutional layers with
     ReLU activations.
 
  - `logdet`: bool to indicate whether to compte the logdet of the layer
@@ -60,10 +60,10 @@ or
 
  - Trainable parameters in residual block `CL.RB`
 
- See also: [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
+ See also: [`FullyConvBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 mutable struct CouplingLayerBasic <: NeuralNetLayer
-    RB::Union{ResidualBlock, FluxBlock}
+    RB::Union{FullyConvBlock, FluxBlock}
     logdet::Bool
     is_reversed::Bool
 end
@@ -71,8 +71,8 @@ end
 @Flux.functor CouplingLayerBasic
 
 # Constructor from 1x1 convolution and residual block
-function CouplingLayerBasic(RB::ResidualBlock; logdet=false)
-    RB.fan == false && throw("Set ResidualBlock.fan == true")
+function CouplingLayerBasic(RB::FullyConvBlock; logdet=false)
+    RB.fan == false && throw("Set FullyConvBlock.fan == true")
     return CouplingLayerBasic(RB, logdet, false)
 end
 
@@ -83,7 +83,7 @@ function CouplingLayerBasic(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64,
             batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false)
 
     # 1x1 Convolution and residual block for invertible layer
-    RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2,
+    RB = FullyConvBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2,
             s1=s1, s2=s2, fan=true)
 
     return CouplingLayerBasic(RB, logdet, false)
@@ -94,7 +94,7 @@ function CouplingLayerBasic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidd
             batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false)
 
     # 1x1 Convolution and residual block for invertible layer
-    RB = ResidualBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2,
+    RB = FullyConvBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2,
             s1=s1, s2=s2, fan=true)
 
     return CouplingLayerBasic(RB, logdet, false)
@@ -194,6 +194,8 @@ function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
     ΔT = copy(ΔY2)
     ΔS = ΔY2 .* X2
     L.logdet == true && (ΔS -= coupling_logdet_backward(S))
+    print("ΔY2 size:", size(ΔY2), "\n")
+    print("S size:", size(S), "\n")
     ΔX2 = ΔY2 .* S
     ΔX1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1) + ΔY1
 

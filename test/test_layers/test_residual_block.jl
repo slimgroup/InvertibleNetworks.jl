@@ -19,17 +19,17 @@ X0 = glorot_normal(nx, ny, n_in, batchsize)
 dX = X - X0
 
 # Weights
-W1 = 0.1f0*glorot_normal(k1, k1, n_in, n_hidden)
-W2 = 0.1f0*glorot_normal(k2, k2, n_hidden, n_hidden)
-W3 = 0.1f0*glorot_normal(k1, k1, 2*n_in, n_hidden)
-b1 = 0.1f0*glorot_normal(n_hidden)
-b2 = 0.1f0*glorot_normal(n_hidden)
+W1 = 1f0*glorot_normal(k1, k1, n_in, n_hidden)
+W2 = 1f0*glorot_normal(k2, k2, n_hidden, n_hidden)
+W3 = 1f0*glorot_normal(k1, k1, 2*n_in, n_hidden)
+b1 = 1f0*glorot_normal(n_hidden)
+b2 = 1f0*glorot_normal(n_hidden)
 
-W01 = 0.1f0*glorot_normal(k1, k1, n_in, n_hidden)
-W02 = 0.1f0*glorot_normal(k2, k2, n_hidden, n_hidden)
-W03 = 0.1f0*glorot_normal(k1, k1, 2*n_in, n_hidden)
-b01 = 0.1f0*glorot_normal(n_hidden)
-b02 = 0.1f0*glorot_normal(n_hidden)
+W01 = 1f0*glorot_normal(k1, k1, n_in, n_hidden)
+W02 = 1f0*glorot_normal(k2, k2, n_hidden, n_hidden)
+W03 = 1f0*glorot_normal(k1, k1, 2*n_in, n_hidden)
+b01 = 1f0*glorot_normal(n_hidden)
+b02 = 1f0*glorot_normal(n_hidden)
 
 dW1 = W1 - W01
 dW2 = W2 - W02
