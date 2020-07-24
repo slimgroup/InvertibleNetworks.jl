@@ -6,6 +6,7 @@ export ReLU, ReLUgrad
 export LeakyReLU, LeakyReLUinv, LeakyReLUgrad
 export Sigmoid, SigmoidInv, SigmoidGrad
 export GaLU, GaLUgrad
+export ExpClamp, ExpClampGrad
 
 ###############################################################################
 # Rectified linear unit (ReLU) (not invertible)
