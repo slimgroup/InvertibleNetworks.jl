@@ -194,8 +194,6 @@ function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
     ΔT = copy(ΔY2)
     ΔS = ΔY2 .* X2
     L.logdet == true && (ΔS -= coupling_logdet_backward(S))
-    print("ΔY2 size:", size(ΔY2), "\n")
-    print("S size:", size(S), "\n")
     ΔX2 = ΔY2 .* S
     ΔX1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1) + ΔY1
 
