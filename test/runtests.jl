@@ -28,7 +28,7 @@ if test_suite == "all" || test_suite == "layers"
         include("test_layers/test_conditional_layer_hint.jl")
         include("test_layers/test_conditional_layer_slim.jl")
         include("test_layers/test_conditional_res_block.jl")
-	include("test_layers/test_hyperbolic_layer.jl")
+	   include("test_layers/test_hyperbolic_layer.jl")
         include("test_layers/test_actnorm.jl")
     end
 end
