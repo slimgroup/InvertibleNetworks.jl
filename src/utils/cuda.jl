@@ -1,4 +1,4 @@
-using CuArrays
+using CUDA
 
 convert_cu(in_a, X) =  X isa CuArray ? cu(in_a) : in_a
 
