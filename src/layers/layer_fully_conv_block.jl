@@ -92,8 +92,6 @@ end
 # Constructor 2D
 function FullyConvBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1,
             s1=1, s2=1, fan=false)
-    @assert s1 == 1
-    @assert s2 == 1
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1, k1, n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2, k2, n_hidden, n_hidden))
@@ -115,8 +113,6 @@ end
 # Constructor for given weights 2D
 function FullyConvBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; p1=1, p2=1,
             s1=1, s2=1, fan=false)
-    @assert s1 == 1
-    @assert s2 == 1
     # Make weights parameters
     W1 = Parameter(W1)
     W2 = Parameter(W2)
@@ -141,8 +137,6 @@ end
 # Constructor 3D
 function FullyConvBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1,
             s1=1, s2=1, fan=false)
-    @assert s1 == 1
-    @assert s2 == 1
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1, k1, k1, n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2, k2, k2, n_hidden, n_hidden))
@@ -165,8 +159,6 @@ end
 # Constructor for given weights 3D
 function FullyConvBlock(W1, W2, W3, b1, b2, nx::Int64, ny::Int64, nz::Int64,
             batchsize::Int64; p1=1, p2=1, s1=1, s2=1, fan=false)
-    @assert s1 == 1
-    @assert s2 == 1
     # Make weights parameters
     W1 = Parameter(W1)
     W2 = Parameter(W2)
