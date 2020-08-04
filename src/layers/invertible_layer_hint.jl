@@ -83,7 +83,8 @@ CouplingLayerHINT(CL::AbstractArray{CouplingLayerBasic, 1}, C::Union{Conv1x1, No
 
 # 2D Constructor from input dimensions
 function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64,
-    batchsize::Int64; logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+            batchsize::Int64; logdet=false, permute="none", k1=3, k2=3, p1=1, p2=1,
+            s1=1, s2=1)
 
     # Create basic coupling layers
     n = get_depth(n_in)
@@ -132,8 +133,8 @@ end
 
 # Input is tensor X
 function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing)
-            isnothing(logdet) ? logdet = (H.logdet && ~H.is_reversed) : logdet = logdet
-            isnothing(permute) ? permute = H.permute : permute = permute
+    isnothing(logdet) ? logdet = (H.logdet && ~H.is_reversed) : logdet = logdet
+    isnothing(permute) ? permute = H.permute : permute = permute
 
     # Permutation
     if permute == "full" || permute == "both"

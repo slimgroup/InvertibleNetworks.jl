@@ -109,7 +109,7 @@ function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4},
     k = size(X1, 3)
     Y1 = copy(X1)
     logS_T = L.RB.forward(X1)
-    S = ExpClamp(logS_T[:, :, 1:k, :])
+    S = Sigmoid(logS_T[:, :, 1:k, :])
     T = logS_T[:, :, k+1:end, :]
     Y2 = S.*X2 + T
 
@@ -130,7 +130,7 @@ function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5},
     k = size(X1, 4)
     Y1 = copy(X1)
     logS_T = L.RB.forward(X1)
-    S = ExpClamp(logS_T[:, :, :, 1:k,: ])
+    S = Sigmoid(logS_T[:, :, :, 1:k,: ])
     T = logS_T[:, :, :, k+1:end, :]
     Y2 = S.*X2 + T
 
@@ -151,7 +151,7 @@ function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4},
     k = size(Y1, 3)
     X1 = copy(Y1)
     logS_T = L.RB.forward(X1)
-    S = ExpClamp(logS_T[:, :, 1:k, :])
+    S = Sigmoid(logS_T[:, :, 1:k, :])
     T = logS_T[:, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # avoid division by 0
 
@@ -172,7 +172,7 @@ function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5},
     k = size(Y1, 4)
     X1 = copy(Y1)
     logS_T = L.RB.forward(X1)
-    S = ExpClamp(logS_T[:, :, :, 1:k, :])
+    S = Sigmoid(logS_T[:, :, :, 1:k, :])
     T = logS_T[:, :, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # avoid division by 0
 
@@ -195,7 +195,7 @@ function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
     ΔS = ΔY2 .* X2
     L.logdet == true && (ΔS -= coupling_logdet_backward(S))
     ΔX2 = ΔY2 .* S
-    ΔX1 = L.RB.backward(tensor_cat(ExpClampGrad(ΔS, S), ΔT), X1) + ΔY1
+    ΔX1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1) + ΔY1
 
     return ΔX1, ΔX2, X1, X2
 end
@@ -210,7 +210,7 @@ function backward_inv(ΔX1, ΔX2, X1, X2, L::CouplingLayerBasic)
     ΔT = -ΔX2 ./ S
     ΔS = X2 .* ΔT
     L.logdet == true && (ΔS += coupling_logdet_backward(S))
-    ΔY1 = L.RB.backward(tensor_cat(ExpClampGrad(ΔS, S), ΔT), Y1) + ΔX1
+    ΔY1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), Y1) + ΔX1
     ΔY2 = - ΔT
 
     return ΔY1, ΔY2, Y1, Y2
