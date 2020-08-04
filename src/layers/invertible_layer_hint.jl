@@ -21,8 +21,7 @@ export CouplingLayerHINT
 
  - `logdet`: bool to indicate whether to return the log determinant. Default is `false`.
 
- - `permute`: string to specify permutation. Options are `"none"`, `"lower"`, `"both"` or
-   `"full"`.
+ - `permute`: string to specify permutation. Options are `"none"`, `"lower"`, or `"both".
 
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the
     first and third
@@ -95,7 +94,7 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64,
     end
 
     # Permutation using 1x1 convolution
-    if permute == "full" || permute == "both"
+    if permute == "both"
         C = Conv1x1(n_in)
     elseif permute == "lower"
         C = Conv1x1(Int(n_in/2))
@@ -120,7 +119,7 @@ function CouplingLayerHINT(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidde
     end
 
     # Permutation using 1x1 convolution
-    if permute == "full" || permute == "both"
+    if permute == "both"
         C = Conv1x1(n_in)
     elseif permute == "lower"
         C = Conv1x1(Int(n_in/2))
@@ -137,7 +136,7 @@ function forward(X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
     isnothing(permute) ? permute = H.permute : permute = permute
 
     # Permutation
-    if permute == "full" || permute == "both"
+    if permute == "both"
         X = H.C.forward(X)
     end
     Xa, Xb = tensor_split(X)
@@ -224,7 +223,7 @@ function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
     # Initial permutation
     permute == "lower" && (Xb = H.C.inverse(Xb))
     X = tensor_cat(Xa, Xb)
-    if permute == "full" || permute == "both"
+    if permute == "both"
         X = H.C.inverse(X)
     end
 
@@ -261,7 +260,7 @@ function backward(ΔY, Y, H::CouplingLayerHINT; scale=1, permute=nothing)
     permute == "lower" && ((ΔXb, Xb) = H.C.inverse((ΔXb, Xb)))
     ΔX = tensor_cat(ΔXa, ΔXb)
     X = tensor_cat(Xa, Xb)
-    if permute == "full" || permute == "both"
+    if permute == "both"
         (ΔX, X) = H.C.inverse((ΔX, X))
     end
     return ΔX, X
@@ -272,7 +271,7 @@ function backward_inv(ΔX, X, H::CouplingLayerHINT; scale=1, permute=nothing)
     isnothing(permute) ? permute = H.permute : permute = permute
 
     # Permutation
-    if permute == "full" || permute == "both"
+    if permute == "both"
         (ΔX, X) = H.C.forward((ΔX, X))
     end
     ΔXa, ΔXb = tensor_split(ΔX)
@@ -290,7 +289,8 @@ function backward_inv(ΔX, X, H::CouplingLayerHINT; scale=1, permute=nothing)
     # Coupling layer backprop
     if recursive
         ΔY_temp, Y_temp = backward_inv(ΔXb, Xb, H; scale=scale+1, permute="none")
-        ΔYa_temp, ΔYb, Yb = backward_inv(0f0.*ΔXa, ΔY_temp, Xa, Y_temp, H.CL[scale])[[1,2,4]]
+        ΔYa_temp, ΔYb, Yb = backward_inv(0f0.*ΔXa, ΔY_temp, Xa, Y_temp,
+                                H.CL[scale])[[1,2,4]]
         ΔYa, Ya = backward_inv(ΔXa+ΔYa_temp, Xa, H; scale=scale+1, permute="none")
     else
         ΔYa = copy(ΔXa)

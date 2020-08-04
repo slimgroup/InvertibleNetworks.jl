@@ -3,12 +3,9 @@
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Test, Random
-
 Random.seed!(11)
 
-#######################################################################################################################
 # Test invertibility
-
 # Input
 nx = 16
 ny = 16
@@ -20,11 +17,11 @@ batchsize = 2
 X = randn(Float32, nx, ny, n_channel, batchsize)
 
 # Loop over all possible permutation options
-options = ["none", "lower", "both", "full"]
+options = ["none", "lower", "both"]
 for j=1:length(options)
-    
     # HINT layer w/o logdet
     permute = options[j]
+    print(permute, "\n")
     HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute)
 
     # Test 
@@ -37,7 +34,8 @@ for j=1:length(options)
     @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
     # Test with logdet
-    HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=true)
+    HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute,
+            logdet=true)
 
     Y, logdet = HL.forward(X)
     X_ = HL.inverse(Y)
@@ -48,7 +46,8 @@ for j=1:length(options)
     @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
     # Reverse layer w/o logdet
-    HL = reverse(CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute))
+    HL = reverse(CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize;
+            permute=permute))
 
     # Test 
     Y = HL.forward(X)
@@ -60,10 +59,12 @@ for j=1:length(options)
     @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
     # Test with logdet
-    HL = reverse(CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=true))
+    HL = reverse(CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize;
+            permute=permute, logdet=true))
 
     Y, logdet = HL.forward(X)
     X_ = HL.inverse(Y)
+    print(norm(X_ - X)/norm(X), "\n")
     @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
     Y, logdet = HL.forward(X)
@@ -71,10 +72,7 @@ for j=1:length(options)
     @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 end
 
-
-#######################################################################################################################
 # Gradient test
-
 # Input image
 X = randn(Float32, nx, ny, n_channel, batchsize)
 X0 = randn(Float32, nx, ny, n_channel, batchsize)
@@ -89,8 +87,10 @@ function loss(HL, X)
 end
 
 # Test for input X
-HINT = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower", logdet=false)
+HINT = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower",
+            logdet=false)
 layers = [HINT, reverse(HINT)]
+
 for j=1:length(layers)
     HL = layers[j]
     
@@ -162,8 +162,10 @@ function loss_logdet(HL, X)
     return f, ΔX, HL.CL[1].RB.W1.grad, X_
 end
 
-HINT = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower", logdet=true)
-HINT0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower", logdet=true)
+HINT = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower",
+            logdet=true)
+HINT0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute="lower",
+            logdet=true)
 layers = [HINT, reverse(HINT)]
 layers0 = [HINT0, reverse(HINT0)]
 

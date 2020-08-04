@@ -21,8 +21,8 @@ fully convolutional block.
  
  - `C::Conv1x1`: 1x1 convolution layer
  
- - `RB::FullyConvBlock`: fully convolutional block layer consisting of 3 convolutional layers with
-    ReLU activations.
+ - `RB::FullyConvBlock`: fully convolutional block layer consisting of 3 convolutional
+    layers with ReLU activations.
 
  - `logdet`: bool to indicate whether to compte the logdet of the layer
 
@@ -32,8 +32,8 @@ fully convolutional block.
  
  - `n_in`, `n_hidden`: number of input and hidden channels
 
- - `k1`, `k2`: kernel size of convolutions in fully convolutional block. `k1` is the kernel of the
-    first and third operator, `k2` is the kernel size of the second operator.
+ - `k1`, `k2`: kernel size of convolutions in fully convolutional block. `k1` is the
+    kernel of the first and third operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second
     convolution (`p2`)
@@ -122,7 +122,7 @@ function inverse(Y::AbstractArray{Float32, 4}, L::CouplingLayerGlow; save=false)
     logS_T = L.RB.forward(X2)
     S = Sigmoid(logS_T[:,:,1:k,:])
     T = logS_T[:, :, k+1:end, :]
-    X1 = (Y1 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
+    X1 = (Y1 - T) ./ (S .+ eps(1f0)) # add epsilon to avoid division by 0
     X_ = tensor_cat(X1, X2)
     X = L.C.inverse(X_)
 
@@ -130,7 +130,8 @@ function inverse(Y::AbstractArray{Float32, 4}, L::CouplingLayerGlow; save=false)
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, L::CouplingLayerGlow)
+function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4},
+            L::CouplingLayerGlow)
 
     # Recompute forward state
     k = Int(L.C.k/2)
