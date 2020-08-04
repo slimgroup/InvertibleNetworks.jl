@@ -62,9 +62,9 @@ end
 nx = 1
 ny = 1
 n_in = dim_model
-n_hidden = 16
+n_hidden = 4
 batchsize = 8
-depth = 4
+depth = 3
 AN = Array{ActNorm}(undef, depth)
 L = Array{CouplingLayerHINT}(undef, depth)
 Params = Array{Parameter}(undef, 0)
@@ -111,8 +111,10 @@ lr_decay_fn = Flux.ExpDecay(η, .3, lr_step, 0.)
 function loss(z_in, y_in)
     x̂, logdet = forward(z_in)
 
-    f = (1f0/2)*(sum((A*x̂[1, 1, :, :] .- y_in)'*Λ_ϵ*(A*x̂[1, 1, :, :] .- y_in)) + 
-        sum((x̂[1, 1, :, :] .- μ_x)'*Λ_x*(x̂[1, 1, :, :] .- μ_x)))/batchsize - logdet
+    f = (1f0/2)*sum((A*x̂[1, 1, :, :] .- y_in)'*Λ_ϵ*(A*x̂[1, 1, :, :] .- y_in))
+    f += (1f0/2)*sum((x̂[1, 1, :, :] .- μ_x)'*Λ_x*(x̂[1, 1, :, :] .- μ_x))
+    f *= 1.0f0/batchsize
+    f -= logdet
 
     ΔY = (A'*Λ_ϵ*(A*x̂[1, 1, :, :] .- y_in) + Λ_x*(x̂[1, 1, :, :] .- μ_x))/batchsize
     ΔX = backward(permutedims(repeat(ΔY, 1, 1, 1, 1), [3, 4, 1, 2]), x̂)[1]
@@ -168,11 +170,11 @@ plt.grid()
 
 # Comparing estimated and true covariance matrix
 fig = plt.figure("Posterior covariance", dpi=150, figsize=(8, 4)); 
-plt.subplot(121); plt.imshow(Σ_post, vmin=-maximum(Σ_post), vmax=maximum(Σ_post), 
+plt.subplot(121); plt.imshow(Σ_post, vmin=-maximum(Σ_post), vmax=maximum(Σ_post),
     cmap="RdBu")
 plt.title("True posterior covariance")
 plt.colorbar(fraction=0.0475, pad=0.03)
-plt.subplot(122); plt.imshow(Σ_est, vmin=-maximum(Σ_post), vmax=maximum(Σ_post), 
+plt.subplot(122); plt.imshow(Σ_est, vmin=-maximum(Σ_post), vmax=maximum(Σ_post),
     cmap="RdBu")
 plt.title("Estimated posterior covariance")
 plt.colorbar(fraction=0.0475, pad=0.03)
@@ -186,13 +188,13 @@ end
 
 # Samples from estimated and true posterior
 fig = plt.figure("samples from posterior", dpi=150, figsize=(7, 6))
-plt.subplot(211); 
+plt.subplot(211);
 for j = 1:100
     plt.plot(true_samples[:, j], linewidth=0.8, alpha=0.5, color="#22c1d6")
 plt.grid()
 end
 plt.title("Samples from true posterior")
-plt.subplot(212); 
+plt.subplot(212);
 for j =1:100
     plt.plot(x̂[:, j], linewidth=0.8, alpha=0.5, color="k")
 plt.grid()

@@ -3,7 +3,6 @@
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Test, Random
-Random.seed!(11)
 
 # Test invertibility
 # Input
@@ -21,7 +20,6 @@ options = ["none", "lower", "both"]
 for j=1:length(options)
     # HINT layer w/o logdet
     permute = options[j]
-    print(permute, "\n")
     HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute)
 
     # Test 
@@ -64,7 +62,6 @@ for j=1:length(options)
 
     Y, logdet = HL.forward(X)
     X_ = HL.inverse(Y)
-    print(norm(X_ - X)/norm(X), "\n")
     @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
     Y, logdet = HL.forward(X)

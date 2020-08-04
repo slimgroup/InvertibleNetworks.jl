@@ -202,12 +202,12 @@ dX = X - X0
 err = norm(X - ExpClampInv(ExpClamp(X))) / norm(X)
 @test isapprox(err, 0f0, atol=1f-5)
 
-# Gradient test
+# Gradient test sigmoid
 function objective(X, Y)
     Y0 = ExpClamp(X)
     ΔY = Y0 - Y
     f = .5f0*norm(ΔY)^2
-    ΔX = ExpClampGrad(ΔY, X)    # Pass X, as ExpClamp not invertible
+    ΔX = ExpClampGrad(ΔY, Y0)
     return f, ΔX
 end
 
@@ -231,3 +231,4 @@ end
 
 @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
