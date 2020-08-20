@@ -1,4 +1,4 @@
-# Fully convolutional block used in from Kruse et al and Welling (2019): 
+# Fully convolutional block used in from Kruse et al and Welling (2019):
 # https://arxiv.org/pdf/1905.10687.pdf
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
@@ -28,10 +28,10 @@ or
  data to either its original dimensions or to twice the number of input channels (for
  `fan=true`). The first and second layer contain a bias term.
 
- *Input*: 
+ *Input*:
 
  - `nx`, `ny`, `nz`: spatial dimensions of input
- 
+
  - `n_in`, `n_hidden`: number of input and hidden channels
 
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the
@@ -57,7 +57,7 @@ or
  - `nx`, `ny`: spatial dimensions of input image
 
  *Output*:
- 
+
  - `RB`: residual block layer
 
  *Usage:*
@@ -189,7 +189,7 @@ function forward(X1::AbstractArray{Float32, 4}, RB::FullyConvBlock; save=false)
 
     Y2 = conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, :, 1)
     X3 = ReLU(Y2)
-    
+
     Y3 = conv(X3, RB.W3.data, RB.cdims3)
     RB.fan == true ? (X4 = Y3) : (X4 = GaLU(Y3))
 
@@ -208,7 +208,7 @@ function forward(X1::AbstractArray{Float32, 5}, RB::FullyConvBlock; save=false)
 
     Y2 = conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, 1, :, 1)
     X3 = ReLU(Y2)
-    
+
     Y3 = conv(X3, RB.W3.data, RB.cdims3)
     RB.fan == true ? (X4 = Y3) : (X4 = GaLU(Y3))
 
@@ -234,12 +234,12 @@ function backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}
     ΔY2 = ReLUgrad(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2)
     ΔW2 = ∇conv_filter(X2, ΔY2, RB.cdims2)
-    Δb2 = sum(ΔY2, dims=(1,2,4))[1,1,:,1]
+    Δb2 = sum(ΔY2, dims=[1,2,4])[1,1,:,1]
 
     ΔY1 = ReLUgrad(ΔX2, Y1)
     ΔX1 = ∇conv_data(ΔY1, RB.W1.data, RB.cdims1)
     ΔW1 = ∇conv_filter(X1, ΔY1, RB.cdims1)
-    Δb1 = sum(ΔY1, dims=(1,2,4))[1,1,:,1]
+    Δb1 = sum(ΔY1, dims=[1,2,4])[1,1,:,1]
 
     # Set gradients
     RB.W1.grad = ΔW1
@@ -266,12 +266,12 @@ function backward(ΔX4::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5}
     ΔY2 = ReLUgrad(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2)
     ΔW2 = ∇conv_filter(X2, ΔY2, RB.cdims2)
-    Δb2 = sum(ΔY2, dims=(1,2,3,5))[1,1,1,:,1]
+    Δb2 = sum(ΔY2, dims=[1,2,3,5])[1,1,1,:,1]
 
     ΔY1 = ReLUgrad(ΔX2, Y1)
     ΔX1 = ∇conv_data(ΔY1, RB.W1.data, RB.cdims1)
     ΔW1 = ∇conv_filter(X1, ΔY1, RB.cdims1)
-    Δb1 = sum(ΔY1, dims=(1,2,3,5))[1,1,1,:,1]
+    Δb1 = sum(ΔY1, dims=[1,2,3,5])[1,1,1,:,1]
 
     # Set gradients
     RB.W1.grad = ΔW1

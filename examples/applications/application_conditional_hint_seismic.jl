@@ -41,7 +41,7 @@ end
 n_hidden = 64
 batchsize = 4
 depth = 8
-CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth)
+CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth) |> gpu
 Params = get_params(CH)
 
 ####################################################################################################
@@ -69,7 +69,9 @@ for j=1:maxiter
     idx = randperm(ntrain)[1:batchsize]
     X = X_train[:, :, :, idx]
     Y = X + .5f0*randn(Float32, nx, ny, n_in, batchsize)
-    
+    X = X |> gpu
+    Y = Y |> gpu
+
     fval[j] = loss(CH, X, Y)[1]
     mod(j, 10) == 0 && (print("Iteration: ", j, "; f = ", fval[j], "\n"))
 
@@ -154,6 +156,6 @@ ax4 = subplot(2,4,4); imshow(X_post_mean[:, :, 1, 1], cmap="gray", aspect="auto"
 ax5 = subplot(2,4,5); imshow(Y_fixed[:, :, 1, 1], cmap="gray", aspect="auto");  title(L"Noisy data $y_i=x_i+n$ ")
 ax6 = subplot(2,4,6); imshow(X_post[:, :, 1, 4], cmap="gray", aspect="auto"); title(L"Post. sample: $x = f(zx|zy_{fix})^{-1}$")
 ax7 = subplot(2,4,7); imshow(X_post[:, :, 1, 5], cmap="gray", aspect="auto"); title(L"Post. sample: $x = f(zx|zy_{fix})^{-1}$")
-ax8 = subplot(2,4,8); imshow(X_post_std[:, :, 1,1], cmap="binary", aspect="auto", vmin=0, vmax=0.9*maximum(X_post_std)); 
+ax8 = subplot(2,4,8); imshow(X_post_std[:, :, 1,1], cmap="binary", aspect="auto", vmin=0, vmax=0.9*maximum(X_post_std));
 colorbar(); title("Posterior std");
 
