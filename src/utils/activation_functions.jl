@@ -234,7 +234,7 @@ end
 
  See also: [`ExpClampGrad`](@ref)
 """
-function ExpClamp(x::Array{Float32}; clamp::Float32=2f0)
+function ExpClamp(x; clamp=2f0)
     return exp.(clamp * 0.636f0 * atan.(x))
 end
 
@@ -245,7 +245,7 @@ end
 
  See also: [`ExpClamp`](@ref), [`ExpClampGrad`](@ref)
 """
-function ExpClampInv(y; clamp::Float32=2f0)
+function ExpClampInv(y; clamp=2f0)
     if sum(isapprox.(y, 0f-6)) == 0
         x = tan.(log.(y) / clamp / 0.636f0)
     else
@@ -278,7 +278,7 @@ end
 # end
 
 
-function ExpClampGrad(Δy, y; x=nothing, clamp::Float32=2f0)
+function ExpClampGrad(Δy, y; x=nothing, clamp=2f0)
     if ~isnothing(y) && isnothing(x)
         x = ExpClampInv(y)  # recompute forward state
     end
