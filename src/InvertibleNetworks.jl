@@ -8,6 +8,7 @@ import Base.size, Base.getindex, Flux.glorot_uniform, Flux.glorot_normal,
        Base.reverse, Base.reverse!
 
 using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote
+using CUDA
 
 export clear_grad!, glorot_uniform, get_params, glorot_normal
 
