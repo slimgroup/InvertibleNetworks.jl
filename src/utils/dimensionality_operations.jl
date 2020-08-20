@@ -1,6 +1,7 @@
 # Dimensionality operations for 4D Tensors
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
+using CUDA
 
 export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, tensor_split, tensor_cat
 

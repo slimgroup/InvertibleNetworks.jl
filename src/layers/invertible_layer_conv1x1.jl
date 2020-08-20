@@ -3,6 +3,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 #
+using CUDA
 
 export Conv1x1
 
