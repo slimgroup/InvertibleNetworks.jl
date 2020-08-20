@@ -20,7 +20,7 @@ export ExpClamp, ExpClampInv, ExpClampGrad
 """
 function ReLU(x)
     y = 0f0.*x
-    y[x.>=0f0] = x[x.>=0f0]
+    y[findall(x.>=0f0)] = x[findall(x.>=0f0)]
     return y
 end
 
@@ -43,7 +43,7 @@ end
 """
 function ReLUgrad(Δy, x)
     Δx = 0f0.*x
-    Δx[x.>=0f0] = Δy[x.>=0f0]
+    Δx[findall(x.>=0f0)] = Δy[findall(x.>=0f0)]
     return Δx
 end
 
@@ -59,8 +59,8 @@ end
 """
 function LeakyReLU(x; slope=0.01f0)
     y = 0f0.*x
-    y[x.>=0f0] = x[x.>=0f0]
-    y[x.<0f0] = slope*x[x.<0f0]
+    y[findall(x.>=0f0)] = x[findall(x.>=0f0)]
+    y[findall(x.<0f0)] = slope*x[findall(x.<0f0)]
     return y
 end
 
@@ -73,8 +73,8 @@ end
 """
 function LeakyReLUinv(y; slope=0.01f0)
     x = 0f0.*y
-    x[y.>=0f0] = y[y.>=0f0]
-    x[y.<0f0] = 1f0./slope*y[y.<0f0]
+    x[findall(y.>=0f0)] = y[findall(y.>=0f0)]
+    x[findall(y.<0f0)] = 1f0./slope*y[findall(y.<0f0)]
     return x
 end
 
@@ -100,8 +100,8 @@ end
 function LeakyReLUgrad(Δy, y; slope=0.01f0)
     x = LeakyReLUinv(y; slope=slope)  # recompute forward state
     Δx = 0f0.*y
-    Δx[x.>=0f0] = Δy[x.>=0f0]
-    Δx[x.<0f0] = slope*Δy[x.<0f0]
+    Δx[findall(x.>=0f0)] = Δy[findall(x.>=0f0)]
+    Δx[findall(x.<0f0)] = slope*Δy[findall(x.<0f0)]
     return Δx
 end
 
