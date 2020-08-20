@@ -19,9 +19,6 @@ kernel_size(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,
 channels_in(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_in
 channels_out(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_out
 
-# gpu
-include("utils/cuda.jl")
-
 # Utils
 include("utils/parameter.jl")
 include("utils/objective_functions.jl")
@@ -58,5 +55,7 @@ include("conditional_layers/conditional_layer_slim.jl")
 include("networks/invertible_network_conditional_hint.jl")
 include("networks/invertible_network_conditional_hint_multiscale.jl")
 
+# gpu
+include("utils/cuda.jl")
 
 end

@@ -1,6 +1,7 @@
 # Dimensionality operations for 4D Tensors
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
+using CUDA
 
 export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, tensor_split, tensor_cat
 
@@ -11,10 +12,10 @@ export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, tensor_split, ten
     Y = squeeze(X; pattern="column")
 
  Reshape input image such that each spatial dimension is reduced by a factor
- of 2, while the number of channels is increased by a factor of 4. 
+ of 2, while the number of channels is increased by a factor of 4.
 
- *Input*: 
- 
+ *Input*:
+
  - `X`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
 
  - `pattern`: Squeezing pattern
@@ -27,7 +28,7 @@ export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, tensor_split, ten
         column          patch       checkerboard
 
  *Output*:
- 
+
  - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
 
  See also: [`unsqueeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
@@ -36,7 +37,7 @@ function squeeze(X::AbstractArray{T,4}; pattern="column") where T
 
     # Dimensions
     nx_in, ny_in, nc_in, batchsize = size(X)
-    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1 
+    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1
         throw("Input dimensions must be multiple of 2")
     end
     nx_out = Int(round(nx_in/2))
@@ -66,15 +67,15 @@ end
 """
     X = unsqueeze(Y; pattern="column")
 
- Undo squeezing operation by reshaping input image such that each spatial dimension is 
- increased by a factor of 2, while the number of channels is decreased by a factor of 4. 
+ Undo squeezing operation by reshaping input image such that each spatial dimension is
+ increased by a factor of 2, while the number of channels is decreased by a factor of 4.
 
- *Input*: 
- 
+ *Input*:
+
  - `Y`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
 
  - `pattern`: Squeezing pattern
- 
+
             1 2 3 4        1 1 3 3        1 3 1 3
             1 2 3 4        1 1 3 3        2 4 2 4
             1 2 3 4        2 2 4 4        1 3 1 3
@@ -83,7 +84,7 @@ end
             column          patch       checkerboard
 
  *Output*:
- 
+
  - `X`: Reshaped tensor of dimensions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
 
  See also: [`squeeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
@@ -92,7 +93,7 @@ function unsqueeze(Y::AbstractArray{T,4}; pattern="column") where T
 
     # Dimensions
     nx_in, ny_in, nc_in, batchsize = size(Y)
-    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1 
+    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1
         throw("Input dimensions must be multiple of 2")
     end
     nx_out = Int(round(nx_in*2))
@@ -132,17 +133,17 @@ end
  Perform a 1-level channelwise 2D wavelet transform of X and squeeze output of each
  transform into 4 channels (per 1 input channel).
 
- *Input*: 
- 
+ *Input*:
+
  - `X`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
 
- - `type`: Wavelet filter type. Possible values are `WT.haar` for Haar wavelets, 
-    `WT.coif2`, `WT.coif4`, etc. for Coiflet wavelets, or `WT.db1`, `WT.db2`, etc. 
-    for Daubechies wavetlets. See *https://github.com/JuliaDSP/Wavelets.jl* for a 
+ - `type`: Wavelet filter type. Possible values are `WT.haar` for Haar wavelets,
+    `WT.coif2`, `WT.coif4`, etc. for Coiflet wavelets, or `WT.db1`, `WT.db2`, etc.
+    for Daubechies wavetlets. See *https://github.com/JuliaDSP/Wavelets.jl* for a
     full list.
 
  *Output*:
- 
+
  - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
 
  See also: [`wavelet_unsqueeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
@@ -170,8 +171,8 @@ end
  This reduces the number of channels by 4 and increases each spatial
  dimension by a factor of 2. Inverse operation of `wavelet_squeeze`.
 
- *Input*: 
- 
+ *Input*:
+
  - `Y`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
 
  - `type`: Wavelet filter type. Possible values are `haar` for Haar wavelets,
@@ -179,7 +180,7 @@ end
   wavetlets. See *https://github.com/JuliaDSP/Wavelets.jl* for a full list.
 
  *Output*:
- 
+
  - `X`: Reshaped tensor of dimenions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
 
  See also: [`wavelet_squeeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
@@ -210,12 +211,12 @@ end
  Split 4D input tensor in half along the channel dimension. Inverse operation
  of `tensor_cat`.
 
- *Input*: 
- 
+ *Input*:
+
  - `X`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
 
  *Output*:
- 
+
  - `Y`, `Z`: 4D output tensors, each of dimensions `nx` x `ny` x `n_channel/2` x `batchsize`
 
  See also: [`tensor_cat`](@ref)
@@ -253,17 +254,17 @@ end
  Concatenate 4D input tensors along the channel dimension. Inverse operation
  of `tensor_split`.
 
- *Input*: 
- 
+ *Input*:
+
  - `Y`, `Z`: 4D input tensors, each of dimensions `nx` x `ny` x `n_channel` x `batchsize`
 
  *Output*:
- 
+
  - `X`: 4D output tensor of dimensions `nx` x `ny` x `n_channel*2` x `batchsize`
 
  See also: [`tensor_split`](@ref)
 """
-function tensor_cat(X::AbstractArray{T,4}, Y::AbstractArray{T,4}) where T 
+function tensor_cat(X::AbstractArray{T,4}, Y::AbstractArray{T,4}) where T
     if size(X, 3) == 0
         return Y
     elseif size(Y, 3) == 0
