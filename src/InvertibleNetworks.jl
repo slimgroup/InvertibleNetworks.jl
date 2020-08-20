@@ -8,7 +8,6 @@ import Base.size, Base.getindex, Flux.glorot_uniform, Flux.glorot_normal,
        Base.reverse, Base.reverse!
 
 using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote
-using CUDA
 
 export clear_grad!, glorot_uniform, get_params, glorot_normal
 
@@ -19,6 +18,9 @@ input_size(c::DenseConvDims) = c.I
 kernel_size(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = K
 channels_in(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_in
 channels_out(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_out
+
+# gpu
+include("utils/cuda.jl")
 
 # Utils
 include("utils/parameter.jl")
@@ -56,7 +58,5 @@ include("conditional_layers/conditional_layer_slim.jl")
 include("networks/invertible_network_conditional_hint.jl")
 include("networks/invertible_network_conditional_hint_multiscale.jl")
 
-# gpu
-include("utils/cuda.jl")
 
 end
