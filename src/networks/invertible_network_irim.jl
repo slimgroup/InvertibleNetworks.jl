@@ -1,7 +1,6 @@
 # Invertible network layer from Putzky and Welling (2019): https://arxiv.org/abs/1911.10914
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
-using CUDA
 
 export NetworkLoop
 
