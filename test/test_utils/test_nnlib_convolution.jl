@@ -70,7 +70,7 @@ function objective(W, b, X, Y)
     ΔY = (conv(X, W, cdims) .+ reshape(b, 1, 1, :, 1)) - Y
     f = .5f0*norm(ΔY)^2f0
     gW = ∇conv_filter(X, ΔY, cdims)
-    gb = sum(ΔY, dims=(1,2,4))[1, 1, :, 1]
+    gb = sum(ΔY, dims=[1,2,4])[1, 1, :, 1]
     return f, gW, gb
 end
 
@@ -90,7 +90,7 @@ for j=1:maxiter
     err2[j] = abs(f - f0 - h*dot(dW, gW))
     print(err1[j], "; ", err2[j], "\n")
     global h = h/2f0
-end   
+end
 
 @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
@@ -110,7 +110,7 @@ for j=1:maxiter
     err4[j] = abs(f - f0 - h*dot(db, gb))
     print(err3[j], "; ", err4[j], "\n")
     global h = h/2f0
-end   
+end
 
 @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
@@ -137,7 +137,7 @@ function objective(W, b, X, Y)
     ΔY = (conv(X, W, cdims) .+ reshape(b, 1, 1, 1, :, 1)) - Y
     f = .5f0*norm(ΔY)^2f0
     gW = ∇conv_filter(X, ΔY, cdims)
-    gb = sum(ΔY, dims=(1,2,3,5))[1, 1, 1, :, 1]
+    gb = sum(ΔY, dims=[1,2,3,5])[1, 1, 1, :, 1]
     return f, gW, gb
 end
 
@@ -157,7 +157,7 @@ for j=1:maxiter
     err2[j] = abs(f - f0 - h*dot(dW, gW))
     print(err1[j], "; ", err2[j], "\n")
     global h = h/2f0
-end   
+end
 
 @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
@@ -177,7 +177,7 @@ for j=1:maxiter
     err4[j] = abs(f - f0 - h*dot(db, gb))
     print(err3[j], "; ", err4[j], "\n")
     global h = h/2f0
-end   
+end
 
 @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
