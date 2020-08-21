@@ -7,13 +7,13 @@ export HyperbolicLayer
 """
     HyperbolicLayer(nx, ny, n_in, batchsize, kernel, stride, pad; action="same", α=1f0, hidden_factor=1)
 
-or 
+or
 
     HyperbolicLayer(W, b, nx, ny, batchsize, stride, pad; action="same", α=1f0)
 
 Create an invertible hyperbolic coupling layer.
 
-*Input*: 
+*Input*:
 
  - `nx`, `ny`, `n_in`, `batchsize`: Dimensions of input tensor
 
@@ -31,7 +31,7 @@ Create an invertible hyperbolic coupling layer.
     After applying the transpose convolution, the dimensions are back to the input dimensions.
 
 *Output*:
- 
+
  - `HL`: Invertible hyperbolic coupling layer
 
  *Usage:*
@@ -61,7 +61,7 @@ end
 @Flux.functor HyperbolicLayer
 
 # Constructor
-function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, kernel::Int64, 
+function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, kernel::Int64,
     stride::Int64, pad::Int64; action="same", α=1f0, hidden_factor=1)
 
     # Set ouput/hidden dimensions
@@ -81,14 +81,14 @@ function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, ke
     W = Parameter(glorot_uniform(kernel, kernel, n_out, n_hidden))
     b = Parameter(zeros(Float32, n_hidden))
 
-    cdims = DenseConvDims((nx, ny, n_out, batchsize), (kernel, kernel, n_out, n_hidden); 
+    cdims = DenseConvDims((nx, ny, n_out, batchsize), (kernel, kernel, n_out, n_hidden);
         stride=(stride, stride), padding=(pad, pad))
 
     return HyperbolicLayer(W, b, α, cdims, action)
 end
 
 # Constructor for given weights
-function HyperbolicLayer(W::AbstractArray{Float32, 4}, b::AbstractArray{Float32, 1}, nx::Int64, ny::Int64, 
+function HyperbolicLayer(W::AbstractArray{Float32, 4}, b::AbstractArray{Float32, 1}, nx::Int64, ny::Int64,
     batchsize::Int64, stride::Int64, pad::Int64; action="same", α=1f0)
 
     kernel, n_in, n_hidden = size(W)[2:4]
@@ -109,7 +109,7 @@ function HyperbolicLayer(W::AbstractArray{Float32, 4}, b::AbstractArray{Float32,
     W = Parameter(W)
     b = Parameter(b)
 
-    cdims = DenseConvDims((nx, ny, n_out, batchsize), (kernel, kernel, n_out, n_hidden); 
+    cdims = DenseConvDims((nx, ny, n_out, batchsize), (kernel, kernel, n_out, n_hidden);
         stride=(stride, stride), padding=(pad, pad))
 
     return HyperbolicLayer(W, b, α, cdims, action)
@@ -185,11 +185,11 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
     ΔX_convT = copy(ΔX_new)
     ΔX_relu = -HL.α*conv(ΔX_convT, HL.W.data, HL.cdims)
     ΔW = -HL.α*∇conv_filter(ΔX_convT, X_relu, HL.cdims)
-    
+
     ΔX_conv = ReLUgrad(ΔX_relu, X_conv)
     ΔX_curr += ∇conv_data(ΔX_conv, HL.W.data, HL.cdims)
     ΔW += ∇conv_filter(X_curr, ΔX_conv, HL.cdims)
-    Δb = sum(ΔX_conv; dims=(1,2,4))[1,1,:,1]
+    Δb = sum(ΔX_conv; dims=[1,2,4])[1,1,:,1]
 
     ΔX_curr += 2f0*ΔX_new
     ΔX_prev = -ΔX_new
