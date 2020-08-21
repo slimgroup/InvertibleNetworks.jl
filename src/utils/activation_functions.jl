@@ -53,6 +53,7 @@ end
  See also: [`LeakyReLUinv`](@ref), [`LeakyReLUgrad`](@ref)
 """
 function LeakyReLU(x; slope=0.01f0)
+    p_mask = (sign.(x) .+ 1)/2
     return max.(0f0, x).*p_mask + slope*min.(0f0, x).*(1 .- p_mask)
 end
 
