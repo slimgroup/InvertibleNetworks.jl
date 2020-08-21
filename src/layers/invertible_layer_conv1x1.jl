@@ -71,7 +71,7 @@ function partial_derivative_outer(v, j)
     dV = cuzeros(v, k, k)
     dV[:, j] = v
     dV[j, :] += v
-    return (dV*(v'*v) - 2f0*v*v'*v[j])/(v'*v)^2
+    return ((v'*v) .* dV - 2f0*v[j] .*(v*v'))./(v'*v)^2
 end
 
 

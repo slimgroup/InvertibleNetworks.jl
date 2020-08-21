@@ -46,6 +46,8 @@ export NetworkConditionalHINT
  See also: [`ActNorm`](@ref), [`ConditionalLayerHINT!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 mutable struct NetworkConditionalHINT <: InvertibleNetwork
+    AN_X::AbstractArray{ActNorm, 1}
+    AN_Y::AbstractArray{ActNorm, 1}
     CL::AbstractArray{ConditionalLayerHINT, 1}
     logdet::Bool
     is_reversed::Bool
@@ -56,15 +58,19 @@ end
 # Constructor
 function NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
 
+    AN_X = Array{ActNorm}(undef, depth)
+    AN_Y = Array{ActNorm}(undef, depth)
     CL = Array{ConditionalLayerHINT}(undef, depth)
 
     # Create layers
     for j=1:depth
+        AN_X[j] = ActNorm(n_in; logdet=logdet)
+        AN_Y[j] = ActNorm(n_in; logdet=logdet)
         CL[j] = ConditionalLayerHINT(nx, ny, n_in, n_hidden, batchsize;
                                      permute=true, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
     end
 
-    return NetworkConditionalHINT(CL, logdet, false)
+    return NetworkConditionalHINT(AN_X, AN_Y, CL, logdet, false)
 end
 
 # Forward pass and compute logdet
@@ -74,8 +80,10 @@ function forward(X, Y, CH::NetworkConditionalHINT; logdet=nothing)
     depth = length(CH.CL)
     logdet_ = 0f0
     for j=1:depth
-        logdet ? (X, Y, logdet3) = CH.CL[j].forward(X, Y) : (X, Y) = CH.CL[j].forward(X, Y)
-        logdet && (logdet_ += (logdet3))
+        logdet ? (X_, logdet1) = CH.AN_X[j].forward(X) : X_ = CH.AN_X[j].forward(X)
+        logdet ? (Y_, logdet2) = CH.AN_Y[j].forward(Y) : Y_ = CH.AN_Y[j].forward(Y)
+        logdet ? (X, Y, logdet3) = CH.CL[j].forward(X_, Y_) : (X, Y) = CH.CL[j].forward(X_, Y_)
+        logdet && (logdet_ += (logdet1 + logdet2 + logdet3))
     end
     logdet ? (return X, Y, logdet_) : (return X, Y)
 end
@@ -87,8 +95,10 @@ function inverse(Zx, Zy, CH::NetworkConditionalHINT; logdet=nothing)
     depth = length(CH.CL)
     logdet_ = 0f0
     for j=depth:-1:1
-        logdet ? (Zx, Zy, logdet1) = CH.CL[j].inverse(Zx, Zy; logdet=true) : (Zx, Zy) = CH.CL[j].inverse(Zx, Zy; logdet=false)
-        logdet && (logdet_ += (logdet1))
+        logdet ? (Zx_, Zy_, logdet1) = CH.CL[j].inverse(Zx, Zy; logdet=true) : (Zx_, Zy_) = CH.CL[j].inverse(Zx, Zy; logdet=false)
+        logdet ? (Zy, logdet2) = CH.AN_Y[j].inverse(Zy_; logdet=true) : Zy = CH.AN_Y[j].inverse(Zy_; logdet=false)
+        logdet ? (Zx, logdet3) = CH.AN_X[j].inverse(Zx_; logdet=true) : Zx = CH.AN_X[j].inverse(Zx_; logdet=false)
+        logdet && (logdet_ += (logdet1 + logdet2 + logdet3))
     end
     logdet ? (return Zx, Zy, logdet_) : (return Zx, Zy)
 end
@@ -97,7 +107,9 @@ end
 function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT)
     depth = length(CH.CL)
     for j=depth:-1:1
-        ΔZx, ΔZy, Zx, Zy = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy)
+        ΔZx_, ΔZy_, Zx_, Zy_ = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy)
+        ΔZx, Zx = CH.AN_X[j].backward(ΔZx_, Zx_)
+        ΔZy, Zy = CH.AN_Y[j].backward(ΔZy_, Zy_)
     end
     return ΔZx, ΔZy, Zx, Zy
 end
@@ -106,7 +118,9 @@ end
 function backward_inv(ΔX, ΔY, X, Y, CH::NetworkConditionalHINT)
     depth = length(CH.CL)
     for j=1:depth
-        ΔX, ΔY, X, Y = backward_inv(ΔX, ΔY, X, Y, CH.CL[j])
+        ΔX_, X_ = backward_inv(ΔX, X, CH.AN_X[j])
+        ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[j])
+        ΔX, ΔY, X, Y = backward_inv(ΔX_, ΔY_, X_, Y_, CH.CL[j])
     end
     return ΔX, ΔY, X, Y
 end
@@ -135,6 +149,8 @@ end
 function clear_grad!(CH::NetworkConditionalHINT)
     depth = length(CH.CL)
     for j=1:depth
+        clear_grad!(CH.AN_X[j])
+        clear_grad!(CH.AN_Y[j])
         clear_grad!(CH.CL[j])
     end
 end
@@ -144,6 +160,8 @@ function get_params(CH::NetworkConditionalHINT)
     depth = length(CH.CL)
     p = []
     for j=1:depth
+        p = cat(p, get_params(CH.AN_X[j]); dims=1)
+        p = cat(p, get_params(CH.AN_Y[j]); dims=1)
         p = cat(p, get_params(CH.CL[j]); dims=1)
     end
     return p
@@ -154,6 +172,8 @@ function tag_as_reversed!(CH::NetworkConditionalHINT, tag::Bool)
     depth = length(CH.CL)
     CH.is_reversed = tag
     for j=1:depth
+        tag_as_reversed!(CH.AN_X[j], tag)
+        tag_as_reversed!(CH.AN_Y[j], tag)
         tag_as_reversed!(CH.CL[j], tag)
     end
     return CH
