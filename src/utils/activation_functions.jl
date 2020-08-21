@@ -19,9 +19,7 @@ export ExpClamp, ExpClampInv, ExpClampGrad
  See also: [`ReLUgrad`](@ref)
 """
 function ReLU(x)
-    y = 0f0.*x
-    y[findall(x.>=0f0)] = x[findall(x.>=0f0)]
-    return y
+    return max.(0f0, x)
 end
 
 """
@@ -42,9 +40,7 @@ end
  See also: [`ReLU`](@ref)
 """
 function ReLUgrad(Δy, x)
-    Δx = 0f0.*x
-    Δx[findall(x.>=0f0)] = Δy[findall(x.>=0f0)]
-    return Δx
+    return Δy.*(sign.(x) .+ 1)/2
 end
 
 ###############################################################################
@@ -271,12 +267,6 @@ end
 
  See also: [`ExpClamp`](@ref)
 """
-# function ExpClampGrad(Δy::Array{Float32}, x::Array{Float32}; y=nothing,
-#             clamp::Float32=2f0)
-#     y==nothing && (y=ExpClamp(x; clamp=clamp))
-#     return clamp * 0.636f0 * Δy .* y ./ (1f0 .+ x.^2f0)
-# end
-
 
 function ExpClampGrad(Δy, y; x=nothing, clamp=2f0)
     if ~isnothing(y) && isnothing(x)
