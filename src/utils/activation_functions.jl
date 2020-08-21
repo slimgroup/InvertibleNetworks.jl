@@ -53,8 +53,7 @@ end
  See also: [`LeakyReLUinv`](@ref), [`LeakyReLUgrad`](@ref)
 """
 function LeakyReLU(x; slope=0.01f0)
-    p_mask = (sign.(x) .+ 1)/2
-    return max.(0f0, x).*p_mask + slope*min.(0f0, x).*(1 .- p_mask)
+    return max.(0f0, x) + slope*min.(0f0, x)
 end
 
 """
@@ -65,10 +64,7 @@ end
  See also: [`LeakyReLU`](@ref), [`LeakyReLUgrad`](@ref)
 """
 function LeakyReLUinv(y; slope=0.01f0)
-    x = 0f0.*y
-    x[y.>=0f0] = y[y.>=0f0]
-    x[y.<0f0] = 1f0./slope*y[y.<0f0]
-    return x
+    return max.(0f0, y) + (1f0/slope)*min.(0f0, y)
 end
 
 """
@@ -92,10 +88,8 @@ end
 """
 function LeakyReLUgrad(Δy, y; slope=0.01f0)
     x = LeakyReLUinv(y; slope=slope)  # recompute forward state
-    Δx = 0f0.*y
-    Δx[x.>=0f0] = Δy[x.>=0f0]
-    Δx[x.<0f0] = slope*Δy[x.<0f0]
-    return Δx
+    p_mask = (sign.(x) .+ 1f0)/2f0
+    return Δy.*p_mask + slope*Δy.*(1f0 .- p_mask)
 end
 
 
