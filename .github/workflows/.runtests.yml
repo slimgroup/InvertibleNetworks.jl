@@ -1,9 +1,9 @@
 name: CI
 
-on: 
+on:
   push:
     branches-ignore:
-      - 'test_gpu'
+      - 'alisk'
 
 jobs:
   test:
@@ -36,7 +36,7 @@ jobs:
 
       - name: Run tests
         uses: julia-actions/julia-runtest@latest
-    
+
       - name: Run simple example
         if: runner.os == 'linux'
         run: julia --project examples/layers/layer_actnorm.jl
