@@ -1,9 +1,6 @@
 name: CI
 
-on:
-  push:
-    branches-ignore:
-      - ''
+on: push
 
 jobs:
   test:
@@ -40,4 +37,3 @@ jobs:
       - name: Run simple example
         if: runner.os == 'linux'
         run: julia --project examples/layers/layer_actnorm.jl
-
