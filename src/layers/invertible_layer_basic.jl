@@ -93,7 +93,7 @@ end
 # 2D Forward pass: Input X, Output Y
 function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing)
     isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
-    
+
     # Coupling layer
     k = size(X1, 3)
     Y1 = copy(X1)
@@ -112,7 +112,7 @@ end
 # 3D Forward pass: Input X, Output Y
 function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing)
     isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
-    
+
     # Coupling layer
     k = size(X1, 4)
     Y1 = copy(X1)
@@ -138,7 +138,7 @@ function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L
     logS_T = L.RB.forward(X1)
     S = Sigmoid(logS_T[:, :, 1:k, :])
     T = logS_T[:, :, k+1:end, :]
-    X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
+    X2 = (Y2 - T) ./ (S .+ eps(1f0)) # add epsilon to avoid division by 0
 
     if logdet
         save == true ? (return X1, X2, -coupling_logdet_forward(S), S) : (return X1, X2, -coupling_logdet_forward(S))
@@ -157,7 +157,7 @@ function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L
     logS_T = L.RB.forward(X1)
     S = Sigmoid(logS_T[:, :, :, 1:k, :])
     T = logS_T[:, :, :, k+1:end, :]
-    X2 = (Y2 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
+    X2 = (Y2 - T) ./ (S .+ eps(1f0)) # add epsilon to avoid division by 0
 
     if logdet
         save == true ? (return X1, X2, -coupling_logdet_forward(S), S) : (return X1, X2, -coupling_logdet_forward(S))

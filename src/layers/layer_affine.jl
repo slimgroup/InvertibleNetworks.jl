@@ -10,14 +10,14 @@ export AffineLayer
 
  Create a layer for an affine transformation.
 
- *Input*: 
- 
- - `nx`, `ny, `nc`: input dimensions and number of channels 
- 
+ *Input*:
+
+ - `nx`, `ny, `nc`: input dimensions and number of channels
+
  - `logdet`: bool to indicate whether to compute the logdet
 
  *Output*:
- 
+
  - `AL`: Network layer for affine transformation.
 
  *Usage:*
@@ -55,14 +55,14 @@ end
 function forward(X, AL::AffineLayer)
 
     Y = X .* AL.s.data .+ AL.b.data
-    
+
     # If logdet true, return as second ouput argument
     AL.logdet == true ? (return Y, logdet_forward(AL.s)) : (return Y)
 end
 
 # Inverse pass: Input Y, Output X
 function inverse(Y, AL::AffineLayer)
-    X = (Y .- AL.b.data) ./ (AL.s.data + randn(Float32, size(AL.s.data)) .* eps(1f0))   # avoid division by 0
+    X = (Y .- AL.b.data) ./ (AL.s.data .+ eps(1f0))   # avoid division by 0
     return X
 end
 
@@ -89,5 +89,5 @@ end
 get_params(AL::AffineLayer) = [AL.s, AL.b]
 
 # Logdet
-logdet_forward(s) = sum(log.(abs.(s.data))) 
+logdet_forward(s) = sum(log.(abs.(s.data)))
 logdet_backward(s) = 1f0 ./ s.data
