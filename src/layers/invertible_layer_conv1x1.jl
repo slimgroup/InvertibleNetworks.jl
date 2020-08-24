@@ -65,15 +65,25 @@ function Conv1x1(v1, v2, v3; logdet=false)
     return Conv1x1(k, v1, v2, v3, logdet)
 end
 
-
-function partial_derivative_outer(v, j)
+function partial_derivative_outer(v::AbstractArray{Float32, 1})
     k = length(v)
-    dV = cuzeros(v, k, k)
-    dV[:, j] = v
-    dV[j, :] += v
-    return (dV*(v'*v) - 2f0*v*v'*v[j])/(v'*v)^2
+    out1 = v * v'
+    n = v' * v
+    outer = cuzeros(v, k, k, k)
+    for i=1:k
+        copyto!(view(outer, i, :, :), out1)
+    end
+    broadcast!(*, outer, v, outer)
+    broadcast!(*, outer, -2f0/n, outer)
+    for j=1:k
+        v1 = view(outer,j, :, j)
+        broadcast!(+, v1, v1, v)
+        v1 = view(outer,j, j, :)
+        broadcast!(+, v1, v1, v)
+    end
+    broadcast!(*, outer, 1/n, outer)
+    return outer
 end
-
 
 function conv1x1_grad_v(X::AbstractArray{Float32, 4}, ΔY::AbstractArray{Float32, 4}, C::Conv1x1; adjoint=false)
 
@@ -84,7 +94,7 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, ΔY::AbstractArray{Float32
     v2 = C.v2.data
     v3 = C.v3.data
     k = length(v1)
-    
+
     dv1 = cuzeros(X, k)
     dv2 = cuzeros(X, k)
     dv3 = cuzeros(X, k)
@@ -98,23 +108,23 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, ΔY::AbstractArray{Float32
         Xi = reshape(X[:,:,:,i], :, n_in)
         ΔYi = reshape(ΔY[:,:,:,i], :, n_in)
 
+        dV1 =partial_derivative_outer(v1)
+        dV2 =partial_derivative_outer(v2)
+        dV3 =partial_derivative_outer(v3)
+
         for j=1:k
 
-            dV1 = partial_derivative_outer(v1, j)
-            dV2 = partial_derivative_outer(v2, j)
-            dV3 = partial_derivative_outer(v3, j)
-
-            ∂V1 = dV1 - 2f0*dV1*V2 - 2f0*dV1*V3 + 4f0*dV1*V2*V3
-            ∂V2 = dV2 - 2f0*V1*dV2 - 2f0*dV2*V3 + 4f0*V1*dV2*V3
-            ∂V3 = dV3 - 2f0*V1*dV3 - 2f0*V2*dV3 + 4f0*V1*V2*dV3
+            ∂V1 = dV1[j, :, :] - 2f0*dV1[j, :, :]*V2 - 2f0*dV1[j, :, :]*V3 + 4f0*dV1[j, :, :]*V2*V3
+            ∂V2 = dV2[j, :, :] - 2f0*V1*dV2[j, :, :] - 2f0*dV2[j, :, :]*V3 + 4f0*V1*dV2[j, :, :]*V3
+            ∂V3 = dV3[j, :, :] - 2f0*V1*dV3[j, :, :] - 2f0*V2*dV3[j, :, :] + 4f0*V1*V2*dV3[j, :, :]
 
             if ~adjoint
                 dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi)')
-                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi)')   
+                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi)')
                 dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi)')
             else
                 dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi)')
-                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi)')   
+                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi)')
                 dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi)')
             end
 
@@ -146,23 +156,24 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 5}, ΔY::AbstractArray{Float32
         Xi = reshape(X[:,:,:,:,i], :, n_in)
         ΔYi = reshape(ΔY[:,:,:,:,i], :, n_in)
 
+        dV1 =partial_derivative_outer(v1)
+        dV2 =partial_derivative_outer(v2)
+        dV3 =partial_derivative_outer(v3)
+
         for j=1:k
 
-            dV1 = partial_derivative_outer(v1, j)
-            dV2 = partial_derivative_outer(v2, j)
-            dV3 = partial_derivative_outer(v3, j)
+            ∂V1 = dV1[j, :, :] - 2f0*dV1[j, :, :]*V2 - 2f0*dV1[j, :, :]*V3 + 4f0*dV1[j, :, :]*V2*V3
+            ∂V2 = dV2[j, :, :] - 2f0*V1*dV2[j, :, :] - 2f0*dV2[j, :, :]*V3 + 4f0*V1*dV2[j, :, :]*V3
+            ∂V3 = dV3[j, :, :] - 2f0*V1*dV3[j, :, :] - 2f0*V2*dV3[j, :, :] + 4f0*V1*V2*dV3[j, :, :]
 
-            ∂V1 = dV1 - 2f0*dV1*V2 - 2f0*dV1*V3 + 4f0*dV1*V2*V3
-            ∂V2 = dV2 - 2f0*V1*dV2 - 2f0*dV2*V3 + 4f0*V1*dV2*V3
-            ∂V3 = dV3 - 2f0*V1*dV3 - 2f0*V2*dV3 + 4f0*V1*V2*dV3
 
             if ~adjoint
                 dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi)')
-                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi)')   
+                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi)')
                 dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi)')
             else
                 dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi)')
-                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi)')   
+                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi)')
                 dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi)')
             end
 
@@ -176,7 +187,7 @@ function forward(X::AbstractArray{Float32, 4}, C::Conv1x1; logdet=nothing)
     isnothing(logdet) ? logdet = C.logdet : logdet = logdet
     nx, ny, n_in, batchsize = size(X)
     Y = cuzeros(X, nx, ny, n_in, batchsize)
-    
+
     v1 = C.v1.data
     v2 = C.v2.data
     v3 = C.v3.data
@@ -209,7 +220,7 @@ end
 
 # Forward pass and update weights
 function forward(X_tuple::Tuple, C::Conv1x1)
-    ΔX = X_tuple[1] 
+    ΔX = X_tuple[1]
     X = X_tuple[2]
     ΔY = forward(ΔX, C; logdet=false)    # forward propagate residual
     Y = forward(X, C; logdet=false)  # recompute forward state

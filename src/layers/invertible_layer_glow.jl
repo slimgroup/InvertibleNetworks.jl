@@ -13,12 +13,12 @@ or
 
     CL = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false)
 
- Create a Real NVP-style invertible coupling layer based on 1x1 convolutions and a residual block. 
+ Create a Real NVP-style invertible coupling layer based on 1x1 convolutions and a residual block.
 
- *Input*: 
- 
+ *Input*:
+
  - `C::Conv1x1`: 1x1 convolution layer
- 
+
  - `RB::ResidualBlock`: residual block layer consisting of 3 convolutional layers with ReLU activations.
 
  - `logdet`: bool to indicate whether to compte the logdet of the layer
@@ -26,10 +26,10 @@ or
  or
 
  - `nx, ny`: spatial dimensions of input
- 
+
  - `n_in`, `n_hidden`: number of input and hidden channels
 
- - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
+ - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third
     operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
@@ -37,7 +37,7 @@ or
  - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
  *Output*:
- 
+
  - `CL`: Invertible Real NVP coupling layer.
 
  *Usage:*
@@ -88,7 +88,7 @@ function forward(X::AbstractArray{Float32, 4}, L::CouplingLayerGlow)
 
     # Get dimensions
     k = Int(L.C.k/2)
-    
+
     X_ = L.C.forward(X)
     X1, X2 = tensor_split(X_)
 
@@ -98,7 +98,7 @@ function forward(X::AbstractArray{Float32, 4}, L::CouplingLayerGlow)
     T = logS_T[:, :, k+1:end, :]
     Y1 = S.*X1 + T
     Y = tensor_cat(Y1, Y2)
-    
+
     L.logdet == true ? (return Y, glow_logdet_forward(S)) : (return Y)
 end
 
@@ -113,7 +113,7 @@ function inverse(Y::AbstractArray{Float32, 4}, L::CouplingLayerGlow; save=false)
     logS_T = L.RB.forward(X2)
     S = Sigmoid(logS_T[:,:,1:k,:])
     T = logS_T[:, :, k+1:end, :]
-    X1 = (Y1 - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid division by 0
+    X1 = (Y1 - T) ./ (S .+ eps(1f0)) # add epsilon to avoid division by 0
     X_ = tensor_cat(X1, X2)
     X = L.C.inverse(X_)
 
