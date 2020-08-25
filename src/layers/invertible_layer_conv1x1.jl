@@ -108,8 +108,7 @@ end
 function mat_tens_i(out::AbstractArray{Float32, 3}, Mat::AbstractArray{Float32, 2},
                     Tens::AbstractArray{Float32, 3}, Mat2::AbstractArray{Float32, 2})
     for i=1:size(out, 1)
-        mul!(view(out, i, :, :), Mat, Tens[i, :, :])
-        @views broadcast!(*, out[i, :, :], out[i, :, :], Mat2)
+        @views broadcast!(*, out[i, :, :], Mat*Tens[i, :, :], Mat2)
     end
     return out
 end
