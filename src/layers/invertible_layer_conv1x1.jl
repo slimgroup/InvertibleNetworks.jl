@@ -65,7 +65,7 @@ function Conv1x1(v1, v2, v3; logdet=false)
     return Conv1x1(k, v1, v2, v3, logdet)
 end
 
-function partial_derivative_outer(v::AbstractArray{Float32, 1})
+function partial_derivative_outer(v::Array{Float32, 1})
     k = length(v)
     out1 = v * v'
     n = v' * v
@@ -85,11 +85,45 @@ function partial_derivative_outer(v::AbstractArray{Float32, 1})
     return outer
 end
 
-function conv1x1_grad_v(X::AbstractArray{Float32, 4}, ΔY::AbstractArray{Float32, 4}, C::Conv1x1; adjoint=false)
+function partial_derivative_outer(v::CuArray{Float32, 1})
+    k = length(v)
+    out1 = v * v'
+    n = v' * v
+    outer = cuzeros(v, k, k, k)
+    for i=1:k
+        copyto!(view(outer, i, :, :), out1)
+    end
+    broadcast!(*, outer, v, outer)
+    broadcast!(*, outer, -2f0/n, outer)
+    for j=1:k
+        v1 = view(outer,j, :, j)
+        broadcast!(+, v1, v1, v)
+        v1 = view(outer,j, j, :)
+        broadcast!(+, v1, v1, v)
+    end
+    broadcast!(*, outer, 1/n, outer)
+    return outer
+end
+
+function mat_tens_i(out::AbstractArray{Float32, 3}, Mat::AbstractArray{Float32, 2},
+                    Tens::AbstractArray{Float32, 3}, Mat2::AbstractArray{Float32, 2})
+    for i=1:size(out, 1)
+        mul!(view(out, i, :, :), Mat, Tens[i, :, :])
+        broadcast!(*, out[i, :, :], out[i, :, :], Mat2)
+    end
+    return out
+end
+
+function custom_sum(a::AbstractArray{Float32, 3}, dims::Tuple{Integer, Integer})
+    summed = sum(a, dims=dims)
+    return dropdims(summed, dims = (findall(size(summed) .== 1)...,))
+end
+
+function conv1x1_grad_v(X::AbstractArray{Float32, N}, ΔY::AbstractArray{Float32, N},
+                        C::Conv1x1; adjoint=false) where {N}
 
     # Reshape input
-    nx, ny, n_in, batchsize = size(X)
-
+    n_in, batchsize = size(X)[N-1:N]
     v1 = C.v1.data
     v2 = C.v2.data
     v3 = C.v3.data
@@ -103,117 +137,59 @@ function conv1x1_grad_v(X::AbstractArray{Float32, 4}, ΔY::AbstractArray{Float32
     V2 = v2*v2'/(v2'*v2)
     V3 = v3*v3'/(v3'*v3)
 
-    for i=1:batchsize
+    dV1 = partial_derivative_outer(v1)
+    dV2 = partial_derivative_outer(v2)
+    dV3 = partial_derivative_outer(v3)
 
-        Xi = reshape(X[:,:,:,i], :, n_in)
-        ΔYi = reshape(ΔY[:,:,:,i], :, n_in)
+    ∂V1 = deepcopy(dV1)
+    ∂V2 = deepcopy(dV2)
+    ∂V3 = deepcopy(dV3)
 
-        dV1 =partial_derivative_outer(v1)
-        dV2 =partial_derivative_outer(v2)
-        dV3 =partial_derivative_outer(v3)
-
-        for j=1:k
-
-            ∂V1 = dV1[j, :, :] - 2f0*dV1[j, :, :]*V2 - 2f0*dV1[j, :, :]*V3 + 4f0*dV1[j, :, :]*V2*V3
-            ∂V2 = dV2[j, :, :] - 2f0*V1*dV2[j, :, :] - 2f0*dV2[j, :, :]*V3 + 4f0*V1*dV2[j, :, :]*V3
-            ∂V3 = dV3[j, :, :] - 2f0*V1*dV3[j, :, :] - 2f0*V2*dV3[j, :, :] + 4f0*V1*V2*dV3[j, :, :]
-
-            if ~adjoint
-                dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi)')
-                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi)')
-                dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi)')
-            else
-                dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi)')
-                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi)')
-                dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi)')
-            end
-
-        end
+    M1 = (I - 2f0 * (V2 + V3) + 4f0*V2*V3)
+    M3 = (I - 2f0 * (V1 + V2) + 4f0*V1*V2)
+    tmp = cuzeros(X, k, k)
+    for i=1:k
+        # ∂V1
+        mul!(tmp, view(∂V1, i, :, :), M1)
+        @views adjoint ? adjoint!(∂V1[i, :, :], tmp) : copyto!(∂V1[i, :, :], tmp)
+        # ∂V2
+        v2 = view(∂V2, i, :, :)
+        broadcast!(+, tmp, v2, 4f0 * V1 * v2 * V3 - 2f0 * (V1 * v2 + v2 * V3))
+        @views adjoint ? adjoint!(∂V2[i, :, :], tmp) : copyto!(∂V2[i, :, :], tmp)
+        # ∂V3
+        mul!(tmp, M3, view(∂V3, i, :, :))
+        @views adjoint ? adjoint!(∂V3[i, :, :], tmp) : copyto!(∂V3[i, :, :], tmp)
     end
-    return dv1, dv2, dv3
-end
 
-function conv1x1_grad_v(X::AbstractArray{Float32, 5}, ΔY::AbstractArray{Float32, 5}, C::Conv1x1; adjoint=false)
-
-    # Reshape input
-    nx, ny, nz, n_in, batchsize = size(X)
-
-    v1 = C.v1.data
-    v2 = C.v2.data
-    v3 = C.v3.data
-    k = length(v1)
-
-    dv1 = cuzeros(X, k)
-    dv2 = cuzeros(X, k)
-    dv3 = cuzeros(X, k)
-
-    V1 = v1*v1'/(v1'*v1)
-    V2 = v2*v2'/(v2'*v2)
-    V3 = v3*v3'/(v3'*v3)
-
+    prod_res = cuzeros(X, size(∂V1, 1), prod(size(X)[1:N-2]), n_in)
+    inds = [i<N ? (:) : 1 for i=1:N]
     for i=1:batchsize
-
-        Xi = reshape(X[:,:,:,:,i], :, n_in)
-        ΔYi = reshape(ΔY[:,:,:,:,i], :, n_in)
-
-        dV1 =partial_derivative_outer(v1)
-        dV2 =partial_derivative_outer(v2)
-        dV3 =partial_derivative_outer(v3)
-
-        for j=1:k
-
-            ∂V1 = dV1[j, :, :] - 2f0*dV1[j, :, :]*V2 - 2f0*dV1[j, :, :]*V3 + 4f0*dV1[j, :, :]*V2*V3
-            ∂V2 = dV2[j, :, :] - 2f0*V1*dV2[j, :, :] - 2f0*dV2[j, :, :]*V3 + 4f0*V1*dV2[j, :, :]*V3
-            ∂V3 = dV3[j, :, :] - 2f0*V1*dV3[j, :, :] - 2f0*V2*dV3[j, :, :] + 4f0*V1*V2*dV3[j, :, :]
-
-
-            if ~adjoint
-                dv1[j] += sum(vec((-2f0*Xi*∂V1).*ΔYi)')
-                dv2[j] += sum(vec((-2f0*Xi*∂V2).*ΔYi)')
-                dv3[j] += sum(vec((-2f0*Xi*∂V3).*ΔYi)')
-            else
-                dv1[j] += sum(vec((-2f0*Xi*∂V1').*ΔYi)')
-                dv2[j] += sum(vec((-2f0*Xi*∂V2').*ΔYi)')
-                dv3[j] += sum(vec((-2f0*Xi*∂V3').*ΔYi)')
-            end
-
-        end
+        inds[end] = i
+        Xi = -2f0*reshape(view(X, inds...), :, n_in)
+        ΔYi = reshape(view(ΔY, inds...), :, n_in)
+        broadcast!(+, dv1, dv1, custom_sum(mat_tens_i(prod_res, Xi, ∂V1, ΔYi), (3, 2)))
+        broadcast!(+, dv2, dv2, custom_sum(mat_tens_i(prod_res, Xi, ∂V2, ΔYi), (3, 2)))
+        broadcast!(+, dv3, dv3, custom_sum(mat_tens_i(prod_res, Xi, ∂V3, ΔYi), (3, 2)))
     end
     return dv1, dv2, dv3
 end
 
 # Forward pass
-function forward(X::AbstractArray{Float32, 4}, C::Conv1x1; logdet=nothing)
+function forward(X::AbstractArray{Float32, N}, C::Conv1x1; logdet=nothing) where {N}
     isnothing(logdet) ? logdet = C.logdet : logdet = logdet
-    nx, ny, n_in, batchsize = size(X)
-    Y = cuzeros(X, nx, ny, n_in, batchsize)
+    Y = cuzeros(X, size(X)...)
+    n_in = size(X, N-1)
 
     v1 = C.v1.data
     v2 = C.v2.data
     v3 = C.v3.data
-    k = length(v1)
-    for i=1:batchsize
-        Xi = reshape(X[:,:,:,i], :, n_in)
-        Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
-        Y[:,:,:,i] = reshape(Yi, nx, ny, n_in, 1)
-    end
 
-    logdet == true ? (return Y, 0f0) : (return Y)   # logdet always 0
-end
-
-# Forward pass
-function forward(X::AbstractArray{Float32, 5}, C::Conv1x1; logdet=nothing)
-    isnothing(logdet) ? logdet = C.logdet : logdet = logdet
-    nx, ny, nz, n_in, batchsize = size(X)
-    Y = cuzeros(X, nx, ny, nz, n_in, batchsize)
-    v1 = C.v1.data
-    v2 = C.v2.data
-    v3 = C.v3.data
-    k = length(v1)
-    for i=1:batchsize
-        Xi = reshape(X[:,:,:,:,i], :, n_in)
+    inds = [i<N ? (:) : 1 for i=1:N]
+    for i=1:size(X, N)
+        inds[end] = i
+        Xi = reshape(view(X, inds...), :, n_in)
         Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
-        Y[:,:,:,:,i] = reshape(Yi, nx, ny, nz, n_in, 1)
+        view(Y, inds...) .= reshape(Yi, size(view(Y, inds...))...)
     end
     logdet == true ? (return Y, 0f0) : (return Y)   # logdet always 0
 end
@@ -232,37 +208,23 @@ function forward(X_tuple::Tuple, C::Conv1x1)
 end
 
 # Inverse pass
-function inverse(Y::AbstractArray{Float32, 4}, C::Conv1x1; logdet=nothing)
+function inverse(Y::AbstractArray{Float32, N}, C::Conv1x1; logdet=nothing) where {N}
     isnothing(logdet) ? logdet = C.logdet : logdet = logdet
-    nx, ny, n_in, batchsize = size(Y)
-    X = cuzeros(Y, nx, ny, n_in, batchsize)
+    X = cuzeros(Y, size(Y)...)
+    n_in = size(X, N-1)
+
     v1 = C.v1.data
     v2 = C.v2.data
     v3 = C.v3.data
-    k = length(v1)
-    for i=1:batchsize
-        Yi = reshape(Y[:,:,:,i], :, n_in)
+
+    inds = [i<N ? (:) : 1 for i=1:N]
+    for i=1:size(Y, N)
+        inds[end] = i
+        Yi = reshape(view(Y, inds...), :, n_in)
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
-        X[:,:,:,i] = reshape(Xi, nx, ny, n_in, 1)
+        view(X, inds...) .= reshape(Xi, size(view(X, inds...))...)
     end
    logdet == true ? (return X, 0f0) : (return X)   # logdet always 0
-end
-
-# Inverse pass
-function inverse(Y::AbstractArray{Float32, 5}, C::Conv1x1; logdet=nothing)
-    isnothing(logdet) ? logdet = C.logdet : logdet = logdet
-    nx, ny, nz, n_in, batchsize = size(Y)
-    X = cuzeros(Y, nx, ny, nz, n_in, batchsize)
-    v1 = C.v1.data
-    v2 = C.v2.data
-    v3 = C.v3.data
-    k = length(v1)
-    for i=1:batchsize
-        Yi = reshape(Y[:,:,:,:,i], :, n_in)
-        Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
-        X[:,:,:,:,i] = reshape(Xi, nx, ny, nz, n_in, 1)
-    end
-    logdet == true ? (return X, 0f0) : (return X)   # logdet always 0
 end
 
 # Inverse pass and update weights
