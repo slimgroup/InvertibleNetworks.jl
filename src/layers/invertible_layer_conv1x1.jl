@@ -107,8 +107,11 @@ end
 
 function mat_tens_i(out::AbstractArray{Float32, 3}, Mat::AbstractArray{Float32, 2},
                     Tens::AbstractArray{Float32, 3}, Mat2::AbstractArray{Float32, 2})
+    tmp = cuzeros(out, size(out, 2), size(out, 3))
     for i=1:size(out, 1)
-        @views broadcast!(*, out[i, :, :], Mat*Tens[i, :, :], Mat2)
+        mul!(tmp, Mat, Tens[i, :, :])
+        broadcast!(*, tmp, tmp, Mat2)
+        @views copyto!(out[i, :, :], tmp)
     end
     return out
 end
