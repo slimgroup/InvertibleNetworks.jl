@@ -109,7 +109,7 @@ function mat_tens_i(out::AbstractArray{Float32, 3}, Mat::AbstractArray{Float32, 
                     Tens::AbstractArray{Float32, 3}, Mat2::AbstractArray{Float32, 2})
     for i=1:size(out, 1)
         mul!(view(out, i, :, :), Mat, Tens[i, :, :])
-        broadcast!(*, out[i, :, :], out[i, :, :], Mat2)
+        @views broadcast!(*, out[i, :, :], out[i, :, :], Mat2)
     end
     return out
 end
@@ -150,14 +150,14 @@ function conv1x1_grad_v(X::AbstractArray{Float32, N}, ΔY::AbstractArray{Float32
     tmp = cuzeros(X, k, k)
     for i=1:k
         # ∂V1
-        mul!(tmp, view(∂V1, i, :, :), M1)
+        mul!(tmp, ∂V1[i, :, :], M1)
         @views adjoint ? adjoint!(∂V1[i, :, :], tmp) : copyto!(∂V1[i, :, :], tmp)
         # ∂V2
-        v2 = view(∂V2, i, :, :)
+        v2 = ∂V2[i, :, :]
         broadcast!(+, tmp, v2, 4f0 * V1 * v2 * V3 - 2f0 * (V1 * v2 + v2 * V3))
         @views adjoint ? adjoint!(∂V2[i, :, :], tmp) : copyto!(∂V2[i, :, :], tmp)
         # ∂V3
-        mul!(tmp, M3, view(∂V3, i, :, :))
+        mul!(tmp, M3, ∂V3[i, :, :])
         @views adjoint ? adjoint!(∂V3[i, :, :], tmp) : copyto!(∂V3[i, :, :], tmp)
     end
 
