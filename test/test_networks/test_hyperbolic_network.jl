@@ -1,8 +1,5 @@
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
-# Random seed
-Random.seed!(100)
-
 # Data
 nx = 16
 ny = 16
@@ -91,5 +88,5 @@ for j=1:maxiter
     global h = h/2f0
 end
 
-@test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
-@test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=2f1)
+@test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=2f1)
