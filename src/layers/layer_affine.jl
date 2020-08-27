@@ -46,7 +46,7 @@ end
 
 # Constructor: Initialize with nothing
 function AffineLayer(nx::Int64, ny::Int64, nc::Int64; logdet=false)
-    s = Parameter(ones(Float32, nx, ny, nc))
+    s = Parameter(glorot_uniform(nx, ny, nc))
     b = Parameter(zeros(Float32, nx, ny, nc))
     return AffineLayer(s, b, logdet)
 end
@@ -62,7 +62,7 @@ end
 
 # Inverse pass: Input Y, Output X
 function inverse(Y, AL::AffineLayer)
-    X = (Y .- AL.b.data) ./ (AL.s.data)   # avoid division by 0
+    X = (Y .- AL.b.data) ./ (AL.s.data .+ eps(1.0))   # avoid division by 0
     return X
 end
 
