@@ -6,6 +6,7 @@ export ReLU, ReLUgrad
 export LeakyReLU, LeakyReLUinv, LeakyReLUgrad
 export Sigmoid, SigmoidInv, SigmoidGrad
 export GaLU, GaLUgrad
+export ExpClamp, ExpClampInv, ExpClampGrad
 
 ###############################################################################
 # Rectified linear unit (ReLU) (not invertible)
@@ -208,5 +209,52 @@ function GaLUgrad(Δy::AbstractArray{Float32, 5}, x::AbstractArray{Float32, 5})
     Δx = 0f0.*x
     Δx[:, :, :, 1:k, :] = Sigmoid(x2) .* Δy
     Δx[:, :, :, k+1:end, :] = SigmoidGrad(Δy, nothing; x=x2) .* x1
+    return Δx
+end
+
+
+###############################################################################
+# Soft-clamped exponential function
+# Obatined from https://github.com/VLL-HD/HINT/blob/master/hint.py#L50
+
+"""
+    y = ExpClamp(x)
+ Soft-clamped exponential function.
+ See also: [`ExpClampGrad`](@ref)
+"""
+function ExpClamp(x; clamp=1.272f0)
+    return exp.(clamp * atan.(x))
+end
+
+"""
+    x = ExpClampInv(y)
+ Inverse of ExpClamp function.
+ See also: [`ExpClamp`](@ref), [`ExpClampGrad`](@ref)
+"""
+function ExpClampInv(y; clamp=1.272f0)
+    if sum(isapprox.(y, 0f-6)) == 0
+        x = tan.(log.(y) / clamp)
+    else
+        throw("Input contains zeros.")
+    end
+    return x
+end
+
+"""
+    Δx = ExpClampGrad(Δy, x; y=nothing)
+ Backpropagate data residual through soft-clamped exponential function.
+ *Input*:
+ - `Δy`: residual
+ - `x`: original input
+ *Output*:
+ - `Δx`: backpropagated residual
+ See also: [`ExpClamp`](@ref)
+"""
+
+function ExpClampGrad(Δy, y; x=nothing, clamp=1.272f0)
+    if ~isnothing(y) && isnothing(x)
+        x = ExpClampInv(y)  # recompute forward state
+    end
+    Δx = clamp * Δy .* y ./ (1f0 .+ x.^2f0)
     return Δx
 end
