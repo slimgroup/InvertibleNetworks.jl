@@ -17,6 +17,8 @@ function Base.getproperty(obj::Union{InvertibleNetwork,NeuralNetLayer}, sym::Sym
         return (args...; kwargs...) -> inverse_Y(args..., obj; kwargs...)
     elseif sym == :forward_Y
         return (args...; kwargs...) -> forward_Y(args..., obj; kwargs...)
+    elseif sym == :jacobian_forward
+        return (args...; kwargs...) -> jacobian_forward(args..., obj; kwargs...)
     else
          # fallback to getfield
         return getfield(obj, sym)
