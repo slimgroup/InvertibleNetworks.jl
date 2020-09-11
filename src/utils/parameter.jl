@@ -3,6 +3,7 @@
 # Date: January 2020
 
 export Parameter
+import LinearAlgebra.dot
 
 mutable struct Parameter
     data
@@ -18,13 +19,17 @@ end
  - `Parameter.data`: weights
 
  - `Parameter.grad`: gradient
-    
+
 """
 Parameter(x) = Parameter(x, nothing)
 
 size(x::Parameter) = size(x.data)
 
 @Flux.functor Parameter
+
+function dot(p1::Parameter, p2::Parameter)
+    return dot(p1.data, p2.data)
+end
 
 """
     clear_grad!(NL::NeuralNetLayer)
@@ -33,7 +38,7 @@ or
 
     clear_grad!(P::AbstractArray{Parameter, 1})
 
- Set gradients of each `Parameter` in the network layer to `nothing`. 
+ Set gradients of each `Parameter` in the network layer to `nothing`.
 """
 function clear_grad!(P::AbstractArray{Parameter, 1})
     for j=1:length(P)

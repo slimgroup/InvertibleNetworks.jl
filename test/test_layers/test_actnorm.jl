@@ -243,3 +243,28 @@ end
 
 @test isapprox(err7[end] / (err7[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err8[end] / (err8[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+
+###############################################################################
+# Jacobian adjoint test
+
+flag_logdet=false
+AN = ActNorm(nc; logdet=flag_logdet)
+AN0 = ActNorm(nc; logdet=flag_logdet)
+X = randn(Float32, nx, ny, nc, batchsize); Y = AN.forward(X)
+X0 = randn(Float32, nx, ny, nc, batchsize); AN0.forward(X0)
+Δθ = [Parameter(AN.s.data-AN0.s.data, nothing), Parameter(AN.b.data-AN0.b.data, nothing)]
+ΔX = randn(Float32, nx, ny, nc, batchsize)
+
+# Jacobian forward pass J(X, θ)*(ΔX, Δθ)
+ΔY = AN.jacobian_forward(ΔX, Δθ, X)
+
+# Jacobian adjoint pass adjoint(J(X, θ)))*ΔY_
+ΔY_ = randn(Float32, size(ΔY)); ΔY_ = norm(ΔY)/norm(ΔY_)*ΔY_
+ΔX_, _ = AN.backward(ΔY_, Y)
+Δθ_ = [Parameter(AN.s.grad, nothing), Parameter(AN.b.grad, nothing)]
+
+# Adjoint test
+a = dot(ΔY, ΔY_)
+b = dot(ΔX, ΔX_)+dot(Δθ, Δθ_)
+@test isapprox(a, b; rtol=1f-3)

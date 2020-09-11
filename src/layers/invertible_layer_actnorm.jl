@@ -184,6 +184,15 @@ function backward_inv(ΔX::AbstractArray{Float32, 5}, X::AbstractArray{Float32, 
     return ΔY, Y
 end
 
+# 2D Jacobian forward pass
+# f(X; θ) = Y, df_{X; θ}(ΔX, Δθ) = ΔY
+function jacobian_forward(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm)
+    Δs = Δθ[1].data
+    Δb = Δθ[2].data
+    ΔY = ΔX .* reshape(AN.s.data, 1, 1, :, 1) .+ X .* reshape(Δs, 1, 1, :, 1) .+ reshape(Δb, 1, 1, :, 1)
+    return ΔY
+end
+
 # Clear gradients
 function clear_grad!(AN::ActNorm)
     AN.s.grad = nothing
