@@ -1,7 +1,7 @@
 # Template for implementing an invertible neural network layer and its logdet.
 # We will take an affine layer as an example to explain all necessary steps.
 # The affine layer is defined as:
-# 
+#
 # Y = f(X) = S .* X .+ B
 #
 # Here, X is the 4D input tensor of dimensions (nx, ny, num_channel, batchsize).
@@ -14,10 +14,10 @@
 # You need to expoert whichever functions you want to be able to access
 export AffineLayer
 
-# This immutable structure defines our network layer. The structure contains the 
+# This immutable structure defines our network layer. The structure contains the
 # parameters of our layer (in this case S and B) or any other building blocks that
-# you want to use in your layer (for example 1x1 convolutions). However, in this 
-# case we only have parameters S and B. 
+# you want to use in your layer (for example 1x1 convolutions). However, in this
+# case we only have parameters S and B.
 struct AffineLayer <: NeuralNetLayer
     S::Parameter    # trainable parameters are defined as Parameters.
     B::Parameter    # both S and B have two fields: S.data and S.grad
@@ -33,7 +33,7 @@ function AffineLayer(nx, ny, nc; logdet=false)
     # Create S and B
     S = Parameter(glorot_uniform(nx, ny, nc))   # initiliaze S with random values and make it a parameter
     B = Parameter(zeros(Float32, nx, ny, nc))   # initilize B with zeros and make it a parameter
-    
+
     # Build an affine layer
     return AffineLayer(S, B, logdet)
 end
@@ -44,7 +44,7 @@ end
 function forward(X, AL::AffineLayer)
 
     Y = X .* AL.S.data .+ AL.B.data   # S and B are Parameters, so access their values via the .data field
-    
+
     # If logdet is true, also compute the logdet and return it as a second output argument.
     # Otherwise only return Y.
     if AL.logdet == true
@@ -59,14 +59,14 @@ end
 # X = (Y .- B) ./ S
 # To avoid division by zero, we add numerical noise to S in the division.
 function inverse(Y, AL::AffineLayer)
-    X = (Y .- AL.B.data) ./ (AL.S.data + randn(Float32, size(AL.S.data)) .* eps(1f0))   # avoid division by 0
+    X = (Y .- AL.B.data) ./ (AL.S.data .+ eps(1f0))   # avoid division by 0
     return X
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔY, Y)
 # Assuming that the layer is invertible, the backward function takes
 # 2 input arguments: the data residual ΔY and the original output Y.
-# The first step is to recompute the original input X by calling the 
+# The first step is to recompute the original input X by calling the
 # inverse function on Y. If the layer is not invertible, this layer
 # needs X as an input instead of Y.
 # Second of all, we compute the partial derivatives of our layer
@@ -76,7 +76,7 @@ end
 # ΔB = 1 .* ΔY (corresponds to df/dB * dY)
 function backward(ΔY, Y, AL::AffineLayer)
     nx, ny, n_in, batchsize = size(Y)
-    
+
     # Recompute X from Y
     X = inverse(Y, AL)
 
@@ -87,7 +87,7 @@ function backward(ΔY, Y, AL::AffineLayer)
     ΔS = sum(ΔY .* X, dims=4)[:,:,:,1]
 
     # If the logdet is computed, in the forward pass, also compute the gradient of the
-    # logdet term and subtract from S (assuming that the logdet term is subtracted in the 
+    # logdet term and subtract from S (assuming that the logdet term is subtracted in the
     # objective function)
     AL.logdet == true && (ΔS -= logdet_backward(S))
 
@@ -117,7 +117,7 @@ get_params(AL::AffineLayer) = [AL.S, AL.B]
 # For our affine layer consisting of an element-wise multiplication of S
 # and X, the Jacobian is given by S, and the logdet is the sum of the logarithm
 # of the (absolute) values.
-logdet_forward(S) = sum(log.(abs.(S.data))) 
+logdet_forward(S) = sum(log.(abs.(S.data)))
 
 # The gradient of the forward logdet function is given by 1/S
 logdet_backward(S) = 1f0 ./ S.data

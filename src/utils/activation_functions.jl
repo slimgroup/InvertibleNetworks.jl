@@ -18,9 +18,7 @@ export GaLU, GaLUgrad
  See also: [`ReLUgrad`](@ref)
 """
 function ReLU(x)
-    y = 0f0.*x
-    y[x.>=0f0] = x[x.>=0f0]
-    return y
+    return max.(0f0, x)
 end
 
 """
@@ -41,9 +39,7 @@ end
  See also: [`ReLU`](@ref)
 """
 function ReLUgrad(Δy, x)
-    Δx = 0f0.*x
-    Δx[x.>=0f0] = Δy[x.>=0f0]
-    return Δx
+    return Δy.*(sign.(x) .+ 1)/2
 end
 
 ###############################################################################
@@ -57,10 +53,7 @@ end
  See also: [`LeakyReLUinv`](@ref), [`LeakyReLUgrad`](@ref)
 """
 function LeakyReLU(x; slope=0.01f0)
-    y = 0f0.*x
-    y[x.>=0f0] = x[x.>=0f0]
-    y[x.<0f0] = slope*x[x.<0f0]
-    return y
+    return max.(0f0, x) + slope*min.(0f0, x)
 end
 
 """
@@ -71,10 +64,7 @@ end
  See also: [`LeakyReLU`](@ref), [`LeakyReLUgrad`](@ref)
 """
 function LeakyReLUinv(y; slope=0.01f0)
-    x = 0f0.*y
-    x[y.>=0f0] = y[y.>=0f0]
-    x[y.<0f0] = 1f0./slope*y[y.<0f0]
-    return x
+    return max.(0f0, y) + (1f0/slope)*min.(0f0, y)
 end
 
 """
@@ -82,26 +72,24 @@ end
 
  Backpropagate data residual through leaky ReLU function.
 
- *Input*: 
- 
- - `Δy`: residual 
- 
+ *Input*:
+
+ - `Δy`: residual
+
  - `y`: original output
 
  - `slope`: slope of non-active part of ReLU
 
  *Output*:
- 
+
  - `Δx`: backpropagated residual
 
  See also: [`LeakyReLU`](@ref), [`LeakyReLUinv`](@ref)
 """
 function LeakyReLUgrad(Δy, y; slope=0.01f0)
     x = LeakyReLUinv(y; slope=slope)  # recompute forward state
-    Δx = 0f0.*y
-    Δx[x.>=0f0] = Δy[x.>=0f0]
-    Δx[x.<0f0] = slope*Δy[x.<0f0]
-    return Δx
+    p_mask = (sign.(x) .+ 1f0)/2f0
+    return Δy.*p_mask + slope*Δy.*(1f0 .- p_mask)
 end
 
 
@@ -141,16 +129,16 @@ end
 
  Backpropagate data residual through Sigmoid function.
 
- *Input*: 
- 
- - `Δy`: residual 
- 
+ *Input*:
+
+ - `Δy`: residual
+
  - `y`: original output
 
  - `x`: original input, if y not available (in this case, set y=nothing)
 
  *Output*:
- 
+
  - `Δx`: backpropagated residual
 
  See also: [`Sigmoid`](@ref), [`SigmoidInv`](@ref)
@@ -191,14 +179,14 @@ end
 
  Backpropagate data residual through GaLU activation.
 
- *Input*: 
- 
- - `Δy`: residual 
- 
+ *Input*:
+
+ - `Δy`: residual
+
  - `x`: original input (since not invertible)
 
  *Output*:
- 
+
  - `Δx`: backpropagated residual
 
  See also: [`GaLU`](@ref)
