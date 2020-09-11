@@ -11,10 +11,10 @@ export AffineCouplingLayerSLIM
 
  Create an invertible affine SLIM coupling layer.
 
- *Input*: 
+ *Input*:
 
  - `nx, ny`: spatial dimensions of input
- 
+
  - `n_in`, `n_hidden`: number of input and hidden channels
 
  - `Ψ`: link function
@@ -23,7 +23,7 @@ export AffineCouplingLayerSLIM
 
  - `permute`: bool to indicate whether to apply a channel permutation (default is `false`)
 
- - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
+ - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third
     operator, `k2` is the kernel size of the second operator
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
@@ -31,7 +31,7 @@ export AffineCouplingLayerSLIM
  - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
  *Output*:
- 
+
  - `CS`: Invertible SLIM coupling layer
 
  *Usage:*
@@ -63,7 +63,7 @@ end
 @Flux.functor AffineCouplingLayerSLIM
 
 # Constructor from input dimensions
-function AffineCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64, Ψ::Function; 
+function AffineCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64, Ψ::Function;
     k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet::Bool=false, permute::Bool=false)
 
     # 1x1 Convolution and residual block for invertible layer
@@ -79,7 +79,7 @@ function forward(X::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(X)
-    
+
     # Permute and split
     isnothing(CS.C) ? (X_ = copy(X)) : (X_ = CS.C.forward(X))
     X1_, X2_ = tensor_split(X_)
@@ -121,7 +121,7 @@ function inverse(Y::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM
     logS_T = CS.RB.forward(gs)
     logS, T = tensor_split(logS_T)
     S = Sigmoid(logS)
-    X2_ = (Y2_ - T) ./ (S + randn(Float32, size(S))*eps(1f0)) # add epsilon to avoid 
+    X2_ = (Y2_ - T) ./ (S .+ eps(1f0)) # add epsilon to avoid
     X_ = tensor_cat(X1_, X2_)
 
     isnothing(CS.C) ? (X = copy(X_)) : (X = CS.C.inverse(X_))
