@@ -185,12 +185,42 @@ function backward_inv(ΔX::AbstractArray{Float32, 5}, X::AbstractArray{Float32, 
 end
 
 # 2D Jacobian forward pass
-# f(X; θ) = Y, df_{X; θ}(ΔX, Δθ) = ΔY
-function jacobian_forward(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm)
+# Notation: Y = f(X; θ), ΔY = df_{X; θ}(ΔX, Δθ)
+function jacobian_forward(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
+    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     Δs = Δθ[1].data
     Δb = Δθ[2].data
+
+    # Evaluating forward evaluation
+    logdet ? (Y, lgdet) = forward(X, AN; logdet=logdet) : Y = forward(X, AN; logdet=logdet)
+
+    # Evaluating Jacobian evaluation
     ΔY = ΔX .* reshape(AN.s.data, 1, 1, :, 1) .+ X .* reshape(Δs, 1, 1, :, 1) .+ reshape(Δb, 1, 1, :, 1)
-    return ΔY
+
+    # Hessian evaluation of logdet terms
+    nx, ny, _, _ = size(X)
+    HlogΔθ = [Parameter(logdet_hessian(nx, ny, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
+
+    logdet ? (return ΔY, Y, lgdet, HlogΔθ) : (return ΔY, Y, HlogΔθ)
+end
+
+# 3D Jacobian forward pass
+function jacobian_forward(ΔX::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
+    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
+    Δs = Δθ[1].data
+    Δb = Δθ[2].data
+
+    # Evaluating forward evaluation
+    logdet ? (Y, lgdet) = forward(X, AN; logdet=logdet) : Y = forward(X, AN; logdet=logdet)
+
+    # Evaluating Jacobian evaluation
+    ΔY = ΔX .* reshape(AN.s.data, 1, 1, 1, :, 1) .+ X .* reshape(Δs, 1, 1, 1, :, 1) .+ reshape(Δb, 1, 1, 1, :, 1)
+
+    # Hessian evaluation of logdet terms
+    nx, ny, nz, _, _ = size(X)
+    HlogΔθ = [Parameter(logdet_hessian(nx, ny, nz, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
+
+    logdet ? (return ΔY, Y, lgdet, HlogΔθ) : (return ΔY, Y, HlogΔθ)
 end
 
 # Clear gradients
@@ -215,6 +245,17 @@ end
 # Get parameters
 get_params(AN::ActNorm) = [AN.s, AN.b]
 
+function get_grads(AN::ActNorm)
+    return [Parameter(AN.s.grad), Parameter(AN.b.grad)]
+end
+
+# Set parameters
+function set_params!(AN::ActNorm, θ::Array{Parameter, 1})
+    AN.s = θ[1]
+    AN.b = θ[2]
+end
+
+# Reverse
 function tag_as_reversed!(AN::ActNorm, tag::Bool)
     AN.is_reversed = tag
     return AN
@@ -223,7 +264,9 @@ end
 # 2D Logdet
 logdet_forward(nx, ny, s) = nx*ny*sum(log.(abs.(s.data)))
 logdet_backward(nx, ny, s) = nx*ny ./ s.data
+logdet_hessian(nx, ny, s) = -nx*ny ./ s.data.^2f0
 
 # 3D Logdet
 logdet_forward(nx, ny, nz, s) = nx*ny*nz*sum(log.(abs.(s.data)))
 logdet_backward(nx, ny, nz, s) = nx*ny*nz ./ s.data
+logdet_hessian(nx, ny, nz, s) = -nx*ny*nz ./ s.data.^2f0

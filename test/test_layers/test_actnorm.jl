@@ -124,7 +124,7 @@ function loss(AN, X, Y)
     # Check invertibility
     isapprox(norm(X - X_)/norm(X), 0f0, atol=1f-6)
 
-    return f, ΔX, AN.s.grad, AN.b.grad
+    return f, ΔX, get_grads(AN)
 end
 
 # Gradient test for X
@@ -149,20 +149,19 @@ end
 # Gradient test for parameters
 AN0 = ActNorm(nc; logdet=true); AN0.forward(randn(Float32, nx, ny, nc, batchsize))
 AN_ini = deepcopy(AN0)
-ds = AN.s.data - AN0.s.data
-db = AN.b.data - AN0.b.data
+θ = get_params(AN_ini)
+dθ = get_params(AN)-get_params(AN0)
 maxiter = 6
 print("\nGradient test actnorm\n")
-f0, ΔX, Δs, Δb = loss(AN0, X, Y)
+f0, ΔX, Δθ = loss(AN0, X, Y)
 h = 1f0
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 for j=1:maxiter
-    AN0.s.data = AN_ini.s.data + h*ds
-    AN0.b.data = AN_ini.b.data + h*db
+    set_params!(AN0, θ+h*dθ)
     f = loss(AN0, X, Y)[1]
     err3[j] = abs(f - f0)
-    err4[j] = abs(f - f0 - h*dot(ds, Δs) - h*dot(db, Δb))
+    err4[j] = abs(f - f0 - h*dot(dθ, Δθ))
     print(err3[j], "; ", err4[j], "\n")
     global h = h/2f0
 end
@@ -182,28 +181,9 @@ dX = X - X0
 # Forward pass
 Y = AN.forward(X)[1]
 
-function loss(AN, X, Y)
-
-    # Forward pass
-    Y_, lgdet = AN.forward(X)
-
-    # Residual and function value
-    ΔY = Y_ - Y
-    f = .5f0/batchsize*norm(ΔY)^2
-    AN.logdet == true && (f -= lgdet)
-
-    # Back propagation
-    ΔX, X_ = AN.backward(ΔY./batchsize, Y)
-
-    # Check invertibility
-    isapprox(norm(X - X_)/norm(X), 0f0, atol=1f-6)
-
-    return f, ΔX, AN.s.grad, AN.b.grad
-end
-
 # Gradient test for X
 maxiter = 6
-print("\nGradient test actnorm reveres\n")
+print("\nGradient test actnorm reverse\n")
 f0, ΔX = loss(AN, X0, Y)[1:2]
 h = .1f0
 err5 = zeros(Float32, maxiter)
@@ -223,20 +203,19 @@ end
 # Gradient test for parameters
 AN0 = reverse(ActNorm(nc; logdet=true)); AN0.forward(randn(Float32, nx, ny, nc, batchsize))
 AN_ini = deepcopy(AN0)
-ds = AN.s.data - AN0.s.data
-db = AN.b.data - AN0.b.data
+θ = get_params(AN_ini)
+dθ = get_params(AN)-get_params(AN0)
 maxiter = 6
 print("\nGradient test actnorm reverse\n")
-f0, ΔX, Δs, Δb = loss(AN0, X, Y)
+f0, ΔX, Δθ = loss(AN0, X, Y)
 h = 1f0
 err7 = zeros(Float32, maxiter)
 err8 = zeros(Float32, maxiter)
 for j=1:maxiter
-    AN0.s.data = AN_ini.s.data + h*ds
-    AN0.b.data = AN_ini.b.data + h*db
+    set_params!(AN0, θ + h*dθ)
     f = loss(AN0, X, Y)[1]
     err7[j] = abs(f - f0)
-    err8[j] = abs(f - f0 - h*dot(ds, Δs) - h*dot(db, Δb))
+    err8[j] = abs(f - f0 - h*dot(dθ, Δθ))
     print(err7[j], "; ", err8[j], "\n")
     global h = h/2f0
 end
@@ -248,23 +227,87 @@ end
 ###############################################################################
 # Jacobian adjoint test
 
-flag_logdet=false
-AN = ActNorm(nc; logdet=flag_logdet)
-AN0 = ActNorm(nc; logdet=flag_logdet)
+AN = ActNorm(nc; logdet=false)
+AN0 = ActNorm(nc; logdet=false)
 X = randn(Float32, nx, ny, nc, batchsize); Y = AN.forward(X)
 X0 = randn(Float32, nx, ny, nc, batchsize); AN0.forward(X0)
-Δθ = [Parameter(AN.s.data-AN0.s.data, nothing), Parameter(AN.b.data-AN0.b.data, nothing)]
+Δθ = get_params(AN)-get_params(AN0)
 ΔX = randn(Float32, nx, ny, nc, batchsize)
 
 # Jacobian forward pass J(X, θ)*(ΔX, Δθ)
-ΔY = AN.jacobian_forward(ΔX, Δθ, X)
+ΔY = AN.jacobian_forward(ΔX, Δθ, X)[1]
 
 # Jacobian adjoint pass adjoint(J(X, θ)))*ΔY_
 ΔY_ = randn(Float32, size(ΔY)); ΔY_ = norm(ΔY)/norm(ΔY_)*ΔY_
 ΔX_, _ = AN.backward(ΔY_, Y)
-Δθ_ = [Parameter(AN.s.grad, nothing), Parameter(AN.b.grad, nothing)]
+Δθ_ = get_grads(AN)
 
 # Adjoint test
 a = dot(ΔY, ΔY_)
 b = dot(ΔX, ΔX_)+dot(Δθ, Δθ_)
-@test isapprox(a, b; rtol=1f-3)
+@test isapprox(a, b; rtol=1f-4)
+
+
+###############################################################################
+# logdet Hessian test
+
+# Loss function
+function loss(X::Array{Float32, 4}, Y::Array{Float32, 4}, θ::Array{Parameter, 1}, Δθ::Array{Parameter, 1})
+
+    # Jacobian evaluation
+    AN = ActNorm(nc; logdet=true); set_params!(AN, θ)
+    JΔθ, FX, logdet, Hlogdet = AN.jacobian_forward(zeros(Float32, size(X)), Δθ, X)
+
+    # Loss function
+    ΔY = FX-Y
+    l = 0.5f0*norm(ΔY)^2f0/batchsize-logdet
+
+    # Gradient
+    AN.backward(ΔY/batchsize, FX); g = deepcopy(get_grads(AN))
+
+    # Hessians
+    AN = ActNorm(nc; logdet=false); set_params!(AN, θ)
+    AN.backward(JΔθ/batchsize, FX); JJΔθ = deepcopy(get_grads(AN))
+    HΔθ = JJΔθ-Hlogdet
+
+    return l, g, HΔθ
+
+end
+
+# Gradient/Hessian test for parameters
+AN = ActNorm(nc; logdet=true)
+X = randn(Float32, nx, ny, nc, batchsize); Y, _ = AN.forward(X)
+θ = deepcopy(get_params(AN))
+
+AN_ = ActNorm(nc; logdet=true)
+X_ = randn(Float32, nx, ny, nc, batchsize); Y, _ = AN_.forward(X_)
+AN0_ = ActNorm(nc; logdet=true);
+X0_ = randn(Float32, nx, ny, nc, batchsize); Y0_, _ = AN0_.forward(X0_)
+Δθ = deepcopy(get_params(AN_)-get_params(AN0_))
+
+AN_ = ActNorm(nc; logdet=true)
+X_ = randn(Float32, nx, ny, nc, batchsize); Y, _ = AN_.forward(X_)
+AN0_ = ActNorm(nc; logdet=true)
+X0_ = randn(Float32, nx, ny, nc, batchsize); Y0_, _ = AN0_.forward(X0_)
+Δθ_ = deepcopy(get_params(AN_)-get_params(AN0_))
+
+maxiter = 6
+print("\nGradient/Hessian test actnorm\n")
+f0, g0, H0Δθ = loss(X, Y, θ, Δθ)
+h = 1f0
+err9 = zeros(Float32, maxiter)
+err10 = zeros(Float32, maxiter)
+err11 = zeros(Float32, maxiter)
+for j=1:maxiter
+    f, g, _ = loss(X, Y, θ+h*Δθ, Δθ)
+    err9[j] = abs(f - f0)
+    err10[j] = abs(f - f0 - h*dot(g0, Δθ))
+    err11[j] = norm(g - g0 - h*H0Δθ)
+    # err11[j] = abs(f - f0 - h*dot(g0, Δθ) - h^2f0/2f0*dot(H0Δθ, Δθ))
+    print(err9[j], "; ", err10[j], "; ", err11[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err9[end] / (err9[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err10[end] / (err10[1]/4^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err11[end] / (err11[1]/4^(maxiter-1)), 1f0; atol=1f1)

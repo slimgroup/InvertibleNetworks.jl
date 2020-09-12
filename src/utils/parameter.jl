@@ -3,7 +3,7 @@
 # Date: January 2020
 
 export Parameter
-import LinearAlgebra.dot
+import LinearAlgebra.dot, LinearAlgebra.norm, Base.+, Base.*, Base.-
 
 mutable struct Parameter
     data
@@ -27,10 +27,6 @@ size(x::Parameter) = size(x.data)
 
 @Flux.functor Parameter
 
-function dot(p1::Parameter, p2::Parameter)
-    return dot(p1.data, p2.data)
-end
-
 """
     clear_grad!(NL::NeuralNetLayer)
 
@@ -44,4 +40,30 @@ function clear_grad!(P::AbstractArray{Parameter, 1})
     for j=1:length(P)
         P[j].grad = nothing
     end
+end
+
+
+# Algebraic utilities for parameters
+function dot(p1::Parameter, p2::Parameter)
+    return dot(p1.data, p2.data)
+end
+
+function norm(p::Parameter)
+    return norm(p.data)
+end
+
+function +(p1::Parameter, p2::Parameter)
+    return Parameter(p1.data+p2.data)
+end
+
+function -(p1::Parameter, p2::Parameter)
+    return Parameter(p1.data-p2.data)
+end
+
+function *(p1::Parameter, p2::Float32)
+    return Parameter(p1.data*p2)
+end
+
+function *(p1::Float32, p2::Parameter)
+    return Parameter(p1*p2.data)
 end
