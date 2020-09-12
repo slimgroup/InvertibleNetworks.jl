@@ -121,3 +121,21 @@ end
 function get_params(RN::ReverseNetwork)
     return get_params(RN.network)
 end
+
+function get_grads(RL::ReverseLayer)
+    return get_grads(RL.layer)
+end
+
+function get_grads(RN::ReverseNetwork)
+    return get_grads(RN.network)
+end
+
+# Set params for reversed layers/networks
+
+function set_params!(RL::ReverseLayer, θ::Array{Parameter, 1})
+    return set_params!(RL.layer, θ)
+end
+
+function set_params!(RN::ReverseNetwork, θ::Array{Parameter, 1})
+    return set_params!(RN.network, θ)
+end
