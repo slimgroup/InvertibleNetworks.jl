@@ -20,13 +20,13 @@ or
  convolution is the corresponding transpose operation and upsamples the data to either its original dimensions
  or to twice the number of input channels (for `fan=true`). The first and second layer contain a bias term.
 
- *Input*: 
+ *Input*:
 
  - `nx`, `ny`, `nz`: spatial dimensions of input
- 
+
  - `n_in`, `n_hidden`: number of input and hidden channels
 
- - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
+ - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third
     operator, `k2` is the kernel size of the second operator.
 
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
@@ -47,7 +47,7 @@ or
  - `nx`, `ny`: spatial dimensions of input image
 
  *Output*:
- 
+
  - `RB`: residual block layer
 
  *Usage:*
@@ -92,11 +92,11 @@ function ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1
     b2 = Parameter(zeros(Float32, n_hidden))
 
     # Dimensions for convolutions
-    cdims1 = DenseConvDims((nx, ny, n_in, batchsize), (k1, k1, n_in, n_hidden); 
+    cdims1 = DenseConvDims((nx, ny, n_in, batchsize), (k1, k1, n_in, n_hidden);
         stride=(s1, s1), padding=(p1, p1))
-    cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), n_hidden, batchsize), 
+    cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), n_hidden, batchsize),
         (k2, k2, n_hidden, n_hidden); stride=(s2, s2), padding=(p2, p2))
-    cdims3 = DenseConvDims((nx, ny, 2*n_in, batchsize), (k1, k1, 2*n_in, n_hidden); 
+    cdims3 = DenseConvDims((nx, ny, 2*n_in, batchsize), (k1, k1, 2*n_in, n_hidden);
         stride=(s1, s1), padding=(p1 ,p1))
 
     return ResidualBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
@@ -115,11 +115,11 @@ function ResidualBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; p1=1, p2=1, s1=1, 
     # Dimensions for convolutions
     k1, n_in, n_hidden = size(W1)[2:4]
     k2 = size(W2)[1]
-    cdims1 = DenseConvDims((nx, ny, n_in, batchsize), (k1, k1, n_in, n_hidden); 
+    cdims1 = DenseConvDims((nx, ny, n_in, batchsize), (k1, k1, n_in, n_hidden);
         stride=(s1, s1), padding=(p1, p1))
-    cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), n_hidden, batchsize), 
+    cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), n_hidden, batchsize),
         (k2, k2, n_hidden, n_hidden); stride=(s2, s2), padding=(p2, p2))
-    cdims3 = DenseConvDims((nx, ny, 2*n_in, batchsize), (k1, k1, 2*n_in, n_hidden); 
+    cdims3 = DenseConvDims((nx, ny, 2*n_in, batchsize), (k1, k1, 2*n_in, n_hidden);
         stride=(s1, s1), padding=(p1, p1))
 
     return ResidualBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
@@ -139,11 +139,11 @@ function ResidualBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, 
     b2 = Parameter(zeros(Float32, n_hidden))
 
     # Dimensions for convolutions
-    cdims1 = DenseConvDims((nx, ny, nz, n_in, batchsize), (k1, k1, k1, n_in, n_hidden); 
+    cdims1 = DenseConvDims((nx, ny, nz, n_in, batchsize), (k1, k1, k1, n_in, n_hidden);
         stride=(s1, s1, s1), padding=(p1, p1, p1))
-    cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), Int(nz/s1), n_hidden, batchsize), 
+    cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), Int(nz/s1), n_hidden, batchsize),
         (k2, k2, k2, n_hidden, n_hidden); stride=(s2, s2, s2), padding=(p2, p2, p2))
-    cdims3 = DenseConvDims((nx, ny, nz, 2*n_in, batchsize), (k1, k1, k1, 2*n_in, n_hidden); 
+    cdims3 = DenseConvDims((nx, ny, nz, 2*n_in, batchsize), (k1, k1, k1, 2*n_in, n_hidden);
         stride=(s1, s1, s1), padding=(p1, p1, p1))
 
     return ResidualBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
@@ -163,11 +163,11 @@ function ResidualBlock(W1, W2, W3, b1, b2, nx::Int64, ny::Int64, nz::Int64, batc
     # Dimensions for convolutions
     k1, n_in, n_hidden = size(W1)[3:5]
     k2 = size(W2)[1]
-    cdims1 = DenseConvDims((nx, ny, nz, n_in, batchsize), (k1, k1, n_in, n_hidden); 
+    cdims1 = DenseConvDims((nx, ny, nz, n_in, batchsize), (k1, k1, k1, n_in, n_hidden);
         stride=(s1, s1, s1), padding=(p1, p1, p1))
-    cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), Int(nz/s1), n_hidden, batchsize), 
+    cdims2 = DenseConvDims((Int(nx/s1), Int(ny/s1), Int(nz/s1), n_hidden, batchsize),
         (k2, k2, k2, n_hidden, n_hidden); stride=(s2, s2, s2), padding=(p2, p2, p2))
-    cdims3 = DenseConvDims((nx, ny, nz, 2*n_in, batchsize), (k1, k1, k1, 2*n_in, n_hidden); 
+    cdims3 = DenseConvDims((nx, ny, nz, 2*n_in, batchsize), (k1, k1, k1, 2*n_in, n_hidden);
         stride=(s1, s1, s1), padding=(p1, p1, p1))
 
     return ResidualBlock(W1, W2, W3, b1, b2, fan, cdims1, cdims2, cdims3)
@@ -184,7 +184,7 @@ function forward(X1::AbstractArray{Float32, 4}, RB::ResidualBlock; save=false)
 
     Y2 = X2 + conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, :, 1)
     X3 = ReLU(Y2)
-    
+
     Y3 = ∇conv_data(X3, RB.W3.data, RB.cdims3)
     RB.fan == true ? (X4 = ReLU(Y3)) : (X4 = GaLU(Y3))
 
@@ -203,7 +203,7 @@ function forward(X1::AbstractArray{Float32, 5}, RB::ResidualBlock; save=false)
 
     Y2 = X2 + conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, 1, :, 1)
     X3 = ReLU(Y2)
-    
+
     Y3 = ∇conv_data(X3, RB.W3.data, RB.cdims3)
     RB.fan == true ? (X4 = ReLU(Y3)) : (X4 = GaLU(Y3))
 
@@ -228,12 +228,12 @@ function backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}
     ΔY2 = ReLUgrad(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2) + ΔY2
     ΔW2 = ∇conv_filter(X2, ΔY2, RB.cdims2)
-    Δb2 = sum(ΔY2, dims=(1,2,4))[1,1,:,1]
+    Δb2 = sum(ΔY2, dims=[1,2,4])[1,1,:,1]
 
     ΔY1 = ReLUgrad(ΔX2, Y1)
     ΔX1 = ∇conv_data(ΔY1, RB.W1.data, RB.cdims1)
     ΔW1 = ∇conv_filter(X1, ΔY1, RB.cdims1)
-    Δb1 = sum(ΔY1, dims=(1,2,4))[1,1,:,1]
+    Δb1 = sum(ΔY1, dims=[1,2,4])[1,1,:,1]
 
     # Set gradients
     RB.W1.grad = ΔW1
@@ -259,12 +259,12 @@ function backward(ΔX4::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5}
     ΔY2 = ReLUgrad(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2) + ΔY2
     ΔW2 = ∇conv_filter(X2, ΔY2, RB.cdims2)
-    Δb2 = sum(ΔY2, dims=(1,2,3,5))[1,1,1,:,1]
+    Δb2 = sum(ΔY2, dims=[1,2,3,5])[1,1,1,:,1]
 
     ΔY1 = ReLUgrad(ΔX2, Y1)
     ΔX1 = ∇conv_data(ΔY1, RB.W1.data, RB.cdims1)
     ΔW1 = ∇conv_filter(X1, ΔY1, RB.cdims1)
-    Δb1 = sum(ΔY1, dims=(1,2,3,5))[1,1,1,:,1]
+    Δb1 = sum(ΔY1, dims=[1,2,3,5])[1,1,1,:,1]
 
     # Set gradients
     RB.W1.grad = ΔW1

@@ -1,8 +1,5 @@
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
-# Random seed
-Random.seed!(100)
-
 # Data
 nx = 16
 ny = 16
@@ -13,16 +10,20 @@ X = randn(Float32, nx, ny, n_in, batchsize)
 # Network
 nscales = 2
 steps_per_scale = 4
-H = NetworkHyperbolic(nx, ny, n_in, batchsize, nscales, steps_per_scale; α=1f-1, hidden_factor=32, ncenter=2)
-
+nc = 2
+hf = 32
+α0 = .2f0
+H = NetworkHyperbolic(nx, ny, n_in, batchsize, nscales, steps_per_scale; α=α0, hidden_factor=hf, ncenter=nc)
 
 ###################################################################################################
 # Test invertibility
 
 X_ = H.inverse(H.forward(X)[1])
+@show norm(X - X_), norm(X)
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
 
 X_ = H.forward(H.inverse(X))[1]
+@show norm(X - X_), norm(X)
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
 
 
@@ -30,12 +31,12 @@ X_ = H.forward(H.inverse(X))[1]
 # Training
 
 # Loss
-function loss(H, X)
+function loss(H, X, ind)
     Y, logdet = H.forward(X)
     f = -log_likelihood(Y) - logdet
     ΔY = -∇log_likelihood(Y)
     ΔX, X = H.backward(ΔY, Y)
-    return f, ΔX, H.HL[1].W.grad, H.AL.s.grad
+    return f, ΔX, H.HL[ind].W.grad, H.AL.s.grad
 end
 
 # Data
@@ -45,7 +46,7 @@ dX = X - X0
 
 # Gradient test w.r.t. input X0
 Y = H.forward(X)
-f0, ΔX = loss(H, X0)[1:2]
+f0, ΔX = loss(H, X0, 1)[1:2]
 h = 0.1f0
 maxiter = 6
 err1 = zeros(Float32, maxiter)
@@ -53,7 +54,7 @@ err2 = zeros(Float32, maxiter)
 
 print("\nGradient test hyperbolic network\n")
 for j=1:maxiter
-    f = loss(H, X0 + h*dX)[1]
+    f = loss(H, X0 + h*dX, 1)[1]
     err1[j] = abs(f - f0)
     err2[j] = abs(f - f0 - h*dot(dX, ΔX))
     print(err1[j], "; ", err2[j], "\n")
@@ -63,33 +64,57 @@ end
 @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
+@show rate_1 = sum(err1[1:end-1]./err1[2:end])/(maxiter - 1)
+@show rate_2 = sum(err2[1:end-1]./err2[2:end])/(maxiter - 1)
 
 # Gradient test w.r.t. weights of hyperbolic network
-H = NetworkHyperbolic(nx, ny, n_in, batchsize, nscales, steps_per_scale; α=1f-1, hidden_factor=32, ncenter=2)
-H0 = NetworkHyperbolic(nx, ny, n_in, batchsize, nscales, steps_per_scale; α=1f-1, hidden_factor=32, ncenter=2)
+H = NetworkHyperbolic(nx, ny, n_in, batchsize, nscales, steps_per_scale; α=α0, hidden_factor=hf, ncenter=nc)
+H0 = NetworkHyperbolic(nx, ny, n_in, batchsize, nscales, steps_per_scale; α=α0, hidden_factor=hf, ncenter=nc)
 H.forward(X)
 H0.forward(X)   # evaluate to initialize actnorm layer
-Hini = deepcopy(H0)
 
-dW = H.HL[1].W.data - H0.HL[1].W.data
+s0 = H0.AL.s.data
 ds = H.AL.s.data - H0.AL.s.data
 
-f0, ΔX, ΔW, Δs = loss(H0, X)
-h = 0.01f0
-maxiter = 6
+maxiter = 6 
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 
-print("\nGradient test invertible layer\n")
+for i=1:length(H0.HL)
+    h1 = 0.1f0
+    print("\nGradient test invertible layer for layer $(i)\n")
+    W0 = H0.HL[i].W.data
+    dW = H.HL[i].W.data - W0
+    f01, ΔX1, ΔW, Δs = loss(H0, X, i)
+    for j=1:maxiter
+        H0.HL[i].W.data = W0 + h1*dW
+        f = loss(H0, X, i)[1]
+        err3[j] = abs(f - f01)
+        err4[j] = abs(f - f01 - h1*dot(dW, ΔW))
+        print(err3[j], "; ", err4[j], "\n")
+        h1 = h1/2f0
+    end
+
+    @show rate_1 = sum(err3[1:end-1]./err3[2:end])/(maxiter - 1)
+    @show rate_2 = sum(err4[1:end-1]./err4[2:end])/(maxiter - 1)
+    H0.HL[i].W.data = W0
+    @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=2f1)
+    @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=2f1)
+end
+
+print("\nGradient test invertible layer for affine layer\n")
+f0, ΔX, ΔW, Δs = loss(H0, X, 1)
 for j=1:maxiter
-    H0.HL[1].W.data = Hini.HL[1].W.data + h*dW
-    H0.AL.s.data = Hini.AL.s.data + h*ds
-    f = loss(H0, X)[1]
+    H0.AL.s.data = s0 + h*ds
+    f = loss(H0, X, 1)[1]
     err3[j] = abs(f - f0)
-    err4[j] = abs(f - f0 - h*dot(dW, ΔW)- h*dot(ds, Δs))
+    err4[j] = abs(f - f0 - h*dot(ds, Δs))
     print(err3[j], "; ", err4[j], "\n")
     global h = h/2f0
 end
 
-@test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
-@test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
+@show rate_1 = sum(err3[1:end-1]./err3[2:end])/(maxiter - 1)
+@show rate_2 = sum(err4[1:end-1]./err4[2:end])/(maxiter - 1)
+
+@test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=2f1)
+@test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=2f1)
