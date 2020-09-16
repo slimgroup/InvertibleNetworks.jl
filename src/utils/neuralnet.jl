@@ -19,6 +19,8 @@ function Base.getproperty(obj::Union{InvertibleNetwork,NeuralNetLayer}, sym::Sym
         return (args...; kwargs...) -> forward_Y(args..., obj; kwargs...)
     elseif sym == :jacobian_forward
         return (args...; kwargs...) -> jacobian_forward(args..., obj; kwargs...)
+    elseif sym == :jacobian_backward
+        return (args...; kwargs...) -> jacobian_backward(args..., obj; kwargs...)
     else
          # fallback to getfield
         return getfield(obj, sym)
@@ -112,6 +114,17 @@ function clear_grad!(RN::ReverseNetwork)
     clear_grad!(RN.network)
 end
 
+# Get gradients
+
+function get_grads(N::Union{NeuralNetLayer, InvertibleNetwork})
+    θ = get_params(N)
+    g = Array{Parameter, 1}(undef, length(θ))
+    for i = 1:length(θ)
+        g[i] = Parameter(θ[i].grad)
+    end
+    return g
+end
+
 # Get params for reversed layers/networks
 
 function get_params(RL::ReverseLayer)
@@ -128,6 +141,15 @@ end
 
 function get_grads(RN::ReverseNetwork)
     return get_grads(RN.network)
+end
+
+# Set parameters
+
+function set_params!(N::Union{NeuralNetLayer, InvertibleNetwork}, θnew::Array{Parameter, 1})
+    θold = get_params(N)
+    for i = 1:length(θold)
+        set_params!(θold[i], θnew[i])
+    end
 end
 
 # Set params for reversed layers/networks

@@ -199,9 +199,9 @@ function jacobian_forward(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter,
 
     # Hessian evaluation of logdet terms
     nx, ny, _, _ = size(X)
-    HlogΔθ = [Parameter(logdet_hessian(nx, ny, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
+    logdet && (HlogΔθ = [Parameter(logdet_hessian(nx, ny, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))])
 
-    logdet ? (return ΔY, Y, lgdet, HlogΔθ) : (return ΔY, Y, HlogΔθ)
+    logdet ? (return ΔY, Y, lgdet, HlogΔθ) : (return ΔY, Y)
 end
 
 # 3D Jacobian forward pass
@@ -221,6 +221,18 @@ function jacobian_forward(ΔX::AbstractArray{Float32, 5}, Δθ::Array{Parameter,
     HlogΔθ = [Parameter(logdet_hessian(nx, ny, nz, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
 
     logdet ? (return ΔY, Y, lgdet, HlogΔθ) : (return ΔY, Y, HlogΔθ)
+end
+
+# 2D Jacobian adjoint pass (same as backward)
+# Notation: Y = f(X; θ), ΔX, Δθ = adjoint(df_{X; θ})*ΔY
+function jacobian_backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, AN::ActNorm)
+    nx, ny, n_in, batchsize = size(Y)
+    X = inverse(Y, AN; logdet=false)
+    ΔX = ΔY .* reshape(AN.s.data, 1, 1, :, 1)
+    Δs = sum(ΔY .* X, dims=[1, 2, 4])[1, 1, :, 1]
+    Δb = sum(ΔY, dims=[1, 2, 4])[1, 1, :, 1]
+    Δθ = [Parameter(Δs), Parameter(Δb)]
+    AN.logdet ? (return ΔX, Δθ, X, logdet_backward(nx, ny, AN.s)) : (return ΔX, Δθ, X)
 end
 
 # Clear gradients
@@ -244,16 +256,6 @@ end
 
 # Get parameters
 get_params(AN::ActNorm) = [AN.s, AN.b]
-
-function get_grads(AN::ActNorm)
-    return [Parameter(AN.s.grad), Parameter(AN.b.grad)]
-end
-
-# Set parameters
-function set_params!(AN::ActNorm, θ::Array{Parameter, 1})
-    AN.s = θ[1]
-    AN.b = θ[2]
-end
 
 # Reverse
 function tag_as_reversed!(AN::ActNorm, tag::Bool)
