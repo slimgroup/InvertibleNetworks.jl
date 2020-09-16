@@ -27,7 +27,7 @@ for i=1:nc
         for k=1:ny
             E = zeros(Float32, nx, ny, nc, 1)
             E[k, j, i] = 1f0
-            Y = AN.forward(X)[1]
+            local Y = AN.forward(X)[1]
             J[:, (i-1)*nx*ny + count] = vec(AN.backward(E, Y)[1])
             count += 1
         end
@@ -221,10 +221,12 @@ end
 
 
 # Gradient test for parameters
-AN0 = reverse(ActNorm(nc; logdet=true)); AN0.forward(randn(Float32, nx, ny, nc, batchsize))
+AN0 = reverse(ActNorm(nc; logdet=true))
+AN0.forward(randn(Float32, nx, ny, nc, batchsize))
 AN_ini = deepcopy(AN0)
-ds = AN.s.data - AN0.s.data
-db = AN.b.data - AN0.b.data
+
+ds = randn(Float32, size(AN.s.data))
+db = randn(Float32, size(AN.b.data))
 maxiter = 6
 print("\nGradient test actnorm reverse\n")
 f0, ΔX, Δs, Δb = loss(AN0, X, Y)
