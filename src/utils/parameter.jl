@@ -3,7 +3,7 @@
 # Date: January 2020
 
 export Parameter
-import LinearAlgebra.dot, LinearAlgebra.norm, Base.+, Base.*, Base.-
+import LinearAlgebra.dot, LinearAlgebra.norm, Base.+, Base.*, Base.-, Base./
 
 mutable struct Parameter
     data
@@ -42,6 +42,11 @@ function clear_grad!(P::AbstractArray{Parameter, 1})
     end
 end
 
+function set_params!(pold::Parameter, pnew::Parameter)
+    pold.data = pnew.data
+    pold.grad = pnew.grad
+end
+
 
 # Algebraic utilities for parameters
 function dot(p1::Parameter, p2::Parameter)
@@ -66,4 +71,12 @@ end
 
 function *(p1::Float32, p2::Parameter)
     return Parameter(p1*p2.data)
+end
+
+function /(p1::Parameter, p2::Real)
+    return Parameter(p1.data/p2)
+end
+
+function /(p1::Real, p2::Parameter)
+    return Parameter(p1/p2.data)
 end
