@@ -83,21 +83,21 @@ err4 = zeros(Float32, maxiter)
 for i=1:length(H0.HL)
     h1 = 0.1f0
     print("\nGradient test invertible layer for layer $(i)\n")
-    W0 = H0.HL[i].W.data
-    dW = H.HL[i].W.data - W0
-    f01, ΔX1, ΔW, Δs = loss(H0, X, i)
+    W0s = H0.HL[i].W.data
+    dWg = H.HL[i].W.data - W0s
+    f01, ΔX1, ΔWg, _ = loss(H0, X, i)
     for j=1:maxiter
-        H0.HL[i].W.data = W0 + h1*dW
+        H0.HL[i].W.data = W0s + h1*dWg
         f = loss(H0, X, i)[1]
         err3[j] = abs(f - f01)
-        err4[j] = abs(f - f01 - h1*dot(dW, ΔW))
+        err4[j] = abs(f - f01 - h1*dot(dWg, ΔWg))
         print(err3[j], "; ", err4[j], "\n")
         h1 = h1/2f0
     end
 
-    @show rate_1 = sum(err3[1:end-1]./err3[2:end])/(maxiter - 1)
-    @show rate_2 = sum(err4[1:end-1]./err4[2:end])/(maxiter - 1)
-    H0.HL[i].W.data = W0
+    @show local rate_1 = sum(err3[1:end-1]./err3[2:end])/(maxiter - 1)
+    @show local rate_2 = sum(err4[1:end-1]./err4[2:end])/(maxiter - 1)
+    H0.HL[i].W.data = W0s
     @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=2f1)
     @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=2f1)
 end
