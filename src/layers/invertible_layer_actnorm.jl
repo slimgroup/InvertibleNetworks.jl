@@ -63,7 +63,7 @@ function forward(X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
 
     # Initialize during first pass such that
     # output has zero mean and unit variance
-    if AN.s.data == nothing && AN.is_reversed == false
+    if isnothing(AN.s.data) && !AN.is_reversed
         μ = mean(X; dims=[1, 2, 4])[1, 1, :, 1]
         σ_sqr = var(X; dims=[1, 2, 4])[1, 1, :, 1]
         AN.s.data = 1f0 ./ sqrt.(σ_sqr)
@@ -82,7 +82,7 @@ function forward(X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
 
     # Initialize during first pass such that
     # output has zero mean and unit variance
-    if AN.s.data == nothing && AN.is_reversed == false
+    if isnothing(AN.s.data) && !AN.is_reversed
         μ = mean(X; dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
         σ_sqr = var(X; dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
         AN.s.data = 1f0 ./ sqrt.(σ_sqr)
@@ -101,7 +101,7 @@ function inverse(Y::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
 
     # Initialize during first pass such that
     # output has zero mean and unit variance
-    if AN.s.data == nothing && AN.is_reversed == true
+    if isnothing(AN.s.data) && AN.is_reversed
         μ = mean(Y; dims=[1,2,4])[1,1,:,1]
         σ_sqr = var(Y; dims=[1,2,4])[1,1,:,1]
         AN.s.data = sqrt.(σ_sqr)
@@ -120,7 +120,7 @@ function inverse(Y::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
 
     # Initialize during first pass such that
     # output has zero mean and unit variance
-    if AN.s.data == nothing && AN.is_reversed == true
+    if isnothing(AN.s.data) && AN.is_reversed
         μ = mean(Y; dims=[1,2,3,5])[1,1,1,:,1]
         σ_sqr = var(Y; dims=[1,2,3,5])[1,1,1,:,1]
         AN.s.data = sqrt.(σ_sqr)
