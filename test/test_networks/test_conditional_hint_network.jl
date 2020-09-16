@@ -20,14 +20,8 @@ CH1 = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1,
 
 nets = [CH0, CH1, reverse(CH1)]
 
-# Loop over networks and reversed counterpart
-for j = 1:length(nets)
-
-    CH = nets[j]
-
-    ###################################################################################################
-    # Invertibility
-
+function test_inv(CH, nx, ny, n_in)
+    print("\nInvertibility test HINT network\n")
     # Test layers
     test_size = 10
     X = randn(Float32, nx, ny, n_in, test_size)
@@ -51,9 +45,6 @@ for j = 1:length(nets)
     @test isapprox(norm(Y - Yy)/norm(Y), 0f0; atol=1f-3)
 end
 
-###################################################################################################
-# Gradient test
-
 # Loss
 function loss(CH, X, Y)
     Zx, Zy, logdet = CH.forward(X, Y)
@@ -64,17 +55,7 @@ function loss(CH, X, Y)
     return f, ΔX, ΔY
 end
 
-# Gradient test w.r.t. input
-CH0 = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
-CH1 = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
-
-nets = [CH0, CH1, reverse(CH1)]
-
-# Loop over networks and reversed counterpart
-for j = 1:length(nets)
-
-    CH = nets[j]
-
+function test_grad(CH, nx, ny, n_in)
     test_size = 10
     X = randn(Float32, nx, ny, n_in, test_size)
     Y = X + .1f0*randn(Float32, nx, ny, n_in, test_size)
@@ -100,4 +81,11 @@ for j = 1:length(nets)
 
     @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
     @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
+end
+
+# Loop over networks and reversed counterpart
+for CH in nets
+    # Invertibility
+    test_inv(CH, nx, ny, n_in)
+    test_grad(CH, nx, ny, n_in)
 end
