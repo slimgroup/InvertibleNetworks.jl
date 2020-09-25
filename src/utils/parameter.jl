@@ -3,7 +3,7 @@
 # Date: January 2020
 
 export Parameter
-import LinearAlgebra.dot, LinearAlgebra.norm, Base.+, Base.*, Base.-, Base./
+export get_params, get_grads, set_params!
 
 mutable struct Parameter
     data
@@ -23,7 +23,9 @@ end
 """
 Parameter(x) = Parameter(x, nothing)
 
+# Size and length for parameter types
 size(x::Parameter) = size(x.data)
+length(x::Parameter) = length(x.data)
 
 @Flux.functor Parameter
 
@@ -48,7 +50,8 @@ function set_params!(pold::Parameter, pnew::Parameter)
 end
 
 
-# Algebraic utilities for parameters
+## Algebraic utilities for parameters
+
 function dot(p1::Parameter, p2::Parameter)
     return dot(p1.data, p2.data)
 end

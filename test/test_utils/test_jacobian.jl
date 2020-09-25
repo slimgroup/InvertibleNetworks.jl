@@ -17,11 +17,10 @@ X = rand(Float32, nx, ny, nc, batchsize)
 
 # Layers and initialization
 logdet = true
-N1 = ActNorm(nc; logdet=logdet)
-# N1 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
-N2 = ActNorm(nc; logdet=logdet)
-# N2 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
-N = Sequential(N1, N2)
+N = ActNorm(nc; logdet=logdet); N.forward(X)
+
+# Jacobian
+J = JacobianInvNet(N, X)
 
 # Forward
 Y, _ = N.forward(X)

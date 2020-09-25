@@ -4,12 +4,16 @@
 
 module InvertibleNetworks
 
-import Base.size, Base.getindex, Flux.glorot_uniform, Base.reverse, Base.reverse!
-using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote
-
+import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!#, Base.show
+import Base.+, Base.*, Base.-, Base./
+import LinearAlgebra.dot, LinearAlgebra.norm#, LinearAlgebra.adjoint
+import JOLI.adjoint, JOLI.show
+import Flux.glorot_uniform
 import CUDA: CuArray
 
-export clear_grad!, glorot_uniform, get_params, get_grads, set_params!
+using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote, JOLI
+
+export clear_grad!, glorot_uniform
 
 
 # Getters for DenseConvDims fields
@@ -26,6 +30,7 @@ include("utils/dimensionality_operations.jl")
 include("utils/activation_functions.jl")
 include("utils/test_distributions.jl")
 include("utils/neuralnet.jl")
+include("utils/invnet_linops.jl")
 include("utils/jacobian.jl")
 include("utils/invertible_network_sequential.jl")
 
