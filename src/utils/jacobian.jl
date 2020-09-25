@@ -4,41 +4,76 @@
 #
 # Jacobian utilities
 
-export Jacobian, JacobianAdjoint
-import Base.*, LinearAlgebra.adjoint
+export InvertibleNetworkLinearOperator#, solveGaussNewton
 
-struct Jacobian
-    N::Union{InvertibleNetwork,NeuralNetLayer}
-    X::Array{Float32}
-    out_std::Bool
+
+## Invertible network specific linear operator type
+
+# Type
+struct InvertibleNetworkLinearOperator{RDT,DDT}
+    fop::Function
+    fop_adj::Function
 end
 
-function Jacobian(N::Union{InvertibleNetwork,NeuralNetLayer}, X::Array{Float32})
-    return Jacobian(N, X, true)
+# Adjoint
+function adjoint(A::InvertibleNetworkLinearOperator{RDT,DDT}) where {RDT,DDT}
+    return InvertibleNetworkLinearOperator{DDT,RDT}(A.fop_adj, A.fop)
 end
 
-function *(J::Jacobian, input::Tuple{Array{Float32}, Array{Parameter, 1}})
-    J.out_std ? (return J.N.jacobian_forward(input[1], input[2], J.X)[1]) : (return J.N.jacobian_forward(input[1], input[2], J.X))
+# Mat-vec product
+function *(A::InvertibleNetworkLinearOperator{RDT,DDT}, x::DDT) where {RDT,DDT}
+    return A.fop(x)
 end
 
-function *(J::Jacobian, input::Array{Parameter, 1})
-    return J*(zeros(Float32, size(J.X)), input)
+# Mat-mat product
+function *(A::InvertibleNetworkLinearOperator{DT1,DT2}, B::InvertibleNetworkLinearOperator{DT2,DT3}) where {DT1,DT2,DT3}
+    return InvertibleNetworkLinearOperator{DT1,DT3}(x -> A.fop(B.fop(x)), y -> B.fop_adj(A.fop_adj(y)))
 end
 
-mutable struct JacobianAdjoint
-    J::Jacobian
-    Y::Union{Nothing, Array{Float32}}
-end
+# Constructor
+function JacobianInvNet(N::Union{InvertibleNetwork, NeuralNetLayer}, X::Array{Float32}; Y::Union{Nothing, Array{Float32}}=nothing)
 
-function adjoint(J::Jacobian; Y::Union{Nothing, Array{Float32}}=nothing)
-    return JacobianAdjoint(J, Y)
-end
-
-function *(JT::JacobianAdjoint, ΔY::Array{Float32}; Y::Union{Nothing, Array{Float32}}=nothing)
-    if JT.Y != nothing
-        JT.J.out_std ? (return JT.J.N.jacobian_backward(ΔY, JT.Y)[1:2]) : (return JT.J.N.jacobian_backward(ΔY, JT.Y))
-    elseif Y == nothing
-        JT.J.N.logdet ? (JT.Y = JT.J.N.forward(JT.J.X)[1]) : (JT.Y = JT.J.N.forward(JT.J.X))
+    n = length(X)
+    m = 0
+    for p in get_params(N)
+        m += length(p)
     end
-    return JT*ΔY
+    fop(ΔX, Δθ) = N.jacobian_forward(ΔX, Δθ, X)
+    if Y == nothing # recomputing Y=f(X) if not provided
+        Y = N.forward(X)
+        isa(Y, Tuple) && (Y = Y[1])
+    end
+    fop_T(ΔY) = N.jacobian_backward(ΔY, Y)
+    joLF = joLinearFunctionFwd_T(n, m, fop, fop_T, Float32, Float32; name="Jacobian")
+
+    return JacobianInvNet(N, X, Y, joLF)
+
 end
+
+# Utilities
+function size(J::JacobianInvNet)
+    return size(J.joLF)
+end
+function show(J::JacobianInvNet)
+    return show(J.joLF)
+end
+
+# Adjoint
+function adjoint(J::JacobianInvNet)
+    return adjoint(J.joLF)
+end
+
+# Algebra
+function *(J::JacobianInvNet, input::Tuple{Array{Float32, 4}, Array{Parameter, 1}})
+    return J.joLF(input)
+end
+function *(J::JacobianInvNet, Δθ::Array{Parameter, 1})
+    return J.joLF.fop(zeros(Float32, size(J.X)), Δθ)
+end
+
+
+## Gauss-Newton solve utilities
+
+# function solveGaussNewton(J::Jacobian, JT::JacobianAdjoint, b::Array{Float32})
+#     ;
+# end

@@ -6,9 +6,11 @@ using InvertibleNetworks, Test
 test_suite = "all"   # "all", "layers" or "networks"
 
 layers = ["test_utils/test_objectives.jl",
+          "test_utils/test_sequential.jl",
           "test_utils/test_nnlib_convolution.jl",
           "test_utils/test_activations.jl",
           "test_utils/test_squeeze.jl",
+          "test_utils/test_jacobian.jl",
           # Layers
           "test_layers/test_residual_block.jl",
           "test_layers/test_flux_block.jl",

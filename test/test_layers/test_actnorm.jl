@@ -271,7 +271,7 @@ function loss(X::Array{Float32, 4}, Y::Array{Float32, 4}, θ::Array{Parameter, 1
 
     # Hessians
     JtJΔθ = (JT*JΔθ)[2]/batchsize
-    g = JtJΔθ#-HlgdetΔθ
+    g = JtJΔθ-HlgdetΔθ
 
     return f, g
 
@@ -294,7 +294,7 @@ AN0_ = ActNorm(nc; logdet=true)
 X0_ = randn(Float32, nx, ny, nc, batchsize); Y0_, _ = AN0_.forward(X0_)
 Δθ_ = deepcopy(get_params(AN_)-get_params(AN0_))
 
-maxiter = 6
+maxiter = 10
 print("\nGradient/Hessian test actnorm\n")
 f0, g0 = loss(X, Y, θ, Δθ)
 h = 1f0
