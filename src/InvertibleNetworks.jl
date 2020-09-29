@@ -4,10 +4,9 @@
 
 module InvertibleNetworks
 
-import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!#, Base.show
+import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!
 import Base.+, Base.*, Base.-, Base./
-import LinearAlgebra.dot, LinearAlgebra.norm#, LinearAlgebra.adjoint
-import JOLI.adjoint, JOLI.show
+import LinearAlgebra.dot, LinearAlgebra.norm, LinearAlgebra.adjoint
 import Flux.glorot_uniform
 import CUDA: CuArray
 
