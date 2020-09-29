@@ -276,6 +276,114 @@ function backward(ΔX4::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5}
     return ΔX1
 end
 
+
+## Jacobian-related functions
+
+function jacobian_forward(ΔX1::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, 4}, RB::ResidualBlock)
+
+    Y1 = conv(X1, RB.W1.data, RB.cdims1) .+ reshape(RB.b1.data, 1, 1, :, 1)
+    ΔY1 = conv(ΔX1, RB.W1.data, RB.cdims1) + conv(X1, Δθ[1].data, RB.cdims1) .+ reshape(Δθ[4].data, 1, 1, :, 1)
+    X2 = ReLU(Y1)
+    ΔX2 = ReLUgrad(ΔY1, Y1)
+
+    Y2 = X2 + conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, :, 1)
+    ΔY2 = ΔX2 + conv(ΔX2, RB.W2.data, RB.cdims2) + conv(X2, Δθ[2].data, RB.cdims2) .+ reshape(Δθ[5].data, 1, 1, :, 1)
+    X3 = ReLU(Y2)
+    ΔX3 = ReLUgrad(ΔY2, Y2)
+
+    Y3 = ∇conv_data(X3, RB.W3.data, RB.cdims3)
+    ΔY3 = ∇conv_data(ΔX3, RB.W3.data, RB.cdims3) + ∇conv_data(X3, Δθ[3].data, RB.cdims3)
+    if RB.fan == true
+        X4 = ReLU(Y3)
+        ΔX4 = ReLUgrad(ΔY3, Y3)
+    else
+        X4 = GaLU(Y3)
+        ΔX4 = GaLUgrad(ΔY3, Y3)
+    end
+
+    return ΔX4, X4
+
+end
+
+# 3D
+function jacobian_forward(ΔX1::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, 5}, RB::ResidualBlock)
+
+    Y1 = conv(X1, RB.W1.data, RB.cdims1) .+ reshape(RB.b1.data, 1, 1, 1, :, 1)
+    ΔY1 = conv(ΔX1, RB.W1.data, RB.cdims1) + conv(X1, Δθ[1].data, RB.cdims1) .+ reshape(Δθ[4].data, 1, 1, 1, :, 1)
+    X2 = ReLU(Y1)
+    ΔX2 = ReLUgrad(ΔY1, Y1)
+
+    Y2 = X2 + conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, 1, :, 1)
+    ΔY2 = ΔX2 + conv(ΔX2, RB.W2.data, RB.cdims2) + conv(X2, Δθ[2].data, RB.cdims2) .+ reshape(Δθ[5].data, 1, 1, 1, :, 1)
+    X3 = ReLU(Y2)
+    ΔX3 = ReLUgrad(ΔY2, Y2)
+
+    Y3 = ∇conv_data(X3, RB.W3.data, RB.cdims3)
+    ΔY3 = ∇conv_data(ΔX3, RB.W3.data, RB.cdims3) + ∇conv_data(X3, Δθ[3].data, RB.cdims3)
+    if RB.fan == true
+        X4 = ReLU(Y3)
+        ΔX4 = ReLUgrad(ΔY3, Y3)
+    else
+        X4 = GaLU(Y3)
+        ΔX4 = GaLUgrad(ΔY3, Y3)
+    end
+
+    return ΔX4, X4
+
+end
+
+function jacobian_backward(ΔX4::Array{Float32, 4}, X1::Array{Float32, 4}, RB::ResidualBlock)
+
+    # Recompute forward states from input X
+    Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
+
+    # Backpropagate residual ΔX4 and compute gradients
+    RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    ΔX3 = conv(ΔY3, RB.W3.data, RB.cdims3)
+    ΔW3 = ∇conv_filter(ΔY3, X3, RB.cdims3)
+
+    ΔY2 = ReLUgrad(ΔX3, Y2)
+    ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2) + ΔY2
+    ΔW2 = ∇conv_filter(X2, ΔY2, RB.cdims2)
+    Δb2 = sum(ΔY2, dims=[1,2,4])[1,1,:,1]
+
+    ΔY1 = ReLUgrad(ΔX2, Y1)
+    ΔX1 = ∇conv_data(ΔY1, RB.W1.data, RB.cdims1)
+    ΔW1 = ∇conv_filter(X1, ΔY1, RB.cdims1)
+    Δb1 = sum(ΔY1, dims=[1,2,4])[1,1,:,1]
+
+    return ΔX1, [Parameter(ΔW1), Parameter(ΔW2), Parameter(ΔW3), Parameter(Δb1), Parameter(Δb2)]
+
+end
+
+# 3D
+function jacobian_backward(ΔX4::Array{Float32, 5}, X1::Array{Float32, 5}, RB::ResidualBlock)
+
+    # Recompute forward states from input X
+    Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
+
+    # Backpropagate residual ΔX4 and compute gradients
+    RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    ΔX3 = conv(ΔY3, RB.W3.data, RB.cdims3)
+    ΔW3 = ∇conv_filter(ΔY3, X3, RB.cdims3)
+
+    ΔY2 = ReLUgrad(ΔX3, Y2)
+    ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2) + ΔY2
+    ΔW2 = ∇conv_filter(X2, ΔY2, RB.cdims2)
+    Δb2 = sum(ΔY2, dims=[1,2,3,5])[1,1,1,:,1]
+
+    ΔY1 = ReLUgrad(ΔX2, Y1)
+    ΔX1 = ∇conv_data(ΔY1, RB.W1.data, RB.cdims1)
+    ΔW1 = ∇conv_filter(X1, ΔY1, RB.cdims1)
+    Δb1 = sum(ΔY1, dims=[1,2,3,5])[1,1,1,:,1]
+
+    return ΔX1, [Parameter(ΔW1), Parameter(ΔW2), Parameter(ΔW3), Parameter(Δb1), Parameter(Δb2)]
+
+end
+
+
+## Other utilss
+
 # Clear gradients
 function clear_grad!(RB::ResidualBlock)
     RB.W1.grad = nothing
@@ -285,11 +393,4 @@ function clear_grad!(RB::ResidualBlock)
     RB.b2.grad = nothing
 end
 
-"""
-    P = get_params(NL::NeuralNetLayer)
-
- Returns a cell array of all parameters in the network layer. Each cell
- entry contains a reference to the original parameter; i.e. modifying
- the paramters in `P`, modifies the parameters in `NL`.
-"""
 get_params(RB::ResidualBlock) = [RB.W1, RB.W2, RB.W3, RB.b1, RB.b2]

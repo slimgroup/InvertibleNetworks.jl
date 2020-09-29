@@ -198,6 +198,31 @@ function backward_inv(ΔX1, ΔX2, X1, X2, L::CouplingLayerBasic)
     return ΔY1, ΔY2, Y1, Y2
 end
 
+## Jacobian-related functions
+
+# 2D Jacobian forward pass
+# Notation: Y = f(X; θ), ΔY = df_{X; θ}(ΔX, Δθ)
+function jacobian_forward(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
+    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
+    Δs = Δθ[1].data
+    Δb = Δθ[2].data
+
+    # Evaluating forward evaluation
+    logdet ? (Y, lgdet) = forward(X, AN; logdet=logdet) : Y = forward(X, AN; logdet=logdet)
+
+    # Evaluating Jacobian evaluation
+    ΔY = ΔX .* reshape(AN.s.data, 1, 1, :, 1) .+ X .* reshape(Δs, 1, 1, :, 1) .+ reshape(Δb, 1, 1, :, 1)
+
+    # Hessian evaluation of logdet terms
+    nx, ny, _, _ = size(X)
+    logdet && (HlogΔθ = [Parameter(logdet_hessian(nx, ny, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))])
+
+    logdet ? (return ΔY, Y, lgdet, HlogΔθ) : (return ΔY, Y)
+end
+
+
+##
+
 # Clear gradients
 clear_grad!(L::CouplingLayerBasic) = clear_grad!(L.RB)
 
@@ -210,6 +235,6 @@ function tag_as_reversed!(L::CouplingLayerBasic, tag::Bool)
     return L
 end
 
-# Logdet (correct?)
+# Logdet
 coupling_logdet_forward(S) = sum(log.(abs.(S))) / size(S, 4)
 coupling_logdet_backward(S) = 1f0./ S / size(S, 4)

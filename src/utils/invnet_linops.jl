@@ -4,7 +4,7 @@
 #
 # Invertible network specific linear operator type
 
-export InvertibleNetworkLinearOperator
+# export InvertibleNetworkLinearOperator
 
 # Type
 struct InvertibleNetworkLinearOperator{RDT,DDT}

@@ -34,12 +34,9 @@ Hessian of the MSE loss with respect to input tensors X.
 See also: [`mse`](@ref)
 """
 function Hmse(X, Y)
-    n = length(X)
-    return joLinearFunctionFwd_T(
-        n, n,
+    return InvertibleNetworkLinearOperator{Array{Float32, 4},Array{Float32, 4}}(
         ΔX -> 1f0/size(X, 4)*ΔX,
-        ΔX -> 1f0/size(X, 4)*ΔX,
-        Float32, Float32; name = "HessianMSE")
+        ΔX -> 1f0/size(X, 4)*ΔX)
 end
 
 
@@ -74,10 +71,7 @@ Hessian of the log-likelihood function with respect to the input tensor X.
 See also: [`log_likelihood`](@ref)
 """
 function Hlog_likelihood(X; μ=0f0, σ=1f0)
-    n = length(X)
-    return joLinearFunctionFwd_T(
-        n, n,
+    return InvertibleNetworkLinearOperator{Array{Float32, 4},Array{Float32, 4}}(
         ΔX -> -1f0/size(X, 4)*ΔX/σ^2,
-        ΔX -> -1f0/size(X, 4)*ΔX/σ^2,
-        Float32, Float32; name = "HessianLogLikelihood")
+        ΔX -> -1f0/size(X, 4)*ΔX/σ^2)
 end
