@@ -68,6 +68,10 @@ function -(p1::Parameter, p2::Parameter)
     return Parameter(p1.data-p2.data)
 end
 
+function -(p::Parameter)
+    return Parameter(-p.data)
+end
+
 function *(p1::Parameter, p2::Float32)
     return Parameter(p1.data*p2)
 end
