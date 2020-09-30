@@ -190,6 +190,7 @@ end
 
 ## Jacobian-related functions
 
+# 2D
 function jacobian_forward(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     Δs = Δθ[1].data
@@ -198,16 +199,20 @@ function jacobian_forward(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter,
     # Forward evaluation
     logdet ? (Y, lgdet) = forward(X, AN; logdet=logdet) : Y = forward(X, AN; logdet=logdet)
 
-    # Evaluating Jacobian evaluation
+    # Jacobian evaluation
     ΔY = ΔX .* reshape(AN.s.data, 1, 1, :, 1) .+ X .* reshape(Δs, 1, 1, :, 1) .+ reshape(Δb, 1, 1, :, 1)
 
     # Hessian evaluation of logdet terms
-    nx, ny, _, _ = size(X)
-    logdet && (HlogΔθ = [Parameter(logdet_hessian(nx, ny, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))])
-
-    logdet ? (return ΔY, Y, lgdet, HlogΔθ) : (return ΔY, Y)
+    if logdet
+        nx, ny, _, _ = size(X)
+        HlogΔθ = [Parameter(logdet_hessian(nx, ny, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
+        return ΔY, Y, lgdet, HlogΔθ
+    else
+        return ΔY, Y
+    end
 end
 
+# 3D
 function jacobian_forward(ΔX::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     Δs = Δθ[1].data
@@ -216,22 +221,27 @@ function jacobian_forward(ΔX::AbstractArray{Float32, 5}, Δθ::Array{Parameter,
     # Evaluating forward evaluation
     logdet ? (Y, lgdet) = forward(X, AN; logdet=logdet) : Y = forward(X, AN; logdet=logdet)
 
-    # Evaluating Jacobian evaluation
+    # Jacobian evaluation
     ΔY = ΔX .* reshape(AN.s.data, 1, 1, 1, :, 1) .+ X .* reshape(Δs, 1, 1, 1, :, 1) .+ reshape(Δb, 1, 1, 1, :, 1)
 
     # Hessian evaluation of logdet terms
-    nx, ny, nz, _, _ = size(X)
-    HlogΔθ = [Parameter(logdet_hessian(nx, ny, nz, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
-
-    logdet ? (return ΔY, Y, lgdet, HlogΔθ) : (return ΔY, Y, HlogΔθ)
+    if logdet
+        nx, ny, nz, _, _ = size(X)
+        HlogΔθ = [Parameter(logdet_hessian(nx, ny, nz, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
+        return ΔY, Y, lgdet, HlogΔθ
+    else
+        return ΔY, Y
+    end
 end
 
+# 2D
 function jacobian_backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, AN::ActNorm)
     ΔX, X, Δθ = backward(ΔY, Y, AN; set_grad=false)
     nx, ny = size(Y)[1:2]
     AN.logdet ? (return ΔX, Δθ, X, logdet_backward(nx, ny, AN.s)) : (return ΔX, Δθ, X)
 end
 
+# 3D
 function jacobian_backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, AN::ActNorm)
     nx, ny, n_in, batchsize = size(Y)
     X = inverse(Y, AN; logdet=false)

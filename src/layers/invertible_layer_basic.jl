@@ -198,30 +198,92 @@ function backward_inv(ΔX1, ΔX2, X1, X2, L::CouplingLayerBasic)
     return ΔY1, ΔY2, Y1, Y2
 end
 
+
 ## Jacobian-related functions
 
-# 2D Jacobian forward pass
-# Notation: Y = f(X; θ), ΔY = df_{X; θ}(ΔX, Δθ)
-function jacobian_forward(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
-    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
-    Δs = Δθ[1].data
-    Δb = Δθ[2].data
+# 2D
+function jacobian_forward(ΔX1::AbstractArray{Float32, 4}, ΔX2::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L::CouplingLayerBasic; save=false, logdet=nothing)
+    isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
 
-    # Evaluating forward evaluation
-    logdet ? (Y, lgdet) = forward(X, AN; logdet=logdet) : Y = forward(X, AN; logdet=logdet)
+    k = size(X1, 3)
+    Y1 = copy(X1)
+    ΔY1 = copy(ΔX1)
+    logS_T = L.RB.forward(X1)
+    ΔlogS_T = jacobian_forward(ΔX1, Δθ, X1, L.RB)[1]
+    S = Sigmoid(logS_T[:, :, 1:k, :])
+    ΔS = SigmoidGrad(ΔlogS_T[:, :, 1:k, :], S)
+    T = logS_T[:, :, k+1:end, :]
+    ΔT = ΔlogS_T[:, :, k+1:end, :]
+    Y2 = S.*X2 + T
+    ΔY2 = ΔS.*X2 + S.*ΔX2 + ΔT
 
-    # Evaluating Jacobian evaluation
-    ΔY = ΔX .* reshape(AN.s.data, 1, 1, :, 1) .+ X .* reshape(Δs, 1, 1, :, 1) .+ reshape(Δb, 1, 1, :, 1)
+    if logdet
+        # Gauss-Newton approximation of logdet terms
+        JΔθ = L.RB.jacobian_forward(zeros(Float32, size(ΔX1)), Δθ, X1)[1][:, :, 1:k, :]
+        GNΔθ = -L.RB.jacobian_backward(tensor_cat(SigmoidGrad(JΔθ, S), zeros(Float32, size(S))), X1)[2]
+        
+        save ? (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ, S) : (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ)
+    else
+        save ? (return ΔY1, ΔY2, Y1, Y2, S) : (return ΔY1, ΔY2, Y1, Y2)
+    end
+end
 
-    # Hessian evaluation of logdet terms
-    nx, ny, _, _ = size(X)
-    logdet && (HlogΔθ = [Parameter(logdet_hessian(nx, ny, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))])
+# 3D
+function jacobian_forward(ΔX1::AbstractArray{Float32, 5}, ΔX2::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save=false, logdet=nothing)
+    isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
 
-    logdet ? (return ΔY, Y, lgdet, HlogΔθ) : (return ΔY, Y)
+    k = size(X1, 4)
+    Y1 = copy(X1)
+    ΔY1 = copy(ΔX1)
+    logS_T = L.RB.forward(X1)
+    ΔlogS_T = jacobian_forward(ΔX1, Δθ, X1, L.RB)[1]
+    S = Sigmoid(logS_T[:, :, :, 1:k, :])
+    ΔS = SigmoidGrad(ΔlogS_T[:, :, :, 1:k, :], S)
+    T = logS_T[:, :, :, k+1:end, :]
+    ΔT = ΔlogS_T[:, :, :, k+1:end, :]
+    Y2 = S.*X2 + T
+    ΔY2 = ΔS.*X2 + S.*ΔX2 + ΔT
+
+    if logdet
+        # Gauss-Newton approximation of logdet terms
+        JΔθ = L.RB.jacobian_forward(zeros(Float32, size(ΔX1)), Δθ, X1)[1][:, :, :, 1:k, :]
+        GNΔθ = -L.RB.jacobian_backward(tensor_cat(SigmoidGrad(JΔθ, S), zeros(Float32, size(S))), X1)[2]
+        
+        save ? (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ, S) : (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ)
+    else
+        save ? (return ΔY1, ΔY2, Y1, Y2, S) : (return ΔY1, ΔY2, Y1, Y2)
+    end
+end
+
+# 2D/3D
+function jacobian_backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
+    # Recompute forward state
+    X1, X2, S = inverse(Y1, Y2, L; save=true, logdet=false)
+
+    # Backpropagate residual
+    ΔT = copy(ΔY2)
+    ΔS = ΔY2 .* X2
+    if L.logdet
+        ∇logdet = jacobian_backward(
+            tensor_cat(SigmoidGrad(coupling_logdet_backward(S), S), zeros(Float32, size(ΔT))),
+            X1,
+            L.RB)
+    end
+    ΔX2 = ΔY2 .* S
+    ΔX1, Δθ = jacobian_backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1, L.RB)
+    ΔX1 += ΔY1
+
+    L.logdet == true ? (return ΔX1, ΔX2, Δθ, X1, X2, ∇logdet) : (return ΔX1, ΔX2, Δθ, X1, X2)
 end
 
 
-##
+## Logdet utils
+
+coupling_logdet_forward(S) = sum(log.(abs.(S))) / size(S)[end]
+coupling_logdet_backward(S) = 1f0./ S / size(S)[end]
+
+
+## Other utils
 
 # Clear gradients
 clear_grad!(L::CouplingLayerBasic) = clear_grad!(L.RB)
@@ -234,7 +296,3 @@ function tag_as_reversed!(L::CouplingLayerBasic, tag::Bool)
     L.is_reversed = tag
     return L
 end
-
-# Logdet
-coupling_logdet_forward(S) = sum(log.(abs.(S))) / size(S, 4)
-coupling_logdet_backward(S) = 1f0./ S / size(S, 4)
