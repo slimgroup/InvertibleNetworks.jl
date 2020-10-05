@@ -268,7 +268,7 @@ function jacobian_forward(ΔX::AbstractArray{Float32, N}, Δθ::Array{Parameter,
         view(Y, inds...) .= reshape(Yi, size(view(Y, inds...))...)
 
         ΔXi = reshape(view(ΔX, inds...), :, n_in)
-        ΔYi = ΔXi*c1*c2*c3
+        ΔYi = ΔXi*c1*c2*c3+
               -2f0*Xi*((dv1*v1'+v1*dv1'-2f0*dot(v1,dv1)*v1*v1'/n1^2f0)/n1^2f0*c2*c3+
                        c1*(dv2*v2'+v2*dv2'-2f0*dot(v2,dv2)*v2*v2'/n2^2f0)/n2^2f0*c3+
                        c1*c2*(dv3*v3'+v3*dv3'-2f0*dot(v3,dv3)*v3*v3'/n3^2f0)/n3^2f0)

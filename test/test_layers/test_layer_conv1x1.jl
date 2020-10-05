@@ -196,8 +196,15 @@ end
 # Gradient test
 
 # Initialization
+batchsize=1
+v10 = randn(Float32, k)
+v20 = randn(Float32, k)
+v30 = randn(Float32, k)
 C0 = Conv1x1(v10, v20, v30; logdet=true)
 θ0 = deepcopy(get_params(C0))
+v1 = randn(Float32, k)
+v2 = randn(Float32, k)
+v3 = randn(Float32, k)
 C = Conv1x1(v1, v2, v3; logdet=true)
 θ = deepcopy(get_params(C))
 X = randn(Float32, nx, ny, k, batchsize)
@@ -233,9 +240,9 @@ end
 # Adjoint test
 
 set_params!(C, θ)
-dY, Y, _ = C.jacobian_forward(dX, dθ, X)
+dY, Y, _ = C.jacobian_forward(dX, 0f0*dθ, X)
 dY_ = randn(Float32, size(dY))
 dX_, dθ_, _ = C.jacobian_backward(dY_, Y)
 a = dot(dY, dY_)
-b = dot(dX, dX_)+dot(dθ, dθ_)
+b = dot(dX, dX_)+dot(0f0*dθ, dθ_)
 @test isapprox(a, b; rtol=1f-3)
