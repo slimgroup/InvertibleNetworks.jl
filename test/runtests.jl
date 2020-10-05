@@ -14,7 +14,7 @@ layers = ["test_utils/test_objectives.jl",
           # Layers
           "test_layers/test_residual_block.jl",
           "test_layers/test_flux_block.jl",
-          "test_layers/test_householder_convolution.jl",
+          "test_layers/test_layer_conv1x1.jl",
           "test_layers/test_coupling_layer_basic.jl",
           "test_layers/test_coupling_layer_irim.jl",
           "test_layers/test_coupling_layer_glow.jl",

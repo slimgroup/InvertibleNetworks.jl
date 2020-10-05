@@ -242,6 +242,51 @@ function inverse(Y_tuple::Tuple, C::Conv1x1)
     return ΔX, X
 end
 
+
+## Jacobian-related functions
+
+function jacobian_forward(ΔX::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, N}, C::Conv1x1; logdet=nothing) where N
+    isnothing(logdet) ? logdet = C.logdet : logdet = logdet
+    Y = cuzeros(X, size(X)...)
+    ΔY = cuzeros(ΔX, size(ΔX)...)
+    n_in = size(X, N-1)
+
+    v1 = C.v1.data
+    v2 = C.v2.data
+    v3 = C.v3.data
+    dv1 = Δθ[1].data
+    dv2 = Δθ[2].data
+    dv3 = Δθ[3].data
+
+    inds = [i<N ? (:) : 1 for i=1:N]
+    for i=1:size(X, N)
+        inds[end] = i
+        Xi = reshape(view(X, inds...), :, n_in)
+        n1 = norm(v1); n2 = norm(v2); n3 = norm(v3);
+        c1 = I - 2f0*v1*v1'/n1^2f0; c2 = I - 2f0*v2*v2'/n2^2f0; c3 = I - 2f0*v3*v3'/n3^2f0;
+        Yi = Xi*c1*c2*c3
+        view(Y, inds...) .= reshape(Yi, size(view(Y, inds...))...)
+
+        ΔXi = reshape(view(ΔX, inds...), :, n_in)
+        ΔYi = ΔXi*c1*c2*c3
+              -2f0*Xi*((dv1*v1'+v1*dv1'-2f0*dot(v1,dv1)*v1*v1'/n1^2f0)/n1^2f0*c2*c3+
+                       c1*(dv2*v2'+v2*dv2'-2f0*dot(v2,dv2)*v2*v2'/n2^2f0)/n2^2f0*c3+
+                       c1*c2*(dv3*v3'+v3*dv3'-2f0*dot(v3,dv3)*v3*v3'/n3^2f0)/n3^2f0)
+        view(ΔY, inds...) .= reshape(ΔYi, size(view(ΔY, inds...))...)
+    end
+    logdet == true ? (return ΔY, Y, 0f0) : (return ΔY, Y)   # logdet always 0
+end
+
+function jacobian_backward(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, C::Conv1x1) where N
+    ΔX = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
+    X = inverse(Y, C; logdet=false)  # recompute forward state
+    Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C)  # gradient w.r.t. weights
+    return ΔX, [Parameter(Δv1), Parameter(Δv2), Parameter(Δv3)], X
+end
+
+
+## Other utils
+
 # Clear gradients
 function clear_grad!(C::Conv1x1)
     C.v1.grad = nothing

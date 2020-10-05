@@ -30,7 +30,6 @@ include("utils/activation_functions.jl")
 include("utils/test_distributions.jl")
 include("utils/neuralnet.jl")
 include("utils/invnet_linops.jl")
-include("utils/jacobian.jl")
 include("utils/invertible_network_sequential.jl")
 
 # Single network layers (invertible and non-invertible)
@@ -59,6 +58,9 @@ include("conditional_layers/conditional_layer_hint.jl")
 include("conditional_layers/conditional_layer_slim.jl")
 include("networks/invertible_network_conditional_hint.jl")
 include("networks/invertible_network_conditional_hint_multiscale.jl")
+
+# Jacobians
+include("utils/jacobian.jl")
 
 # gpu
 include("utils/cuda.jl")
