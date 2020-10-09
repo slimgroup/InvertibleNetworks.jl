@@ -134,6 +134,7 @@ end
 
 # Initialization
 logdet=true
+# logdet=false
 permute="full"
 # permute="both"
 # permute="none"
@@ -152,7 +153,7 @@ end
 dX = randn(Float32, nx, ny, n_channel, batchsize); dX *= norm(X)/norm(dX)
 
 # Jacobian eval
-dY, Y, lgdet, GNdθ = HL.jacobian(dX, dθ, X)
+logdet ? ((dY, Y, lgdet, GNdθ) = HL.jacobian(dX, dθ, X)) : ((dY, Y) = HL.jacobian(dX, dθ, X))
 
 # Test
 print("\nJacobian test\n")
@@ -162,7 +163,7 @@ err5 = zeros(Float32, maxiter)
 err6 = zeros(Float32, maxiter)
 for j=1:maxiter
     set_params!(HL, θ+h*dθ)
-    Y_, _ = HL.forward(X+h*dX)
+    logdet ? ((Y_, _) = HL.forward(X+h*dX)) : (Y_ = HL.forward(X+h*dX))
     err5[j] = norm(Y_ - Y)
     err6[j] = norm(Y_ - Y - h*dY)
     print(err5[j], "; ", err6[j], "\n")
@@ -175,9 +176,9 @@ end
 # Adjoint test
 
 set_params!(HL, θ)
-dY, Y, _, _ = HL.jacobian(dX, dθ, X)
+logdet ? ((dY, Y, _, _) = HL.jacobian(dX, dθ, X)) : ((dY, Y) = HL.jacobian(dX, dθ, X))
 dY_ = randn(Float32, size(dY))
-dX_, dθ_, _, _ = HL.adjointJacobian(dY_, Y)
+logdet ? ((dX_, dθ_, _, _) = HL.adjointJacobian(dY_, Y)) : ((dX_, dθ_, _) = HL.adjointJacobian(dY_, Y))
 a = dot(dY, dY_)
 b = dot(dX, dX_)+dot(dθ, dθ_)
 @test isapprox(a, b; rtol=1f-3)
