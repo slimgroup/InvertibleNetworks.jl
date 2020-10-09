@@ -296,6 +296,158 @@ function backward_inv(ΔX, X, H::CouplingLayerHINT; scale=1, permute=nothing)
     return ΔY, Y
 end
 
+
+## Jacobian-related functions
+
+function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing)
+    isnothing(logdet) ? logdet = (H.logdet && ~H.is_reversed) : logdet = logdet
+    isnothing(permute) ? permute = H.permute : permute = permute
+
+    # Permutation
+    if permute == "full" || permute == "both"
+        ΔX, X = H.C.jacobian(ΔX, Δθ[end-2:end], X)
+    end
+    Xa, Xb = tensor_split(X)
+    ΔXa, ΔXb = tensor_split(ΔX)
+    if permute == "lower"
+        ΔXb, Xb = H.C.jacobian(ΔXb, Δθ[end-2:end], Xb)
+    end
+
+    # Initialize Gauss-Newton approx of logdet term
+    if logdet
+        nscales_tot = length(H.CL)
+        nparams = 5*(nscales_tot-scale+1)
+        (permute != "none") && (nparams += 3)
+        GNΔθ_full = Array{Parameter, 1}(undef, nparams)
+        (permute != "none") && (GNΔθ_full[end-2:end] = [Parameter(zeros(Float32, size(H.C.v1))), Parameter(zeros(Float32, size(H.C.v2))), Parameter(zeros(Float32, size(H.C.v3)))])
+    end
+
+    # Determine whether to continue recursion
+    recursive = false
+    if typeof(X) <: AbstractArray{Float32, 4} && size(X, 3) > 4
+        recursive = true
+    elseif typeof(X) <: AbstractArray{Float32, 5} && size(X, 4) > 4
+        recursive = true
+    end
+
+    # HINT coupling
+    idx_Δθ_scale = (scale-1)*5+1:scale*5
+    if recursive
+        # Call function recursively
+        ΔYa, Ya, logdet1, GNΔθ1 = jacobian(ΔXa, Δθ, Xa, H; scale=scale+1, permute="none")
+        ΔY_temp, Y_temp, logdet2, GNΔθ2 = jacobian(ΔXb, Δθ, Xb, H; scale=scale+1, permute="none")
+        if logdet
+            _, ΔYb, _, Yb, logdet3, GNΔθ3 = H.CL[scale].jacobian(ΔXa, ΔY_temp, Δθ[idx_Δθ_scale], Xa, Y_temp)
+        else
+            _, ΔYb, _, Yb = H.CL[scale].jacobian(ΔXa, ΔY_temp, Δθ[idx_Δθ_scale], Xa, Y_temp)[2]
+            logdet3 = 0f0
+        end
+        logdet_full = logdet1 + logdet2 + logdet3
+        GNΔθ_full[1:5] .= GNΔθ3
+        (permute != "none") ? (GNΔθ_full[6:end-3] .= GNΔθ1 + GNΔθ2) : (GNΔθ_full[6:end] .= GNΔθ1 + GNΔθ2)
+    else
+        # Coarsest scale
+        Ya = copy(Xa)
+        ΔYa = copy(ΔXa)
+        if logdet
+            _, ΔYb, _, Yb, logdet_full, GNΔθ3 = H.CL[scale].jacobian(ΔXa, ΔXb, Δθ[idx_Δθ_scale], Xa, Xb)
+            GNΔθ_full[1:5] .= GNΔθ3
+        else
+            _, ΔYb, _, Yb = H.CL[scale].jacobian(ΔXa, ΔXb, Δθ[idx_Δθ_scale], Xa, Xb)
+            logdet_full = 0f0
+            GNΔθ_full[1:5] .= 0f0*Δθ[idx_Δθ_scale]
+        end
+    end
+
+    Y = tensor_cat(Ya, Yb)
+    ΔY = tensor_cat(ΔYa, ΔYb)
+    if permute == "both"
+        ΔY, Y = H.C.jacobianInverse(ΔY, Δθ[end-2:end], Y)
+    end
+    if scale == 1
+        logdet ? (return ΔY, Y, logdet_full, GNΔθ_full) : (return ΔY, Y)
+    else
+        return ΔY, Y, logdet_full, GNΔθ_full
+    end
+
+end
+
+function adjointJacobian(ΔY, Y, H::CouplingLayerHINT; scale=1, permute=nothing)
+    isnothing(permute) ? permute = H.permute : permute = permute
+
+    # Initializing output parameter array
+    nscales_tot = length(H.CL)
+    nparams = 5*(nscales_tot-scale+1)
+    (permute != "none") && (nparams += 3)
+    Δθ = Array{Parameter, 1}(undef, nparams)
+    ∇logdet = Array{Parameter, 1}(undef, nparams)
+
+    if permute == "both"
+        ΔY_ = deepcopy(ΔY)
+        Y_ = deepcopy(Y)
+        ΔY, Δθ_C, Y = H.C.adjointJacobianInverse(ΔY, Y)
+        ΔY_, Y_ = H.C.forward((ΔY_, Y_))
+        Δθ[end-2:end] .= Δθ_C
+        ∇logdet[end-2:end] .= [Parameter(zeros(Float32, size(H.C.v1))), Parameter(zeros(Float32, size(H.C.v2))), Parameter(zeros(Float32, size(H.C.v3)))]
+    end
+    Ya, Yb = tensor_split(Y)
+    ΔYa, ΔYb = tensor_split(ΔY)
+
+    # Determine whether to continue recursion
+    recursive = false
+    if typeof(Y) <: AbstractArray{Float32, 4} && size(Y, 3) > 4
+        recursive = true
+    elseif typeof(Y) <: AbstractArray{Float32, 5} && size(Y, 4) > 4
+        recursive = true
+    end
+
+    # HINT coupling
+    if recursive
+        ΔXa, Δθa, Xa, ∇logdet_a = H.adjointJacobian(ΔYa, Ya; scale=scale+1, permute="none")
+        ΔXa_temp, ΔXb_temp, Δθ_scale, _, X_temp, ∇logdet_scale = H.CL[scale].adjointJacobian(ΔXa.*0f0, ΔYb, Xa, Yb)
+        ΔXb, Δθb, Xb, ∇logdet_b = H.adjointJacobian(ΔXb_temp, X_temp; scale=scale+1, permute="none")
+        ΔXa += ΔXa_temp
+        Δθ[1:5] .= Δθ_scale
+        ∇logdet[1:5] .= ∇logdet_scale
+        if permute != "none"
+            Δθ[6:5+length(Δθa)] .= Δθa+Δθb
+            ∇logdet[6:5+length(∇logdet_a)] .= ∇logdet_a+∇logdet_b
+        else
+            Δθ[6:5+length(Δθa)] .= Δθa+Δθb
+            ∇logdet[6:5+length(∇logdet_a)] .= ∇logdet_a+∇logdet_b
+        end
+    else
+        Xa = copy(Ya)
+        ΔXa = copy(ΔYa)
+        ΔXa_, ΔXb, Δθ_scale, _, Xb, ∇logdet_scale = H.CL[scale].adjointJacobian(ΔYa.*0f0, ΔYb, Ya, Yb)
+        ΔXa += ΔXa_
+        Δθ[1:5] .= Δθ_scale
+        ∇logdet[1:5] .= ∇logdet_scale
+    end
+    if permute == "lower"
+        ΔXb, Δθ_C, Xb = H.C.adjointJacobian(ΔXb, Xb)
+        Δθ[end-2:end] .= Δθ_C
+        ∇logdet[end-2:end] .= [Parameter(zeros(Float32, size(H.C.v1))), Parameter(zeros(Float32, size(H.C.v2))), Parameter(zeros(Float32, size(H.C.v3)))]
+    end
+    ΔX = tensor_cat(ΔXa, ΔXb)
+    X = tensor_cat(Xa, Xb)
+    if permute == "full" || permute == "both"
+        ΔX, Δθ_C, X = H.C.adjointJacobian(ΔX, X)
+        if permute == "full"
+            Δθ[end-2:end] .= Δθ_C
+            ∇logdet[end-2:end] .= [Parameter(zeros(Float32, size(H.C.v1))), Parameter(zeros(Float32, size(H.C.v2))), Parameter(zeros(Float32, size(H.C.v3)))]
+        else
+            Δθ[end-2:end] += Δθ_C
+            ∇logdet[end-2:end] += [Parameter(zeros(Float32, size(H.C.v1))), Parameter(zeros(Float32, size(H.C.v2))), Parameter(zeros(Float32, size(H.C.v3)))]
+        end
+    end
+
+    H.logdet ? (return ΔX, Δθ, X, ∇logdet) : (return ΔX, Δθ, X)
+end
+
+
+## Other utils
+
 # Clear gradients
 function clear_grad!(H::CouplingLayerHINT)
     for j=1:length(H.CL)

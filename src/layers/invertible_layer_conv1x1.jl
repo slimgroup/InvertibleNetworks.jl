@@ -245,8 +245,7 @@ end
 
 ## Jacobian-related functions
 
-function jacobian_forward(ΔX::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, N}, C::Conv1x1; logdet=nothing) where N
-    isnothing(logdet) ? logdet = C.logdet : logdet = logdet
+function jacobian(ΔX::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, N}, C::Conv1x1) where N
     Y = cuzeros(X, size(X)...)
     ΔY = cuzeros(ΔX, size(ΔX)...)
     n_in = size(X, N-1)
@@ -274,14 +273,28 @@ function jacobian_forward(ΔX::AbstractArray{Float32, N}, Δθ::Array{Parameter,
                        c1*c2*(dv3*v3'+v3*dv3'-2f0*dot(v3,dv3)*v3*v3'/n3^2f0)/n3^2f0)
         view(ΔY, inds...) .= reshape(ΔYi, size(view(ΔY, inds...))...)
     end
-    logdet == true ? (return ΔY, Y, 0f0) : (return ΔY, Y)   # logdet always 0
+
+    return ΔY, Y
 end
 
-function jacobian_backward(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, C::Conv1x1) where N
+function adjointJacobian(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, C::Conv1x1) where N
     ΔX = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
     X = inverse(Y, C; logdet=false)  # recompute forward state
     Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C)  # gradient w.r.t. weights
     return ΔX, [Parameter(Δv1), Parameter(Δv2), Parameter(Δv3)], X
+end
+
+function jacobianInverse(ΔY::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1}, Y::AbstractArray{Float32, N}, C::Conv1x1) where N
+    return inverse(C).jacobian(ΔY, Δθ[end:-1:1], Y)
+end
+
+function adjointJacobianInverse(ΔX::AbstractArray{Float32, N}, X::AbstractArray{Float32, N}, C::Conv1x1) where N
+    ΔX, Δθinv, X = inverse(C).adjointJacobian(ΔX, X)
+    return ΔX, Δθinv[end:-1:1], X
+end
+
+function inverse(C::Conv1x1)
+    return Conv1x1(C.k, C.v3, C.v2, C.v1, C.logdet)
 end
 
 

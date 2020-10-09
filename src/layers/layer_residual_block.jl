@@ -279,7 +279,7 @@ end
 
 ## Jacobian-related functions
 
-function jacobian_forward(ΔX1::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, 4}, RB::ResidualBlock)
+function jacobian(ΔX1::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, 4}, RB::ResidualBlock)
 
     Y1 = conv(X1, RB.W1.data, RB.cdims1) .+ reshape(RB.b1.data, 1, 1, :, 1)
     ΔY1 = conv(ΔX1, RB.W1.data, RB.cdims1) + conv(X1, Δθ[1].data, RB.cdims1) .+ reshape(Δθ[4].data, 1, 1, :, 1)
@@ -306,7 +306,7 @@ function jacobian_forward(ΔX1::AbstractArray{Float32, 4}, Δθ::Array{Parameter
 end
 
 # 3D
-function jacobian_forward(ΔX1::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, 5}, RB::ResidualBlock)
+function jacobian(ΔX1::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, 5}, RB::ResidualBlock)
 
     Y1 = conv(X1, RB.W1.data, RB.cdims1) .+ reshape(RB.b1.data, 1, 1, 1, :, 1)
     ΔY1 = conv(ΔX1, RB.W1.data, RB.cdims1) + conv(X1, Δθ[1].data, RB.cdims1) .+ reshape(Δθ[4].data, 1, 1, 1, :, 1)
@@ -332,7 +332,7 @@ function jacobian_forward(ΔX1::AbstractArray{Float32, 5}, Δθ::Array{Parameter
 
 end
 
-function jacobian_backward(ΔX4::Array{Float32, 4}, X1::Array{Float32, 4}, RB::ResidualBlock)
+function adjointJacobian(ΔX4::Array{Float32, 4}, X1::Array{Float32, 4}, RB::ResidualBlock)
 
     # Recompute forward states from input X
     Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
@@ -357,7 +357,7 @@ function jacobian_backward(ΔX4::Array{Float32, 4}, X1::Array{Float32, 4}, RB::R
 end
 
 # 3D
-function jacobian_backward(ΔX4::Array{Float32, 5}, X1::Array{Float32, 5}, RB::ResidualBlock)
+function adjointJacobian(ΔX4::Array{Float32, 5}, X1::Array{Float32, 5}, RB::ResidualBlock)
 
     # Recompute forward states from input X
     Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
