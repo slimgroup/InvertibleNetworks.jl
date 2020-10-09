@@ -64,8 +64,24 @@ function +(p1::Parameter, p2::Parameter)
     return Parameter(p1.data+p2.data)
 end
 
+function +(p1::Parameter, p2::Float32)
+    return Parameter(p1.data+p2)
+end
+
+function +(p1::Float32, p2::Parameter)
+    return p2+p1
+end
+
 function -(p1::Parameter, p2::Parameter)
     return Parameter(p1.data-p2.data)
+end
+
+function -(p1::Parameter, p2::Float32)
+    return Parameter(p1.data-p2)
+end
+
+function -(p1::Float32, p2::Parameter)
+    return -(p2-p1)
 end
 
 function -(p::Parameter)
@@ -77,13 +93,13 @@ function *(p1::Parameter, p2::Float32)
 end
 
 function *(p1::Float32, p2::Parameter)
-    return Parameter(p1*p2.data)
+    return p2*p1
 end
 
-function /(p1::Parameter, p2::Real)
+function /(p1::Parameter, p2::Float32)
     return Parameter(p1.data/p2)
 end
 
-function /(p1::Real, p2::Parameter)
+function /(p1::Float32, p2::Parameter)
     return Parameter(p1/p2.data)
 end

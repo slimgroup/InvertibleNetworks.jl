@@ -17,10 +17,14 @@ function Base.getproperty(obj::Union{InvertibleNetwork,NeuralNetLayer}, sym::Sym
         return (args...; kwargs...) -> inverse_Y(args..., obj; kwargs...)
     elseif sym == :forward_Y
         return (args...; kwargs...) -> forward_Y(args..., obj; kwargs...)
-    elseif sym == :jacobian_forward
-        return (args...; kwargs...) -> jacobian_forward(args..., obj; kwargs...)
-    elseif sym == :jacobian_backward
-        return (args...; kwargs...) -> jacobian_backward(args..., obj; kwargs...)
+    elseif sym == :jacobian
+        return (args...; kwargs...) -> jacobian(args..., obj; kwargs...)
+    elseif sym == :jacobianInverse
+        return (args...; kwargs...) -> jacobianInverse(args..., obj; kwargs...)
+    elseif sym == :adjointJacobian
+        return (args...; kwargs...) -> adjointJacobian(args..., obj; kwargs...)
+    elseif sym == :adjointJacobianInverse
+        return (args...; kwargs...) -> adjointJacobianInverse(args..., obj; kwargs...)
     else
          # fallback to getfield
         return getfield(obj, sym)

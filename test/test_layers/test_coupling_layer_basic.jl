@@ -253,7 +253,7 @@ dX1 = randn(Float32, nx, ny, n_in, batchsize); dX1 = norm(X1)*dX1/norm(dX1)
 dX2 = randn(Float32, nx, ny, n_in, batchsize); dX2 = norm(X2)*dX2/norm(dX2)
 
 # Jacobian eval
-dY1, dY2, Y1, Y2 = L.jacobian_forward(dX1, dX2, dθ, X1, X2)
+dY1, dY2, Y1, Y2 = L.jacobian(dX1, dX2, dθ, X1, X2)
 
 # Test
 print("\nJacobian test\n")
@@ -276,9 +276,9 @@ end
 # Adjoint test
 
 set_params!(L, θ)
-dY1, dY2, Y1, Y2 = L.jacobian_forward(dX1, dX2, dθ, X1, X2)
+dY1, dY2, Y1, Y2 = L.jacobian(dX1, dX2, dθ, X1, X2)
 dY1_ = randn(Float32, size(dY1)); dY2_ = randn(Float32, size(dY2))
-dX1_, dX2_, dθ_ = L.jacobian_backward(dY1_, dY2_, Y1, Y2)
+dX1_, dX2_, dθ_ = L.adjointJacobian(dY1_, dY2_, Y1, Y2)
 a = dot(dY1, dY1_)+dot(dY2, dY2_)
 b = dot(dX1, dX1_)+dot(dX2, dX2_)+dot(dθ, dθ_)
 @test isapprox(a, b; rtol=1f-3)

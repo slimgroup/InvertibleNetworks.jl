@@ -141,7 +141,7 @@ dθ = [Parameter(dW1)/norm(W1), Parameter(dW2)/norm(W2), Parameter(dW3)/norm(W3)
 dX = randn(Float32, nx, ny, n_in, batchsize)/norm(X)
 
 # Jacobian eval
-dY, Y = RB.jacobian_forward(dX, dθ, X)
+dY, Y = RB.jacobian(dX, dθ, X)
 
 # Test
 print("\nJacobian test\n")
@@ -164,9 +164,9 @@ end
 # Adjoint test
 
 set_params!(RB, θ)
-dY = RB.jacobian_forward(dX, dθ, X)[1]
+dY = RB.jacobian(dX, dθ, X)[1]
 dY_ = randn(Float32, size(dY))
-dX_, dθ_ = RB.jacobian_backward(dY_, X)
+dX_, dθ_ = RB.adjointJacobian(dY_, X)
 a = dot(dY, dY_)
 b = dot(dX, dX_)+dot(dθ, dθ_)
 @test isapprox(a, b; rtol=1f-3)

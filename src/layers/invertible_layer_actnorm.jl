@@ -191,7 +191,7 @@ end
 ## Jacobian-related functions
 
 # 2D
-function jacobian_forward(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
+function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     Δs = Δθ[1].data
     Δb = Δθ[2].data
@@ -213,7 +213,7 @@ function jacobian_forward(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter,
 end
 
 # 3D
-function jacobian_forward(ΔX::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
+function jacobian(ΔX::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     Δs = Δθ[1].data
     Δb = Δθ[2].data
@@ -235,14 +235,14 @@ function jacobian_forward(ΔX::AbstractArray{Float32, 5}, Δθ::Array{Parameter,
 end
 
 # 2D
-function jacobian_backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, AN::ActNorm)
+function adjointJacobian(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, AN::ActNorm)
     ΔX, X, Δθ = backward(ΔY, Y, AN; set_grad=false)
     nx, ny = size(Y)[1:2]
     AN.logdet ? (return ΔX, Δθ, X, logdet_backward(nx, ny, AN.s)) : (return ΔX, Δθ, X)
 end
 
 # 3D
-function jacobian_backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, AN::ActNorm)
+function adjointJacobian(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, AN::ActNorm)
     nx, ny, n_in, batchsize = size(Y)
     X = inverse(Y, AN; logdet=false)
     ΔX = ΔY .* reshape(AN.s.data, 1, 1, 1, :, 1)
