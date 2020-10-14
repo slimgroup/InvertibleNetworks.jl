@@ -267,7 +267,7 @@ function adjointJacobian(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
         _, ∇logdet = L.RB.adjointJacobian(tensor_cat(SigmoidGrad(coupling_logdet_backward(S), S), zeros(Float32, size(ΔT))), X1)
     end
     ΔX2 = ΔY2 .* S
-    ΔX1, Δθ = adjointJacobian(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1, L.RB)
+    ΔX1, Δθ = L.RB.adjointJacobian(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1)
     ΔX1 += ΔY1
 
     L.logdet ? (return ΔX1, ΔX2, Δθ, X1, X2, ∇logdet) : (return ΔX1, ΔX2, Δθ, X1, X2)

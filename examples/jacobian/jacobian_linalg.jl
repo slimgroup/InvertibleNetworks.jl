@@ -17,7 +17,7 @@ N = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=logdet, per
 # Compute Jacobian
 X = randn(Float32, nx, ny, n_channel, batchsize)
 J = Jacobian(N, X)
-JT = adjoint(J)
+# J = Jacobian!(N, X; θ=θ)
 
 # Evaluate Jacobian
 ΔX = randn(Float32, size(X))
@@ -25,6 +25,7 @@ JT = adjoint(J)
 ΔY = J*(ΔX, Δθ)
 
 # Evaluate adjoint Jacobian
+JT = adjoint(J)
 ΔY_ = randn(Float32, size(X))
 ΔX_, Δθ_ =  JT*ΔY_
 
