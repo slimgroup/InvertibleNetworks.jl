@@ -2,8 +2,7 @@
 # Author: Gabrio Rizzuti, grizzuti3@gatech.edu
 # Date: October 2020
 
-using InvertibleNetworks, LinearAlgebra, PyPlot, Flux
-import Flux.Optimise.update!
+using InvertibleNetworks, LinearAlgebra, PyPlot
 using Random; Random.seed!(123)
 
 # Initialize HINT layer
@@ -14,7 +13,6 @@ n_hidden = 64
 batchsize = 1
 logdet = false
 N = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=logdet, permute="full")
-θ = get_params(N)
 
 # Fixed input
 X = randn(Float32, nx, ny, n_channel, batchsize)
@@ -25,8 +23,7 @@ loss(Y) = 0.5f0*norm(Ŷ-Y)^2f0
 ∇loss(Y) = Y-Ŷ
 
 # Training
-lr = 1f-3
-opt = Flux.ADAM(lr)
+lr = 1f-2
 maxiter = 1000
 fval = zeros(Float32, maxiter)
 for i = 1:maxiter
@@ -40,13 +37,13 @@ for i = 1:maxiter
 
     # Compute gradient
     ΔY = ∇loss(Y)
-    JT = adjoint(Jacobian(N, X))
-    _, Δθ = JT*ΔY # opt1
-    # N.backward(ΔY, Y); Δθ = get_grads(N) # opt2
+    J = Jacobian(N, X)
+    _, Δθ = adjoint(J)*ΔY
 
-    # Update params
-    for j = 1:length(θ)
-        update!(opt, θ[j].data, Δθ[j].data)
-    end
+    # Update parameters
+    θ = get_params(N)
+    lr_ = lr*norm.(θ)./(norm.(Δθ).+1f-10)
+    θ = θ-lr_.*Δθ
+    set_params!(N, θ)
 
 end

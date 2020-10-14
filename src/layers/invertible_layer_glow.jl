@@ -140,6 +140,65 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
     return ΔX, X
 end
 
+
+## Jacobian-related functions
+
+function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X, L::CouplingLayerGlow)
+
+    # Get dimensions
+    k = Int(L.C.k/2)
+
+    ΔX_, X_ = L.C.jacobian(ΔX, Δθ[1:3], X)
+    X1, X2 = tensor_split(X_)
+    ΔX1, ΔX2 = tensor_split(ΔX_)
+
+    Y2 = copy(X2)
+    ΔY2 = copy(ΔX2)
+    ΔlogS_T, logS_T = L.RB.jacobian(ΔX2, Δθ[4:end], X2)
+    S = Sigmoid(logS_T[:,:,1:k,:])
+    ΔS = SigmoidGrad(ΔlogS_T[:,:,1:k,:], nothing; x=logS_T[:,:,1:k,:])
+    T = logS_T[:, :, k+1:end, :]
+    ΔT = ΔlogS_T[:, :, k+1:end, :]
+    Y1 = S.*X1 + T
+    ΔY1 = ΔS.*X1 + S.*ΔX1 + ΔT
+    Y = tensor_cat(Y1, Y2)
+    ΔY = tensor_cat(ΔY1, ΔY2)
+
+    # Gauss-Newton approximation of logdet terms
+    JΔθ = L.RB.jacobian(zeros(Float32, size(ΔX2)), Δθ[4:end], X2)[1][:, :, 1:k, :]
+    GNΔθ = -L.RB.adjointJacobian(tensor_cat(SigmoidGrad(JΔθ, S), zeros(Float32, size(S))), X2)[2]
+
+    L.logdet ? (return ΔY, Y, glow_logdet_forward(S), GNΔθ) : (return ΔY, Y)
+end
+
+function adjointJacobian(ΔY, Y, L::CouplingLayerGlow)
+
+    # Initialize output parameters
+    Δθ = Array{Parameter, 1}(undef, 8)
+
+    # Recompute forward state
+    k = Int(L.C.k/2)
+    X, X1, X2, S = L.inverse(Y; save=true)
+
+    # Backpropagate residual
+    ΔY1, ΔY2 = tensor_split(ΔY)
+    ΔT = copy(ΔY1)
+    ΔS = ΔY1 .* X1
+    if L.logdet
+        _, ∇logdet = L.RB.adjointJacobian(tensor_cat(SigmoidGrad(glow_logdet_backward(S), S), zeros(Float32, size(ΔT))), X2)
+    end
+    ΔX1 = ΔY1 .* S
+    ΔX2, Δθ[4:end] = L.RB.adjointJacobian(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), X2)
+    ΔX2 += ΔY2
+    ΔX_ = tensor_cat(ΔX1, ΔX2)
+    ΔX, Δθ[1:3], _ = L.C.adjointJacobian(ΔX_, tensor_cat(X1, X2))
+
+    L.logdet ? (return ΔX, Δθ, X, ∇logdet) : (return ΔX, Δθ, X)
+end
+
+
+## Other utils
+
 # Clear gradients
 function clear_grad!(L::CouplingLayerGlow)
     clear_grad!(L.C)
