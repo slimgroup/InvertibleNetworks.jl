@@ -10,7 +10,7 @@ import LinearAlgebra.dot, LinearAlgebra.norm, LinearAlgebra.adjoint
 import Flux.glorot_uniform
 import CUDA: CuArray
 
-using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote
+using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote#, ForwardDiff
 
 export clear_grad!, glorot_uniform
 

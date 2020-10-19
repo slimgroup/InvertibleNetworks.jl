@@ -78,6 +78,32 @@ function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, 
 end
 
 
+## Jacobian utilities
+
+# function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
+#     ...
+# end
+
+function adjointJacobian(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
+
+    # Backprop using Zygote
+    θ = Flux.params(X, FB.model)
+    back = Zygote.pullback(() -> FB.model(X), θ)[2]
+    grad = back(ΔY)
+
+    # Set gradients
+    ΔX = grad[θ[1]]
+    Δθ = Array{Params, 1}(undef, length(FB.params))
+    for j = 1:length(FB.params)
+        Δθ[j] = grad[θ[j+1]]
+    end
+    return ΔX, Δθ
+
+end
+
+
+## Other utils
+
 # Clear gradients
 function clear_grad!(FB::FluxBlock)
     nparams = length(FB.params)
@@ -94,9 +120,9 @@ end
  the paramters in `P`, modifies the parameters in `NL`.
 """
 function get_params(FB::FluxBlock)
-    params = []
+    params = Array{Parameter, 1}(undef, length(FB.params))
     for j=1:length(FB.params)
-        params = [params; FB.params[j]]
+        params[j] = FB.params[j]
     end
     return params
 end

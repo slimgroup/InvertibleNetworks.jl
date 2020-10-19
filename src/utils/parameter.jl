@@ -3,7 +3,7 @@
 # Date: January 2020
 
 export Parameter
-export get_params, get_grads, set_params!
+export get_params, get_grads, set_params!, par2vec, vec2par
 
 mutable struct Parameter
     data
@@ -26,6 +26,34 @@ Parameter(x) = Parameter(x, nothing)
 # Size and length for parameter types
 size(x::Parameter) = size(x.data)
 length(x::Parameter) = length(x.data)
+
+# Shape manipulation
+function par2vec(x::Parameter)
+    return vec(x.data), size(x.data)
+end
+function vec2par(x::Array{Float32, 1}, s::NTuple{N, Int64}) where {N}
+    return Parameter(reshape(x, s))
+end
+function par2vec(x::Array{Parameter, 1})
+    v = Array{Float32, 1}(undef, 0)
+    s = Array{Any, 1}(undef, 0)
+    for i = 1:length(x)
+        vi, si = par2vec(x[i])
+        v = cat(v, vi; dims=1)
+        s = cat(s, si; dims=1)
+    end
+    return v, s
+end
+function vec2par(x::Array{Float32, 1}, s::Array{Any, 1})
+    xpar = Array{Parameter, 1}(undef, length(s))
+    idx_i = 0
+    for i = 1:length(s)
+        xpar[i] = vec2par(x[idx_i+1:idx_i+prod(s[i])], s[i])
+        idx_i += prod(s[i])
+    end
+    return xpar
+end
+
 
 @Flux.functor Parameter
 
