@@ -1,4 +1,5 @@
 export NeuralNetLayer, InvertibleNetwork, ReverseLayer, ReverseNetwork
+export get_grads
 
 # Base Layer and network types with property getters
 
@@ -118,17 +119,6 @@ function clear_grad!(RN::ReverseNetwork)
     clear_grad!(RN.network)
 end
 
-# Get gradients
-
-function get_grads(N::Union{NeuralNetLayer, InvertibleNetwork})
-    θ = get_params(N)
-    g = Array{Parameter, 1}(undef, length(θ))
-    for i = 1:length(θ)
-        g[i] = Parameter(θ[i].grad)
-    end
-    return g
-end
-
 # Get params for reversed layers/networks
 
 function get_params(RL::ReverseLayer)
@@ -137,6 +127,10 @@ end
 
 function get_params(RN::ReverseNetwork)
     return get_params(RN.network)
+end
+
+function get_grads(N::Union{NeuralNetLayer, InvertibleNetwork})
+    return get_grads(get_params(N))
 end
 
 function get_grads(RL::ReverseLayer)
@@ -150,10 +144,7 @@ end
 # Set parameters
 
 function set_params!(N::Union{NeuralNetLayer, InvertibleNetwork}, θnew::Array{Parameter, 1})
-    θold = get_params(N)
-    for i = 1:length(θold)
-        set_params!(θold[i], θnew[i])
-    end
+    set_params!(get_params(N), θnew)
 end
 
 # Set params for reversed layers/networks
