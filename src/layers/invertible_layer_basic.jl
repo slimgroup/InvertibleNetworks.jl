@@ -176,13 +176,16 @@ function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic; set_grad::Bool=true
     ΔT = copy(ΔY2)
     ΔS = ΔY2 .* X2
     if L.logdet
-        set_grad ? (ΔS -= coupling_logdet_backward(S)) : (∇logdet = coupling_logdet_backward(S))
+        set_grad && (ΔS -= coupling_logdet_backward(S))
     end
     ΔX2 = ΔY2 .* S
     if set_grad
         ΔX1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1) + ΔY1
     else
         ΔX1, Δθ = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1; set_grad=set_grad)
+        if L.logdet
+            _, ∇logdet = L.RB.backward(tensor_cat(SigmoidGrad(coupling_logdet_backward(S), S), 0f0.*ΔT), X1; set_grad=set_grad)
+        end
         ΔX1 += ΔY1
     end
 

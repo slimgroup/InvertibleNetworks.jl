@@ -176,7 +176,7 @@ function inverse(X_curr, X_new, HL::HyperbolicLayer; save=false)
 end
 
 # Backward pass
-function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
+function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer; set_grad::Bool=true)
 
     # Recompute forward states
     X_prev_in, X_curr_in, X_conv, X_relu = inverse(X_curr, X_new, HL; save=true)
@@ -195,8 +195,12 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
     ΔX_prev = -ΔX_new
 
     # Set gradients
-    HL.W.grad = ΔW
-    HL.b.grad = Δb
+    if set_grad
+        HL.W.grad = ΔW
+        HL.b.grad = Δb
+    else
+        Δθ = [Parameter(ΔW), Parameter(Δb)]
+    end
 
     # Change dimensions
     if HL.action == "same"
@@ -212,7 +216,7 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
         throw("Specified operation not defined.")
     end
 
-    return ΔX_prev_in, ΔX_curr_in, X_prev_in, X_curr_in
+    set_grad ? (return ΔX_prev_in, ΔX_curr_in, X_prev_in, X_curr_in) : (return ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in)
 end
 
 
@@ -256,38 +260,7 @@ function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::Hype
 end
 
 function adjointJacobian(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
-
-    # Recompute forward states
-    X_prev_in, X_curr_in, X_conv, X_relu = inverse(X_curr, X_new, HL; save=true)
-
-    # Backpropagate data residual and compute gradients
-    ΔX_convT = copy(ΔX_new)
-    ΔX_relu = -HL.α*conv(ΔX_convT, HL.W.data, HL.cdims)
-    ΔW = -HL.α*∇conv_filter(ΔX_convT, X_relu, HL.cdims)
-
-    ΔX_conv = ReLUgrad(ΔX_relu, X_conv)
-    ΔX_curr += ∇conv_data(ΔX_conv, HL.W.data, HL.cdims)
-    ΔW += ∇conv_filter(X_curr, ΔX_conv, HL.cdims)
-    Δb = sum(ΔX_conv; dims=[1,2,4])[1,1,:,1]
-
-    ΔX_curr += 2f0*ΔX_new
-    ΔX_prev = -ΔX_new
-
-    # Change dimensions
-    if HL.action == "same"
-        ΔX_prev_in = identity(ΔX_prev)
-        ΔX_curr_in = identity(ΔX_curr)
-    elseif HL.action == "down"
-        ΔX_prev_in = wavelet_unsqueeze(ΔX_prev)
-        ΔX_curr_in = wavelet_unsqueeze(ΔX_curr)
-    elseif HL.action == "up"
-        ΔX_prev_in = wavelet_squeeze(ΔX_prev)
-        ΔX_curr_in = wavelet_squeeze(ΔX_curr)
-    else
-        throw("Specified operation not defined.")
-    end
-
-    return ΔX_prev_in, ΔX_curr_in, [Parameter(ΔW), Parameter(Δb)], X_prev_in, X_curr_in
+    return backward(ΔX_curr, ΔX_new, X_curr, X_new, HL; set_grad=false)
 end
 
 
