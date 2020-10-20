@@ -215,7 +215,7 @@ function forward(X1::AbstractArray{Float32, 5}, RB::ResidualBlock; save=false)
 end
 
 # Backward 2D
-function backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}, RB::ResidualBlock)
+function backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}, RB::ResidualBlock; set_grad::Bool=true)
 
     # Recompute forward states from input X
     Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
@@ -236,17 +236,21 @@ function backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}
     Δb1 = sum(ΔY1, dims=[1,2,4])[1,1,:,1]
 
     # Set gradients
-    RB.W1.grad = ΔW1
-    RB.W2.grad = ΔW2
-    RB.W3.grad = ΔW3
-    RB.b1.grad = Δb1
-    RB.b2.grad = Δb2
+    if set_grad
+        RB.W1.grad = ΔW1
+        RB.W2.grad = ΔW2
+        RB.W3.grad = ΔW3
+        RB.b1.grad = Δb1
+        RB.b2.grad = Δb2
+    else
+        Δθ = [Parameter(ΔW1), Parameter(ΔW2), Parameter(ΔW3), Parameter(Δb1), Parameter(Δb2)]
+    end
 
-    return ΔX1
+    set_grad ? (return ΔX1) : (return ΔX1, Δθ)
 end
 
 # Backward 3D
-function backward(ΔX4::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5}, RB::ResidualBlock)
+function backward(ΔX4::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5}, RB::ResidualBlock; set_grad::Bool=true)
 
     # Recompute forward states from input X
     Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
@@ -267,13 +271,17 @@ function backward(ΔX4::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5}
     Δb1 = sum(ΔY1, dims=[1,2,3,5])[1,1,1,:,1]
 
     # Set gradients
-    RB.W1.grad = ΔW1
-    RB.W2.grad = ΔW2
-    RB.W3.grad = ΔW3
-    RB.b1.grad = Δb1
-    RB.b2.grad = Δb2
+    if set_grad
+        RB.W1.grad = ΔW1
+        RB.W2.grad = ΔW2
+        RB.W3.grad = ΔW3
+        RB.b1.grad = Δb1
+        RB.b2.grad = Δb2
+    else
+        Δθ = [Parameter(ΔW1), Parameter(ΔW2), Parameter(ΔW3), Parameter(Δb1), Parameter(Δb2)]
+    end
 
-    return ΔX1
+    set_grad ? (return ΔX1) : (return ΔX1, Δθ)
 end
 
 
@@ -332,53 +340,9 @@ function jacobian(ΔX1::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X1
 
 end
 
-function adjointJacobian(ΔX4::Array{Float32, 4}, X1::Array{Float32, 4}, RB::ResidualBlock)
-
-    # Recompute forward states from input X
-    Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
-
-    # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
-    ΔX3 = conv(ΔY3, RB.W3.data, RB.cdims3)
-    ΔW3 = ∇conv_filter(ΔY3, X3, RB.cdims3)
-
-    ΔY2 = ReLUgrad(ΔX3, Y2)
-    ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2) + ΔY2
-    ΔW2 = ∇conv_filter(X2, ΔY2, RB.cdims2)
-    Δb2 = sum(ΔY2, dims=[1,2,4])[1,1,:,1]
-
-    ΔY1 = ReLUgrad(ΔX2, Y1)
-    ΔX1 = ∇conv_data(ΔY1, RB.W1.data, RB.cdims1)
-    ΔW1 = ∇conv_filter(X1, ΔY1, RB.cdims1)
-    Δb1 = sum(ΔY1, dims=[1,2,4])[1,1,:,1]
-
-    return ΔX1, [Parameter(ΔW1), Parameter(ΔW2), Parameter(ΔW3), Parameter(Δb1), Parameter(Δb2)]
-
-end
-
-# 3D
-function adjointJacobian(ΔX4::Array{Float32, 5}, X1::Array{Float32, 5}, RB::ResidualBlock)
-
-    # Recompute forward states from input X
-    Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
-
-    # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
-    ΔX3 = conv(ΔY3, RB.W3.data, RB.cdims3)
-    ΔW3 = ∇conv_filter(ΔY3, X3, RB.cdims3)
-
-    ΔY2 = ReLUgrad(ΔX3, Y2)
-    ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2) + ΔY2
-    ΔW2 = ∇conv_filter(X2, ΔY2, RB.cdims2)
-    Δb2 = sum(ΔY2, dims=[1,2,3,5])[1,1,1,:,1]
-
-    ΔY1 = ReLUgrad(ΔX2, Y1)
-    ΔX1 = ∇conv_data(ΔY1, RB.W1.data, RB.cdims1)
-    ΔW1 = ∇conv_filter(X1, ΔY1, RB.cdims1)
-    Δb1 = sum(ΔY1, dims=[1,2,3,5])[1,1,1,:,1]
-
-    return ΔX1, [Parameter(ΔW1), Parameter(ΔW2), Parameter(ΔW3), Parameter(Δb1), Parameter(Δb2)]
-
+# 2D/3D
+function adjointJacobian(ΔX4::Array{Float32, N}, X1::Array{Float32, N}, RB::ResidualBlock) where N
+    return backward(ΔX4, X1, RB; set_grad=false)
 end
 
 

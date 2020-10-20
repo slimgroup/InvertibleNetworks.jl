@@ -133,65 +133,105 @@ function inverse(Y::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
 end
 
 # 2D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, AN::ActNorm)
+function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, AN::ActNorm; set_grad::Bool = true)
     nx, ny, n_in, batchsize = size(Y)
     X = inverse(Y, AN; logdet=false)
     ΔX = ΔY .* reshape(AN.s.data, 1, 1, :, 1)
     Δs = sum(ΔY .* X, dims=[1, 2, 4])[1, 1, :, 1]
-    AN.logdet == true && (Δs -= logdet_backward(nx, ny, AN.s))
+    if AN.logdet
+        set_grad ? (Δs -= logdet_backward(nx, ny, AN.s)) : (∇logdet = logdet_backward(nx, ny, AN.s))
+    end
     Δb = sum(ΔY, dims=[1, 2, 4])[1, 1, :, 1]
-    AN.s.grad = Δs
-    AN.b.grad = Δb
-    return ΔX, X
+    if set_grad
+        AN.s.grad = Δs
+        AN.b.grad = Δb
+    else
+        Δθ = [Parameter(Δs), Parameter(Δb)]
+    end
+    if set_grad
+        return ΔX, X
+    else
+        AN.logdet ? (return ΔX, Δθ, X, ∇logdet) : (return ΔX, Δθ, X)
+    end
 end
 
 # 3D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, AN::ActNorm)
+function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, AN::ActNorm; set_grad::Bool = true)
     nx, ny, nz, n_in, batchsize = size(Y)
     X = inverse(Y, AN; logdet=false)
     ΔX = ΔY .* reshape(AN.s.data, 1, 1, 1, :, 1)
     Δs = sum(ΔY .* X, dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-    AN.logdet == true && (Δs -= logdet_backward(nx, ny, nz, AN.s))
+    if AN.logdet
+        set_grad ? (Δs -= logdet_backward(nx, ny, nz, AN.s)) : (∇logdet = logdet_backward(nx, ny, nz, AN.s))
+    end
     Δb = sum(ΔY, dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-    AN.s.grad = Δs
-    AN.b.grad = Δb
-    return ΔX, X
+    if set_grad
+        AN.s.grad = Δs
+        AN.b.grad = Δb
+    else
+        Δθ = [Parameter(Δs), Parameter(Δb)]
+    end
+    if set_grad
+        return ΔX, X
+    else
+        AN.logdet ? (return ΔX, Δθ, X, ∇logdet) : (return ΔX, Δθ, X)
+    end
 end
 
 
 ## Reverse-layer functions
 
 # 2D Backward pass (inverse): Input (ΔX, X), Output (ΔX, X)
-function backward_inv(ΔX::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, AN::ActNorm)
+function backward_inv(ΔX::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, AN::ActNorm; set_grad::Bool = true)
     nx, ny, n_in, batchsize = size(X)
     Y = forward(X, AN; logdet=false)
     ΔY = ΔX ./ reshape(AN.s.data, 1, 1, :, 1)
     Δs = -sum(ΔX .* X ./ reshape(AN.s.data, 1, 1, :, 1), dims=[1, 2, 4])[1, 1, :, 1]
-    AN.logdet == true && (Δs += logdet_backward(nx, ny, AN.s))
+    if AN.logdet
+        set_grad ? (Δs += logdet_backward(nx, ny, AN.s)) : (∇logdet = -logdet_backward(nx, ny, AN.s))
+    end
     Δb = -sum(ΔX ./ reshape(AN.s.data, 1, 1, :, 1), dims=[1, 2, 4])[1, 1, :, 1]
-    AN.s.grad = Δs
-    AN.b.grad = Δb
-    return ΔY, Y
+    if set_grad
+        AN.s.grad = Δs
+        AN.b.grad = Δb
+    else
+        Δθ = [Parameter(Δs), Parameter(Δb)]
+    end
+    if set_grad
+        return ΔY, Y
+    else
+        AN.logdet ? (return ΔY, Δθ, Y, ∇logdet) : (return ΔY, Δθ, Y)
+    end
 end
 
 # 3D Backward pass (inverse): Input (ΔX, X), Output (ΔX, X)
-function backward_inv(ΔX::AbstractArray{Float32, 5}, X::AbstractArray{Float32, 5}, AN::ActNorm)
+function backward_inv(ΔX::AbstractArray{Float32, 5}, X::AbstractArray{Float32, 5}, AN::ActNorm; set_grad::Bool = true)
     nx, ny, nz, n_in, batchsize = size(X)
     Y = forward(X, AN; logdet=false)
     ΔY = ΔX ./ reshape(AN.s.data, 1, 1, 1, :, 1)
     Δs = -sum(ΔX .* X ./ reshape(AN.s.data, 1, 1, 1, :, 1), dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-    AN.logdet == true && (Δs += logdet_backward(nx, ny, AN.s))
+    if AN.logdet
+        set_grad ? (Δs += logdet_backward(nx, ny, nz, AN.s)) : (∇logdet = -logdet_backward(nx, ny, nz, AN.s))
+    end
     Δb = -sum(ΔX ./ reshape(AN.s.data, 1, 1, 1, :, 1), dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-    AN.s.grad = Δs
-    AN.b.grad = Δb
-    return ΔY, Y
+    if set_grad
+        AN.s.grad = Δs
+        AN.b.grad = Δb
+    else
+        Δθ = [Parameter(Δs), Parameter(Δb)]
+    end
+    if set_grad
+        return ΔY, Y
+    else
+        AN.logdet ? (return ΔY, Δθ, Y, ∇logdet) : (return ΔY, Δθ, Y)
+    end
 end
 
 
 ## Jacobian-related functions
 
 # 2D
-function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
+function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::AbstractArray{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     Δs = Δθ[1].data
     Δb = Δθ[2].data
@@ -213,7 +253,7 @@ function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::
 end
 
 # 3D
-function jacobian(ΔX::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
+function jacobian(ΔX::AbstractArray{Float32, 5}, Δθ::AbstractArray{Parameter, 1}, X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     Δs = Δθ[1].data
     Δb = Δθ[2].data
@@ -234,22 +274,9 @@ function jacobian(ΔX::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X::
     end
 end
 
-# 2D
-function adjointJacobian(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, AN::ActNorm)
-    ΔX, X, Δθ = backward(ΔY, Y, AN; set_grad=false)
-    nx, ny = size(Y)[1:2]
-    AN.logdet ? (return ΔX, Δθ, X, logdet_backward(nx, ny, AN.s)) : (return ΔX, Δθ, X)
-end
-
-# 3D
-function adjointJacobian(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, AN::ActNorm)
-    nx, ny, n_in, batchsize = size(Y)
-    X = inverse(Y, AN; logdet=false)
-    ΔX = ΔY .* reshape(AN.s.data, 1, 1, 1, :, 1)
-    Δs = sum(ΔY .* X, dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-    Δb = sum(ΔY, dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-    Δθ = [Parameter(Δs), Parameter(Δb)]
-    AN.logdet ? (return ΔX, Δθ, X, logdet_backward(nx, ny, AN.s)) : (return ΔX, Δθ, X)
+# 2D/3D
+function adjointJacobian(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, AN::ActNorm) where N
+    return backward(ΔY, Y, AN; set_grad=false)
 end
 
 
