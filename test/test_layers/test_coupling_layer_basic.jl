@@ -236,10 +236,10 @@ end
 
 # Initialization
 RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
-L0 = CouplingLayerBasic(RB0; logdet=true)
+L0 = CouplingLayerBasic(RB0; logdet=true, activation=Sigmoid2Layer())
 θ0 = deepcopy(get_params(L0))
 RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
-L = CouplingLayerBasic(RB; logdet=true)
+L = CouplingLayerBasic(RB; logdet=true, activation=Sigmoid2Layer())
 θ = deepcopy(get_params(L))
 X1 = randn(Float32, nx, ny, n_in, batchsize)
 X2 = randn(Float32, nx, ny, n_in, batchsize)

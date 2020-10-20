@@ -6,6 +6,38 @@ export ReLU, ReLUgrad
 export LeakyReLU, LeakyReLUinv, LeakyReLUgrad
 export Sigmoid, SigmoidInv, SigmoidGrad
 export GaLU, GaLUgrad
+export ReLUlayer, LeakyReLUlayer, SigmoidLayer, Sigmoid2Layer, GaLUlayer
+
+
+###############################################################################
+# Custom type for activation functions
+
+struct ActivationFunction
+    forward::Function
+    inverse::Union{Nothing, Function}
+    backward::Function
+end
+
+function ReLUlayer()
+    return ActivationFunction(ReLU, nothing, ReLUgrad)
+end
+
+function LeakyReLUlayer()
+    return ActivationFunction(LeakyReLU, LeakyReLUinv, LeakyReLUgrad)
+end
+
+function SigmoidLayer()
+    return ActivationFunction(Sigmoid, SigmoidInv, SigmoidGrad)
+end
+
+function GaLUlayer()
+    return ActivationFunction(GaLU, nothing, GaLUgrad)
+end
+
+function Sigmoid2Layer()
+    return ActivationFunction(x -> 2f0*Sigmoid(x), y -> SigmoidInv(y/2f0), (Δy, y) -> SigmoidGrad(Δy*2f0, y/2f0))
+end
+
 
 ###############################################################################
 # Rectified linear unit (ReLU) (not invertible)
