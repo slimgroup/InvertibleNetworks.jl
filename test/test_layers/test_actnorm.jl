@@ -225,88 +225,53 @@ end
 @test isapprox(err8[end] / (err8[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
 
-###############################################################################
-# Jacobian adjoint test
+###################################################################################################
+# Jacobian-related tests
 
-AN = ActNorm(nc; logdet=false)
-AN0 = ActNorm(nc; logdet=false)
-X = randn(Float32, nx, ny, nc, batchsize); Y = AN.forward(X)
-X0 = randn(Float32, nx, ny, nc, batchsize); AN0.forward(X0)
-Δθ = get_params(AN)-get_params(AN0)
-ΔX = randn(Float32, nx, ny, nc, batchsize)
+# Gradient test
 
-# Jacobian forward pass J(X, θ)*(ΔX, Δθ)
-J = Jacobian(AN, X)
-ΔY = J*(ΔX, Δθ)
-
-# Jacobian adjoint pass adjoint(J(X, θ)))*ΔY_
-ΔY_ = randn(Float32, size(ΔY)); ΔY_ = norm(ΔY)/norm(ΔY_)*ΔY_
-ΔX_, Δθ_ = adjoint(J)*ΔY_
-
-# Adjoint test
-a = dot(ΔY, ΔY_)
-b = dot(ΔX, ΔX_)+dot(Δθ, Δθ_)
-@test isapprox(a, b; rtol=1f-4)
-
-
-###############################################################################
-# Hessian test
-
-# Loss function
-function loss(X::Array{Float32, 4}, Y::Array{Float32, 4}, θ::Array{Parameter, 1}, Δθ::Array{Parameter, 1})
-
-    # Jacobian evaluation
-    AN = ActNorm(nc; logdet=true); set_params!(AN, θ)
-    J = Jacobian(AN, X, false)
-    JΔθ, FX, logdet, HlgdetΔθ = J*Δθ
-
-    # Gradient of f
-    ΔY = FX-Y
-    # f = 0.5f0*norm(ΔY)^2f0/batchsize-logdet
-    JT = adjoint(J; Y=FX)
-    g = (JT*ΔY)[2]/batchsize # need logdet grads
-
-    # Loss function
-    f = dot(g, Δθ)
-
-    # Hessians
-    JtJΔθ = (JT*JΔθ)[2]/batchsize
-    g = JtJΔθ-HlgdetΔθ
-
-    return f, g
-
-end
-
-# Gradient/Hessian test for parameters
-AN = ActNorm(nc; logdet=true)
-X = randn(Float32, nx, ny, nc, batchsize); Y, _ = AN.forward(X)
+# Initialization
+logdet=true
+AN = ActNorm(nc; logdet=logdet); AN.forward(randn(Float32, nx, ny, nc, batchsize))
 θ = deepcopy(get_params(AN))
+AN0 = ActNorm(nc; logdet=logdet); AN0.forward(randn(Float32, nx, ny, nc, batchsize))
+θ0 = deepcopy(get_params(AN0))
+X = randn(Float32, nx, ny, nc, batchsize)
 
-AN_ = ActNorm(nc; logdet=true)
-X_ = randn(Float32, nx, ny, nc, batchsize); Y, _ = AN_.forward(X_)
-AN0_ = ActNorm(nc; logdet=true);
-X0_ = randn(Float32, nx, ny, nc, batchsize); Y0_, _ = AN0_.forward(X0_)
-Δθ = deepcopy(get_params(AN_)-get_params(AN0_))
+# Perturbation (normalized)
+dθ = θ-θ0
+for i = 1:length(θ)
+    dθ[i] = norm(θ0[i])*dθ[i]/(norm(dθ[i]).+1f-10)
+end
+dX = randn(Float32, nx, ny, nc, batchsize); dX *= norm(X)/norm(dX)
 
-AN_ = ActNorm(nc; logdet=true)
-X_ = randn(Float32, nx, ny, nc, batchsize); Y, _ = AN_.forward(X_)
-AN0_ = ActNorm(nc; logdet=true)
-X0_ = randn(Float32, nx, ny, nc, batchsize); Y0_, _ = AN0_.forward(X0_)
-Δθ_ = deepcopy(get_params(AN_)-get_params(AN0_))
+# Jacobian eval
+logdet ? ((dY, Y, lgdet, GNdθ) = AN.jacobian(dX, dθ, X)) : ((dY, Y) = AN.jacobian(dX, dθ, X))
 
-maxiter = 10
-print("\nGradient/Hessian test actnorm\n")
-f0, g0 = loss(X, Y, θ, Δθ)
-h = 1f0
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 5
 err9 = zeros(Float32, maxiter)
 err10 = zeros(Float32, maxiter)
 for j=1:maxiter
-    f = loss(X, Y, θ+h*Δθ_, Δθ)[1]
-    err9[j] = abs(f - f0)
-    err10[j] = abs(f - f0 - h*dot(g0, Δθ_))
+    set_params!(AN, θ+h*dθ)
+    logdet ? ((Y_, _) = AN.forward(X+h*dX)) : (Y_ = AN.forward(X+h*dX))
+    err9[j] = norm(Y_ - Y)
+    err10[j] = norm(Y_ - Y - h*dY)
     print(err9[j], "; ", err10[j], "\n")
     global h = h/2f0
 end
 
 @test isapprox(err9[end] / (err9[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err10[end] / (err10[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Adjoint test
+
+set_params!(AN, θ)
+logdet ? ((dY, Y, _, _) = AN.jacobian(dX, dθ, X)) : ((dY, Y) = AN.jacobian(dX, dθ, X))
+dY_ = randn(Float32, size(dY))
+logdet ? ((dX_, dθ_, _, _) = AN.adjointJacobian(dY_, Y)) : ((dX_, dθ_, _) = AN.adjointJacobian(dY_, Y))
+a = dot(dY, dY_)
+b = dot(dX, dX_)+dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)

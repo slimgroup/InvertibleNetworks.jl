@@ -205,6 +205,30 @@ function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, 
     return ΔX, X
 end
 
+
+## Jacobian utilities
+
+# 2D
+function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, L::CouplingLayerIRIM)
+
+    # Get dimensions
+    k = Int(L.C.k/2)
+    
+    X_ = L.C.forward(X)
+    X1_ = X_[:, :, 1:k, :]
+    X2_ = X_[:, :, k+1:end, :]
+
+    Y1_ = X1_
+    Y2_ = X2_ + L.RB.forward(Y1_)
+    
+    Y_ = cat(Y1_, Y2_, dims=3)
+    Y = L.C.inverse(Y_)
+    
+    return Y
+end
+
+## Other utils
+
 # Clear gradients
 function clear_grad!(L::CouplingLayerIRIM)
     clear_grad!(L.C)

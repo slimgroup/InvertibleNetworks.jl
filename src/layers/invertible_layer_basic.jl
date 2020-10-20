@@ -167,7 +167,7 @@ function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L
 end
 
 # 2D/3D Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
+function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic; set_grad::Bool=true)
 
     # Recompute forward state
     X1, X2, S = inverse(Y1, Y2, L; save=true, logdet=false)
@@ -175,15 +175,26 @@ function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
     # Backpropagate residual
     ΔT = copy(ΔY2)
     ΔS = ΔY2 .* X2
-    L.logdet == true && (ΔS -= coupling_logdet_backward(S))
+    if L.logdet
+        set_grad ? (ΔS -= coupling_logdet_backward(S)) : (∇logdet = coupling_logdet_backward(S))
+    end
     ΔX2 = ΔY2 .* S
-    ΔX1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1) + ΔY1
+    if set_grad
+        ΔX1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1) + ΔY1
+    else
+        ΔX1, Δθ = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1; set_grad=set_grad)
+        ΔX1 += ΔY1
+    end
 
-    return ΔX1, ΔX2, X1, X2
+    if set_grad
+        return ΔX1, ΔX2, X1, X2
+    else
+        L.logdet ? (return ΔX1, ΔX2, Δθ, X1, X2, ∇logdet) : (return ΔX1, ΔX2, Δθ, X1, X2)
+    end
 end
 
 # 2D/3D Reverse backward pass: Input (ΔX, X), Output (ΔY, Y)
-function backward_inv(ΔX1, ΔX2, X1, X2, L::CouplingLayerBasic)
+function backward_inv(ΔX1, ΔX2, X1, X2, L::CouplingLayerBasic; set_grad::Bool=true)
 
     # Recompute inverse state
     Y1, Y2, S = forward(X1, X2, L; save=true, logdet=false)
@@ -191,18 +202,29 @@ function backward_inv(ΔX1, ΔX2, X1, X2, L::CouplingLayerBasic)
     # Backpropagate residual
     ΔT = -ΔX2 ./ S
     ΔS = X2 .* ΔT
-    L.logdet == true && (ΔS += coupling_logdet_backward(S))
-    ΔY1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), Y1) + ΔX1
+    if L.logdet == true
+        set_grad ? (ΔS += coupling_logdet_backward(S)) : (∇logdet = -coupling_logdet_backward(S))
+    end
+    if set_grad
+        ΔY1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), Y1) + ΔX1
+    else
+        ΔY1, Δθ = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), Y1; set_grad=set_grad)
+        ΔY1 += ΔX1
+    end
     ΔY2 = - ΔT
 
-    return ΔY1, ΔY2, Y1, Y2
+    if set_grad
+        return ΔY1, ΔY2, Y1, Y2
+    else
+        L.logdet ? (return ΔY1, ΔY2, Δθ, Y1, Y2, ∇logdet) : (return ΔY1, ΔY2, Δθ, Y1, Y2)
+    end
 end
 
 
 ## Jacobian-related functions
 
 # 2D
-function jacobian(ΔX1::AbstractArray{Float32, 4}, ΔX2::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L::CouplingLayerBasic; save=false, logdet=nothing)
+function jacobian(ΔX1::AbstractArray{Float32, 4}, ΔX2::AbstractArray{Float32, 4}, Δθ::AbstractArray{Parameter, 1}, X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L::CouplingLayerBasic; save=false, logdet=nothing)
     isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
 
     k = size(X1, 3)
@@ -229,7 +251,7 @@ function jacobian(ΔX1::AbstractArray{Float32, 4}, ΔX2::AbstractArray{Float32, 
 end
 
 # 3D
-function jacobian(ΔX1::AbstractArray{Float32, 5}, ΔX2::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save=false, logdet=nothing)
+function jacobian(ΔX1::AbstractArray{Float32, 5}, ΔX2::AbstractArray{Float32, 5}, Δθ::AbstractArray{Parameter, 1}, X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save=false, logdet=nothing)
     isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
 
     k = size(X1, 4)
@@ -257,20 +279,7 @@ end
 
 # 2D/3D
 function adjointJacobian(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
-    # Recompute forward state
-    X1, X2, S = inverse(Y1, Y2, L; save=true, logdet=false)
-
-    # Backpropagate residual
-    ΔT = copy(ΔY2)
-    ΔS = ΔY2 .* X2
-    if L.logdet
-        _, ∇logdet = L.RB.adjointJacobian(tensor_cat(SigmoidGrad(coupling_logdet_backward(S), S), zeros(Float32, size(ΔT))), X1)
-    end
-    ΔX2 = ΔY2 .* S
-    ΔX1, Δθ = L.RB.adjointJacobian(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1)
-    ΔX1 += ΔY1
-
-    L.logdet ? (return ΔX1, ΔX2, Δθ, X1, X2, ∇logdet) : (return ΔX1, ΔX2, Δθ, X1, X2)
+    return backward(ΔY1, ΔY2, Y1, Y2, L; set_grad=false)
 end
 
 
