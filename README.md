@@ -89,7 +89,7 @@ This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl),
 
 ## Authors
 
- - Philipp Witte, Georgia Institute of Technology (pwitte3@gatech.edu)
+ - Philipp Witte, Microsoft Corporation (pwitte@microsoft.com)
 
  - Gabrio Rizzuti, Georgia Institute of Technology
 
