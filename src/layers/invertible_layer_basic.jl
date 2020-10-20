@@ -59,35 +59,36 @@ or
 mutable struct CouplingLayerBasic <: NeuralNetLayer
     RB::Union{ResidualBlock, FluxBlock}
     logdet::Bool
+    activation::ActivationFunction
     is_reversed::Bool
 end
 
 @Flux.functor CouplingLayerBasic
 
 # Constructor from 1x1 convolution and residual block
-function CouplingLayerBasic(RB::ResidualBlock; logdet=false)
+function CouplingLayerBasic(RB::ResidualBlock; logdet=false, activation::ActivationFunction=SigmoidLayer())
     RB.fan == false && throw("Set ResidualBlock.fan == true")
-    return CouplingLayerBasic(RB, logdet, false)
+    return CouplingLayerBasic(RB, logdet, activation, false)
 end
 
-CouplingLayerBasic(RB::FluxBlock; logdet=false) = CouplingLayerBasic(RB, logdet, false)
+CouplingLayerBasic(RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerBasic(RB, logdet, activation, false)
 
 # 2D Constructor from input dimensions
-function CouplingLayerBasic(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false)
+function CouplingLayerBasic(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer())
 
     # 1x1 Convolution and residual block for invertible layer
     RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true)
 
-    return CouplingLayerBasic(RB, logdet, false)
+    return CouplingLayerBasic(RB, logdet, activation, false)
 end
 
 # 3D Constructor from input dimensions
-function CouplingLayerBasic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false)
+function CouplingLayerBasic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer())
 
     # 1x1 Convolution and residual block for invertible layer
     RB = ResidualBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true)
 
-    return CouplingLayerBasic(RB, logdet, false)
+    return CouplingLayerBasic(RB, logdet, activation, false)
 end
 
 # 2D Forward pass: Input X, Output Y
@@ -98,7 +99,7 @@ function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L
     k = size(X1, 3)
     Y1 = copy(X1)
     logS_T = L.RB.forward(X1)
-    S = Sigmoid(logS_T[:, :, 1:k, :])
+    S = L.activation.forward(logS_T[:, :, 1:k, :])
     T = logS_T[:, :, k+1:end, :]
     Y2 = S.*X2 + T
 
@@ -117,7 +118,7 @@ function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L
     k = size(X1, 4)
     Y1 = copy(X1)
     logS_T = L.RB.forward(X1)
-    S = Sigmoid(logS_T[:, :, :, 1:k,: ])
+    S = L.activation.forward(logS_T[:, :, :, 1:k,: ])
     T = logS_T[:, :, :, k+1:end, :]
     Y2 = S.*X2 + T
 
@@ -136,7 +137,7 @@ function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L
     k = size(Y1, 3)
     X1 = copy(Y1)
     logS_T = L.RB.forward(X1)
-    S = Sigmoid(logS_T[:, :, 1:k, :])
+    S = L.activation.forward(logS_T[:, :, 1:k, :])
     T = logS_T[:, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S .+ eps(1f0)) # add epsilon to avoid division by 0
 
@@ -155,7 +156,7 @@ function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L
     k = size(Y1, 4)
     X1 = copy(Y1)
     logS_T = L.RB.forward(X1)
-    S = Sigmoid(logS_T[:, :, :, 1:k, :])
+    S = L.activation.forward(logS_T[:, :, :, 1:k, :])
     T = logS_T[:, :, :, k+1:end, :]
     X2 = (Y2 - T) ./ (S .+ eps(1f0)) # add epsilon to avoid division by 0
 
@@ -180,11 +181,11 @@ function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic; set_grad::Bool=true
     end
     ΔX2 = ΔY2 .* S
     if set_grad
-        ΔX1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1) + ΔY1
+        ΔX1 = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), X1) + ΔY1
     else
-        ΔX1, Δθ = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), X1; set_grad=set_grad)
+        ΔX1, Δθ = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), X1; set_grad=set_grad)
         if L.logdet
-            _, ∇logdet = L.RB.backward(tensor_cat(SigmoidGrad(coupling_logdet_backward(S), S), 0f0.*ΔT), X1; set_grad=set_grad)
+            _, ∇logdet = L.RB.backward(tensor_cat(L.activation.backward(coupling_logdet_backward(S), S), 0f0.*ΔT), X1; set_grad=set_grad)
         end
         ΔX1 += ΔY1
     end
@@ -209,9 +210,9 @@ function backward_inv(ΔX1, ΔX2, X1, X2, L::CouplingLayerBasic; set_grad::Bool=
         set_grad ? (ΔS += coupling_logdet_backward(S)) : (∇logdet = -coupling_logdet_backward(S))
     end
     if set_grad
-        ΔY1 = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), Y1) + ΔX1
+        ΔY1 = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), Y1) + ΔX1
     else
-        ΔY1, Δθ = L.RB.backward(tensor_cat(SigmoidGrad(ΔS, S), ΔT), Y1; set_grad=set_grad)
+        ΔY1, Δθ = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), Y1; set_grad=set_grad)
         ΔY1 += ΔX1
     end
     ΔY2 = - ΔT
@@ -235,8 +236,8 @@ function jacobian(ΔX1::AbstractArray{Float32, 4}, ΔX2::AbstractArray{Float32, 
     ΔY1 = copy(ΔX1)
     logS_T = L.RB.forward(X1)
     ΔlogS_T = jacobian(ΔX1, Δθ, X1, L.RB)[1]
-    S = Sigmoid(logS_T[:, :, 1:k, :])
-    ΔS = SigmoidGrad(ΔlogS_T[:, :, 1:k, :], S)
+    S = L.activation.forward(logS_T[:, :, 1:k, :])
+    ΔS = L.activation.backward(ΔlogS_T[:, :, 1:k, :], S)
     T = logS_T[:, :, k+1:end, :]
     ΔT = ΔlogS_T[:, :, k+1:end, :]
     Y2 = S.*X2 + T
@@ -245,7 +246,7 @@ function jacobian(ΔX1::AbstractArray{Float32, 4}, ΔX2::AbstractArray{Float32, 
     if logdet
         # Gauss-Newton approximation of logdet terms
         JΔθ = L.RB.jacobian(zeros(Float32, size(ΔX1)), Δθ, X1)[1][:, :, 1:k, :]
-        GNΔθ = -L.RB.adjointJacobian(tensor_cat(SigmoidGrad(JΔθ, S), zeros(Float32, size(S))), X1)[2]
+        GNΔθ = -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, S), zeros(Float32, size(S))), X1)[2]
         
         save ? (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ, S) : (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ)
     else
@@ -262,8 +263,8 @@ function jacobian(ΔX1::AbstractArray{Float32, 5}, ΔX2::AbstractArray{Float32, 
     ΔY1 = copy(ΔX1)
     logS_T = L.RB.forward(X1)
     ΔlogS_T = jacobian(ΔX1, Δθ, X1, L.RB)[1]
-    S = Sigmoid(logS_T[:, :, :, 1:k, :])
-    ΔS = SigmoidGrad(ΔlogS_T[:, :, :, 1:k, :], S)
+    S = L.activation.forward(logS_T[:, :, :, 1:k, :])
+    ΔS = L.activation.backward(ΔlogS_T[:, :, :, 1:k, :], S)
     T = logS_T[:, :, :, k+1:end, :]
     ΔT = ΔlogS_T[:, :, :, k+1:end, :]
     Y2 = S.*X2 + T
@@ -272,7 +273,7 @@ function jacobian(ΔX1::AbstractArray{Float32, 5}, ΔX2::AbstractArray{Float32, 
     if logdet
         # Gauss-Newton approximation of logdet terms
         JΔθ = L.RB.jacobian(zeros(Float32, size(ΔX1)), Δθ, X1)[1][:, :, :, 1:k, :]
-        GNΔθ = -L.RB.adjointJacobian(tensor_cat(SigmoidGrad(JΔθ, S), zeros(Float32, size(S))), X1)[2]
+        GNΔθ = -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, S), zeros(Float32, size(S))), X1)[2]
         
         save ? (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ, S) : (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ)
     else
