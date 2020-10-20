@@ -2,8 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export Parameter
-export get_params, get_grads, set_params!, par2vec, vec2par
+export Parameter, get_params, get_grads, set_params!, par2vec, vec2par
 
 mutable struct Parameter
     data
@@ -45,9 +44,27 @@ function clear_grad!(P::AbstractArray{Parameter, 1})
     end
 end
 
+function get_grads(p::Parameter)
+    return Parameter(p.grad)
+end
+
+function get_grads(pvec::Array{Parameter, 1})
+    g = Array{Parameter, 1}(undef, length(pvec))
+    for i = 1:length(pvec)
+        g[i] = get_grads(pvec[i])
+    end
+    return g
+end
+
 function set_params!(pold::Parameter, pnew::Parameter)
     pold.data = pnew.data
     pold.grad = pnew.grad
+end
+
+function set_params!(pold::Array{Parameter, 1}, pnew::Array{Parameter, 1})
+    for i = 1:length(pold)
+        set_params!(pold[i], pnew[i])
+    end
 end
 
 
