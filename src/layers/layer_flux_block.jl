@@ -62,7 +62,7 @@ forward(X::AbstractArray{Float32, 4}, FB::FluxBlock) = FB.model(X)
 
 
 # Backward 2D
-function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
+function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock; set_grad::Bool=true)
     
     # Backprop using Zygote
     θ = Flux.params(X, FB.model)
@@ -71,10 +71,19 @@ function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, 
 
     # Set gradients
     ΔX = grad[θ[1]]
-    for j=1:length(FB.params)
-        FB.params[j].grad = grad[θ[j+1]]
+    if set_grad
+        for j=1:length(FB.params)
+            FB.params[j].grad = grad[θ[j+1]]
+        end
+    else
+        Δθ = Array{Parameter, 1}(undef, length(FB.params))
+        for j=1:length(FB.params)
+            Δθ[j] = grad[θ[j+1]]
+        end
     end
-    return ΔX
+
+    set_grad ? (return ΔX) : (ΔX, Δθ)
+
 end
 
 
@@ -85,20 +94,7 @@ function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::
 end
 
 function adjointJacobian(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
-
-    # Backprop using Zygote
-    θ = Flux.params(X, FB.model)
-    back = Zygote.pullback(() -> FB.model(X), θ)[2]
-    grad = back(ΔY)
-
-    # Set gradients
-    ΔX = grad[θ[1]]
-    Δθ = Array{Params, 1}(undef, length(FB.params))
-    for j = 1:length(FB.params)
-        Δθ[j] = grad[θ[j+1]]
-    end
-    return ΔX, Δθ
-
+    return backward(ΔY, X, FB; set_grad=false)
 end
 
 

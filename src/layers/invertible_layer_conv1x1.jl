@@ -197,16 +197,20 @@ function forward(X::AbstractArray{Float32, N}, C::Conv1x1; logdet=nothing) where
 end
 
 # Forward pass and update weights
-function forward(X_tuple::Tuple, C::Conv1x1)
+function forward(X_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     ΔX = X_tuple[1]
     X = X_tuple[2]
     ΔY = forward(ΔX, C; logdet=false)    # forward propagate residual
     Y = forward(X, C; logdet=false)  # recompute forward state
     Δv1, Δv2, Δv3 = conv1x1_grad_v(Y, ΔX, C; adjoint=true)  # gradient w.r.t. weights
-    isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)
-    isnothing(C.v2.grad) ? (C.v2.grad = Δv2) : (C.v2.grad += Δv2)
-    isnothing(C.v3.grad) ? (C.v3.grad = Δv3) : (C.v3.grad += Δv3)
-    return ΔY, Y
+    if set_grad
+        isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)
+        isnothing(C.v2.grad) ? (C.v2.grad = Δv2) : (C.v2.grad += Δv2)
+        isnothing(C.v3.grad) ? (C.v3.grad = Δv3) : (C.v3.grad += Δv3)
+    else
+        Δθ = [Parameter(Δv1), Parameter(Δv2), Parameter(Δv3)]
+    end
+    set_grad ? (return ΔY, Y) : (return ΔY, Δθ, Y)
 end
 
 # Inverse pass
@@ -230,16 +234,20 @@ function inverse(Y::AbstractArray{Float32, N}, C::Conv1x1; logdet=nothing) where
 end
 
 # Inverse pass and update weights
-function inverse(Y_tuple::Tuple, C::Conv1x1)
+function inverse(Y_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     ΔY = Y_tuple[1]
     Y = Y_tuple[2]
     ΔX = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
     X = inverse(Y, C; logdet=false)  # recompute forward state
     Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C)  # gradient w.r.t. weights
-    isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)
-    isnothing(C.v2.grad) ? (C.v2.grad = Δv2) : (C.v2.grad += Δv2)
-    isnothing(C.v3.grad) ? (C.v3.grad = Δv3) : (C.v3.grad += Δv3)
-    return ΔX, X
+    if set_grad
+        isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)
+        isnothing(C.v2.grad) ? (C.v2.grad = Δv2) : (C.v2.grad += Δv2)
+        isnothing(C.v3.grad) ? (C.v3.grad = Δv3) : (C.v3.grad += Δv3)
+    else
+        Δθ = [Parameter(Δv1), Parameter(Δv2), Parameter(Δv3)]
+    end
+    set_grad ? (return ΔX, X) : (return ΔX, Δθ, X)
 end
 
 
@@ -278,10 +286,7 @@ function jacobian(ΔX::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1}, X::
 end
 
 function adjointJacobian(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, C::Conv1x1) where N
-    ΔX = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
-    X = inverse(Y, C; logdet=false)  # recompute forward state
-    Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C)  # gradient w.r.t. weights
-    return ΔX, [Parameter(Δv1), Parameter(Δv2), Parameter(Δv3)], X
+    return inverse((ΔY, Y), C; set_grad=false)
 end
 
 function jacobianInverse(ΔY::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1}, Y::AbstractArray{Float32, N}, C::Conv1x1) where N
