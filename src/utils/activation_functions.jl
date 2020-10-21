@@ -6,7 +6,8 @@ export ReLU, ReLUgrad
 export LeakyReLU, LeakyReLUinv, LeakyReLUgrad
 export Sigmoid, SigmoidInv, SigmoidGrad
 export GaLU, GaLUgrad
-export ReLUlayer, LeakyReLUlayer, SigmoidLayer, Sigmoid2Layer, GaLUlayer
+export ExpClamp, ExpClampInv, ExpClampGrad
+export ReLUlayer, LeakyReLUlayer, SigmoidLayer, Sigmoid2Layer, GaLUlayer, ExpClampLayer
 
 
 ###############################################################################
@@ -30,12 +31,16 @@ function SigmoidLayer()
     return ActivationFunction(Sigmoid, SigmoidInv, SigmoidGrad)
 end
 
+function Sigmoid2Layer()
+    return ActivationFunction(x -> 2f0*Sigmoid(x), y -> SigmoidInv(y/2f0), (Δy, y) -> SigmoidGrad(Δy*2f0, y/2f0))
+end
+
 function GaLUlayer()
     return ActivationFunction(GaLU, nothing, GaLUgrad)
 end
 
-function Sigmoid2Layer()
-    return ActivationFunction(x -> 2f0*Sigmoid(x), y -> SigmoidInv(y/2f0), (Δy, y) -> SigmoidGrad(Δy*2f0, y/2f0))
+function ExpClampLayer()
+    return ActivationFunction(x -> ExpClamp(x), y -> ExpClampInv(y/2f0), (Δy, y) -> ExpClampGrad(Δy*2f0, y/2f0))
 end
 
 
@@ -240,5 +245,50 @@ function GaLUgrad(Δy::AbstractArray{Float32, 5}, x::AbstractArray{Float32, 5})
     Δx = 0f0.*x
     Δx[:, :, :, 1:k, :] = Sigmoid(x2) .* Δy
     Δx[:, :, :, k+1:end, :] = SigmoidGrad(Δy, nothing; x=x2) .* x1
+    return Δx
+end
+
+###############################################################################
+# Soft-clamped exponential function
+
+"""
+    y = ExpClamp(x)
+ Soft-clamped exponential function.
+ See also: [`ExpClampGrad`](@ref)
+"""
+function ExpClamp(x; clamp=2f0)
+    return exp.(clamp * 0.636f0 * atan.(x))
+end
+
+"""
+    x = ExpClampInv(y)
+ Inverse of ExpClamp function.
+ See also: [`ExpClamp`](@ref), [`ExpClampGrad`](@ref)
+"""
+function ExpClampInv(y; clamp=2f0)
+    if sum(isapprox.(y, 0f-6)) == 0
+        x = tan.(log.(y) / clamp / 0.636f0)
+    else
+        throw("Input contains zeros.")
+    end
+    return x
+end
+
+"""
+    Δx = ExpClampGrad(Δy, x; y=nothing)
+ Backpropagate data residual through soft-clamped exponential function.
+ *Input*:
+ - `Δy`: residual
+ - `x`: original input
+ *Output*:
+ - `Δx`: backpropagated residual
+ See also: [`ExpClamp`](@ref)
+"""
+
+function ExpClampGrad(Δy, y; x=nothing, clamp=2f0)
+    if ~isnothing(y) && isnothing(x)
+        x = ExpClampInv(y)  # recompute forward state
+    end
+    Δx = clamp * 0.636f0 * Δy .* y ./ (1f0 .+ x.^2f0)
     return Δx
 end
