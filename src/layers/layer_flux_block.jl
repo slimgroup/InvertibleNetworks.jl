@@ -29,9 +29,9 @@ export FluxBlock
 
  See also:  [`Chain`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct FluxBlock <: NeuralNetLayer
+mutable struct FluxBlock <: NeuralNetLayer
     model::Chain
-    params::Array{Parameter}
+    params::Array{Parameter, 1}
 end
 
 @Flux.functor FluxBlock
@@ -116,9 +116,15 @@ end
  the paramters in `P`, modifies the parameters in `NL`.
 """
 function get_params(FB::FluxBlock)
-    params = Array{Parameter, 1}(undef, length(FB.params))
-    for j=1:length(FB.params)
-        params[j] = FB.params[j]
+    return FB.params
+end
+
+function set_params!(FB::FluxBlock, θ::Array{Parameter, 1})
+    model_params = Flux.params(FB.model)
+    nparams = length(model_params.order)
+    for j=1:nparams
+        model_params.order[j] .= θ[j].data
+        FB.params[j].data = θ[j].data
+        FB.params[j].grad = θ[j].grad
     end
-    return params
 end
