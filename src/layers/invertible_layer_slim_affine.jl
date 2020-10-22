@@ -169,6 +169,18 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
     set_grad ? (return ΔX, ΔD, X) : (return ΔX, ΔD, cat(Δθ_C1+Δθ_C2, Δθ_RB, Δθ_AN; dims=1), X, ∇logdet)
 end
 
+
+## Jacobian-related utils
+
+function jacobian(ΔX::AbstractArray{Float32, 4}, ΔD, X::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM)
+    throw(ArgumentError("Jacobian for AffineCouplingLayerSLIM not yet implemented"))
+end
+
+adjointJacobian(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM; permute=false) = backward(ΔY, Y, D, J, CS; permute=permute, set_grad=false)
+
+
+# Other utils
+
 # Clear gradients
 function clear_grad!(CS::AffineCouplingLayerSLIM)
     ~isnothing(CS.C) && clear_grad!(CS.C)
