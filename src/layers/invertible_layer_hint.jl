@@ -438,9 +438,7 @@ function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, H::CouplingLayerHINT; scale
 
 end
 
-function adjointJacobian(ΔY, Y, H::CouplingLayerHINT; scale=1, permute=nothing)
-    return backward(ΔY, Y, H; scale=scale, permute=permute, set_grad=false)
-end
+adjointJacobian(ΔY, Y, H::CouplingLayerHINT; scale=1, permute=nothing) = backward(ΔY, Y, H; scale=scale, permute=permute, set_grad=false)
 
 
 ## Other utils

@@ -110,7 +110,7 @@ function forward(X0, D, RB::ConditionalResidualBlock; save=false)
 end
 
 
-function backward(ΔX4, ΔD, X0, D, RB::ConditionalResidualBlock)
+function backward(ΔX4, ΔD, X0, D, RB::ConditionalResidualBlock; set_grad::Bool=true)
 
     # Recompute forward states from input X
     Y0, Y1, Y2, Y3, X1, X2, X3 = forward(X0, D, RB; save=true)
@@ -138,16 +138,58 @@ function backward(ΔX4, ΔD, X0, D, RB::ConditionalResidualBlock)
     Δb0 = vec(sum(ΔY0, dims=4))
 
     # Set gradients
-    RB.W0.grad = ΔW0
-    RB.W1.grad = ΔW1
-    RB.W2.grad = ΔW2
-    RB.W3.grad = ΔW3
-    RB.b0.grad = Δb0
-    RB.b1.grad = Δb1
-    RB.b2.grad = Δb2
+    if set_grad
+        RB.W0.grad = ΔW0
+        RB.W1.grad = ΔW1
+        RB.W2.grad = ΔW2
+        RB.W3.grad = ΔW3
+        RB.b0.grad = Δb0
+        RB.b1.grad = Δb1
+        RB.b2.grad = Δb2
+    else
+        Δθ = [Parameter(ΔW0), Parameter(ΔW1), Parameter(ΔW2), Parameter(ΔW3), Parameter(Δb0), Parameter(Δb1), Parameter(Δb2)]
+    end
 
-    return ΔX0, ΔD
+    set_grad ? (return ΔX0, ΔD) : (return ΔX0, ΔD, Δθ)
 end
+
+
+## Jacobian-related utils
+
+function jacobian(ΔX0, ΔD, Δθ, X0, D, RB::ConditionalResidualBlock)
+
+    # Dimensions of input image X
+    nx1, nx2, nx_in, batchsize = size(X0)
+
+    Y0 = RB.W0.data*reshape(D, :, batchsize) .+ RB.b0.data
+    ΔY0 = Δθ[1].data*reshape(D, :, batchsize) + RB.W0.data*reshape(ΔD, :, batchsize) .+ Δθ[5].data
+    X0_ = ReLU(reshape(Y0, nx1, nx2, nx_in, batchsize))
+    ΔX0_ = ReLUgrad(reshape(ΔY0, nx1, nx2, nx_in, batchsize), reshape(Y0, nx1, nx2, nx_in, batchsize))
+    X1 = tensor_cat(X0, X0_)
+    ΔX1 = tensor_cat(ΔX0, ΔX0_)
+
+    Y1 = conv(X1, RB.W1.data, RB.cdims1) .+ reshape(RB.b1.data, 1, 1, :, 1)
+    ΔY1 = conv(X1, Δθ[2].data, RB.cdims1) + conv(ΔX1, RB.W1.data, RB.cdims1) .+ reshape(Δθ[6].data, 1, 1, :, 1)
+    X2 = ReLU(Y1)
+    ΔX2 = ReLUgrad(ΔY1, Y1)
+
+    Y2 = X2 + conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, :, 1)
+    ΔY2 = ΔX2 + conv(ΔX2, RB.W2.data, RB.cdims2) + conv(X2, Δθ[3].data, RB.cdims2) .+ reshape(Δθ[7].data, 1, 1, :, 1)
+    X3 = ReLU(Y2)
+    ΔX3 = ReLUgrad(ΔY2, Y2)
+
+    Y3 = ∇conv_data(X3, RB.W3.data, RB.cdims3)
+    ΔY3 = ∇conv_data(ΔX3, RB.W3.data, RB.cdims3) + ∇conv_data(X3, Δθ[4].data, RB.cdims3)
+    X4 = ReLU(Y3)
+    ΔX4 = ReLUgrad(ΔY3, Y3)
+
+    return ΔX4, ΔD, X4, D
+end
+
+adjointJacobian(ΔY, ΔD, X0, D, RB::ConditionalResidualBlock) = backward(ΔY, ΔD, X0, D, RB; set_grad=false)
+
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(RB::ConditionalResidualBlock)
