@@ -292,6 +292,7 @@ end
 
 ## Jacobian utilities
 
+# 2D
 function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::HyperbolicLayer)
 
     # Change dimensions
@@ -315,7 +316,11 @@ function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::Hype
     end
 
     # Symmetric convolution w/ relu activation
-    X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
+    if length(size(X_curr)) == 4
+        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
+    else
+        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, 1, :, 1)
+    end
     ΔX_conv = conv(ΔX_curr, HL.W.data, HL.cdims) .+ conv(X_curr, Δθ[1].data, HL.cdims) .+ reshape(Δθ[2].data, 1, 1, :, 1)
     X_relu = ReLU(X_conv)
     ΔX_relu = ReLUgrad(ΔX_conv, X_conv)
