@@ -146,10 +146,7 @@ HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute,
 X = randn(Float32, nx, ny, n_channel, batchsize)
 
 # Perturbation (normalized)
-dθ = θ-θ0
-for i = 1:length(θ)
-    dθ[i] = norm(θ0[i])*dθ[i]/(norm(dθ[i]).+1f-10)
-end
+dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
 dX = randn(Float32, nx, ny, n_channel, batchsize); dX *= norm(X)/norm(dX)
 
 # Jacobian eval

@@ -305,8 +305,7 @@ function jacobian(ΔX1::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X1
         X4 = ReLU(Y3)
         ΔX4 = ReLUgrad(ΔY3, Y3)
     else
-        X4 = GaLU(Y3)
-        ΔX4 = GaLUgrad(ΔY3, Y3)
+        ΔX4, X4 = GaLUjacobian(ΔY3, Y3)
     end
 
     return ΔX4, X4

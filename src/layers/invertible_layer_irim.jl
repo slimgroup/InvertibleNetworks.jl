@@ -170,39 +170,65 @@ end
 
 
 # 2D Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, L::CouplingLayerIRIM)
+function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, L::CouplingLayerIRIM; set_grad::Bool=true)
 
     # Recompute forward state
     k = Int(L.C.k/2)
     X, X_, Y1_ = inverse(Y, L; save=true)
 
     # Backpropagate residual
-    ΔY_ = L.C.forward((ΔY, Y))[1]
+    if set_grad
+        ΔY_ = L.C.forward((ΔY, Y))[1]
+    else
+        ΔY_, Δθ_C1 = L.C.forward((ΔY, Y); set_grad=set_grad)[1:2]
+    end
     ΔY2_ = ΔY_[:, :, k+1:end, :]
-    ΔY1_ = L.RB.backward(ΔY2_, Y1_) + ΔY_[:, :, 1:k, :]
+    if set_grad
+        ΔY1_ = L.RB.backward(ΔY2_, Y1_) + ΔY_[:, :, 1:k, :]
+    else
+        ΔY1__, Δθ_RB = L.RB.backward(ΔY2_, Y1_; set_grad=set_grad)
+        ΔY1_ = ΔY1__ + ΔY_[:, :, 1:k, :]
+    end
     
     ΔX_ = cat(ΔY1_, ΔY2_, dims=3)
-    ΔX = L.C.inverse((ΔX_, X_))[1]
+    if set_grad
+        ΔX = L.C.inverse((ΔX_, X_))[1]
+    else
+        ΔX, Δθ_C2 = L.C.inverse((ΔX_, X_); set_grad=set_grad)[1:2]
+    end
     
-    return ΔX, X
+    set_grad ? (return ΔX, X) : (return ΔX, cat(Δθ_C1+Δθ_C2, Δθ_RB; dims=1), X)
 end
 
 # 3D Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, L::CouplingLayerIRIM)
+function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, L::CouplingLayerIRIM; set_grad::Bool=true)
 
     # Recompute forward state
     k = Int(L.C.k/2)
     X, X_, Y1_ = inverse(Y, L; save=true)
 
     # Backpropagate residual
-    ΔY_ = L.C.forward((ΔY, Y))[1]
+    if set_grad
+        ΔY_ = L.C.forward((ΔY, Y))[1]
+    else
+        ΔY_, Δθ_C1 = L.C.forward((ΔY, Y); set_grad=set_grad)[1:2]
+    end
     ΔY2_ = ΔY_[:, :, :, k+1:end, :]
-    ΔY1_ = L.RB.backward(ΔY2_, Y1_) + ΔY_[:, :, :, 1:k, :]
+    if set_grad
+        ΔY1_ = L.RB.backward(ΔY2_, Y1_) + ΔY_[:, :, :, 1:k, :]
+    else
+        ΔY1__, Δθ_RB = L.RB.backward(ΔY2_, Y1_; set_grad=set_grad)
+        ΔY1_ = ΔY1__ + ΔY_[:, :, :, 1:k, :]
+    end
     
     ΔX_ = cat(ΔY1_, ΔY2_, dims=4)
-    ΔX = L.C.inverse((ΔX_, X_))[1]
+    if set_grad
+        ΔX = L.C.inverse((ΔX_, X_))[1]
+    else
+        ΔX, Δθ_C2 = L.C.inverse((ΔX_, X_); set_grad=set_grad)[1:2]
+    end
     
-    return ΔX, X
+    set_grad ? (return ΔX, X) : (return ΔX, cat(Δθ_C1+Δθ_C2, Δθ_RB; dims=1), X)
 end
 
 
@@ -214,18 +240,57 @@ function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::
     # Get dimensions
     k = Int(L.C.k/2)
     
-    X_ = L.C.forward(X)
+    ΔX_, X_ = L.C.jacobian(ΔX, Δθ[1:3], X)
     X1_ = X_[:, :, 1:k, :]
+    ΔX1_ = ΔX_[:, :, 1:k, :]
     X2_ = X_[:, :, k+1:end, :]
+    ΔX2_ = ΔX_[:, :, k+1:end, :]
 
     Y1_ = X1_
-    Y2_ = X2_ + L.RB.forward(Y1_)
+    ΔY1_ = ΔX1_
+    ΔY1__, Y1__ = L.RB.jacobian(ΔY1_, Δθ[4:end], Y1_)
+    Y2_ = X2_ + Y1__
+    ΔY2_ = ΔX2_ + ΔY1__
     
     Y_ = cat(Y1_, Y2_, dims=3)
-    Y = L.C.inverse(Y_)
+    ΔY_ = cat(ΔY1_, ΔY2_, dims=3)
+    ΔY, Y = L.C.jacobianInverse(ΔY_, Δθ[1:3], Y_)
     
-    return Y
+    return ΔY, Y
+
 end
+
+# 3D
+function jacobian(ΔX::AbstractArray{Float32, 5}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 5}, L::CouplingLayerIRIM)
+
+    # Get dimensions
+    k = Int(L.C.k/2)
+    
+    ΔX_, X_ = L.C.jacobian(ΔX, Δθ[1:3], X)
+    X1_ = X_[:, :, :, 1:k, :]
+    ΔX1_ = ΔX_[:, :, :, 1:k, :]
+    X2_ = X_[:, :, :, k+1:end, :]
+    ΔX2_ = ΔX_[:, :, :, k+1:end, :]
+
+    Y1_ = X1_
+    ΔY1_ = ΔX1_
+    ΔY1__, Y1__ = L.RB.jacobian(ΔY1_, Δθ[4:end], Y1_)
+    Y2_ = X2_ + Y1__
+    ΔY2_ = ΔX2_ + ΔY1__
+    
+    Y_ = cat(Y1_, Y2_, dims=4)
+    ΔY_ = cat(ΔY1_, ΔY2_, dims=4)
+    ΔY, Y = L.C.jacobianInverse(ΔY_, Δθ[1:3], Y_)
+    
+    return ΔY, Y
+
+end
+
+# 2D/3D
+function adjointJacobian(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, L::CouplingLayerIRIM) where N
+    return backward(ΔY, Y, L; set_grad=false)
+end
+
 
 ## Other utils
 
