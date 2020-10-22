@@ -2,3 +2,4 @@ data
 .vscode
 Manifest.toml
 settings.json
+*.png
