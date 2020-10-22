@@ -248,6 +248,29 @@ function GaLUgrad(Δy::AbstractArray{Float32, 5}, x::AbstractArray{Float32, 5})
     return Δx
 end
 
+function GaLUjacobian(Δx::AbstractArray{Float32, 4}, x::AbstractArray{Float32, 4})
+    k = Int(size(x, 3) / 2)
+    x1  =  x[:, :, 1:k,     :]
+    Δx1 = Δx[:, :, 1:k,     :]
+    x2  =  x[:, :, k+1:end, :]
+    Δx2 = Δx[:, :, k+1:end, :]
+    s = Sigmoid(x2); Δs = SigmoidGrad(Δx2, nothing; x=x2)
+    y = x1 .* s
+    Δy = Δx1 .* s + x1 .* Δs
+    return Δy, y
+end
+function GaLUjacobian(Δx::AbstractArray{Float32, 5}, x::AbstractArray{Float32, 5})
+    k = Int(size(x, 4) / 2)
+    x1  =  x[:, :, :, 1:k,     :]
+    Δx1 = Δx[:, :, :, 1:k,     :]
+    x2  =  x[:, :, :, k+1:end, :]
+    Δx2 = Δx[:, :, :, k+1:end, :]
+    s = Sigmoid(x2); Δs = SigmoidGrad(Δx2, nothing; x=x2)
+    y = x1 .* s
+    Δy = Δx1 .* s + x1 .* Δs
+    return Δy, y
+end
+
 ###############################################################################
 # Soft-clamped exponential function
 
