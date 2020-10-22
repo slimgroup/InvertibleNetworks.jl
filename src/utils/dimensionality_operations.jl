@@ -47,15 +47,47 @@ function squeeze(X::AbstractArray{T,4}; pattern="column") where T
     if pattern == "column"
         Y = reshape(X, nx_out, ny_out, nc_out, batchsize)
     elseif pattern == "patch"
-        Y[:, :, 1: nc_in, :] = X[1:nx_out, 1:ny_out, 1:nc_in, :]
-        Y[:, :, nc_in+1: 2*nc_in, :] = X[nx_out+1:end, 1:ny_out, 1:nc_in, :]
-        Y[:, :, 2*nc_in+1: 3*nc_in, :] = X[1:nx_out, ny_out+1:end, 1:nc_in, :]
-        Y[:, :, 3*nc_in+1: 4*nc_in, :] = X[nx_out+1:end, ny_out+1:end, 1:nc_in, :]
+        Y[:, :, 1: nc_in, :] = X[1:nx_out, 1:ny_out, :, :]
+        Y[:, :, nc_in+1: 2*nc_in, :] = X[nx_out+1:end, 1:ny_out, :, :]
+        Y[:, :, 2*nc_in+1: 3*nc_in, :] = X[1:nx_out, ny_out+1:end, :, :]
+        Y[:, :, 3*nc_in+1: 4*nc_in, :] = X[nx_out+1:end, ny_out+1:end, :, :]
     elseif pattern == "checkerboard"
         Y[:, :, 1: nc_in, :] = X[1:2:nx_in, 1:2:ny_in, 1:nc_in, :]
         Y[:, :, nc_in+1: 2*nc_in, :] = X[2:2:nx_in, 1:2:ny_in, 1:nc_in, :]
         Y[:, :, 2*nc_in+1: 3*nc_in, :] = X[1:2:nx_in, 2:2:ny_in, 1:nc_in, :]
         Y[:, :, 3*nc_in+1: 4*nc_in, :] = X[2:2:nx_in, 2:2:ny_in, 1:nc_in, :]
+    else
+        throw("Specified pattern not defined.")
+    end
+    return Y
+end
+
+function squeeze(X::AbstractArray{T,5}; pattern="column") where T
+
+    # Dimensions
+    nx_in, ny_in, nz_in, nc_in, batchsize = size(X)
+    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1 
+        throw("Input dimensions must be multiple of 2")
+    end
+    nx_out = Int(round(nx_in/2))
+    ny_out = Int(round(ny_in/2))
+    nz_out = Int(round(nz_in/2))
+    nc_out = Int(round(nc_in*8))
+    Y = cuzeros(X, nx_out, ny_out, nz_out, nc_out, batchsize)
+
+    if pattern == "column"
+        Y = reshape(X, nx_out, ny_out, nz_out, nc_out, batchsize)
+    elseif pattern == "patch"
+        Y[:, :, :, 1: nc_in, :] = X[1:nx_out, 1:ny_out, 1:nz_out, :, :]
+        Y[:, :, :, nc_in+1: 2*nc_in, :] = X[nx_out+1:end, 1:ny_out, 1:nz_out, :, :]
+        Y[:, :, :, 2*nc_in+1: 3*nc_in, :] = X[1:nx_out, ny_out+1:end, 1:nz_out, :, :]
+        Y[:, :, :, 3*nc_in+1: 4*nc_in, :] = X[nx_out+1:end, ny_out+1:end, 1:nz_out, :, :]
+        Y[:, :, :, 4*nc_in+1: 5*nc_in, :] = X[1:nx_out, 1:ny_out, nz_out+1:end, :, :]
+        Y[:, :, :, 5*nc_in+1: 6*nc_in, :] = X[nx_out+1:end, 1:ny_out, nz_out+1:end, :, :]
+        Y[:, :, :, 6*nc_in+1: 7*nc_in, :] = X[1:nx_out, ny_out+1:end, nz_out+1:end, :, :]
+        Y[:, :, :, 7*nc_in+1: 8*nc_in, :] = X[nx_out+1:end, ny_out+1:end, nz_out+1:end, :, :]
+    elseif pattern == "checkerboard"
+        throw("Currently not implemented for 5D tensors.")
     else
         throw("Specified pattern not defined.")
     end
@@ -103,10 +135,10 @@ function unsqueeze(Y::AbstractArray{T,4}; pattern="column") where T
     if pattern == "column"
         X = reshape(Y, nx_out, ny_out, nc_out, batchsize)
     elseif pattern == "patch"
-        X[1:nx_in, 1:ny_in, 1:nc_out, :] = Y[:, :, 1: nc_out, :]
-        X[nx_in+1:end, 1:ny_in, 1:nc_out, :] = Y[:, :, nc_out+1: 2*nc_out, :]
-        X[1:nx_in, ny_in+1:end, 1:nc_out, :] = Y[:, :, 2*nc_out+1: 3*nc_out, :]
-        X[nx_in+1:end, ny_in+1:end, 1:nc_out, :] = Y[:, :, 3*nc_out+1: 4*nc_out, :]
+        X[1:nx_in, 1:ny_in, :, :] = Y[:, :, 1: nc_out, :]
+        X[nx_in+1:end, 1:ny_in, :, :] = Y[:, :, nc_out+1: 2*nc_out, :]
+        X[1:nx_in, ny_in+1:end, :, :] = Y[:, :, 2*nc_out+1: 3*nc_out, :]
+        X[nx_in+1:end, ny_in+1:end, :, :] = Y[:, :, 3*nc_out+1: 4*nc_out, :]
     elseif pattern == "checkerboard"
         X[1:2:nx_out, 1:2:ny_out, 1:nc_out, :] = Y[:, :, 1: nc_out, :]
         X[2:2:nx_out, 1:2:ny_out, 1:nc_out, :] = Y[:, :, nc_out+1: 2*nc_out, :]
@@ -118,10 +150,45 @@ function unsqueeze(Y::AbstractArray{T,4}; pattern="column") where T
     return X
 end
 
+function unsqueeze(Y::AbstractArray{T,5}; pattern="column") where T
+
+    # Dimensions
+    nx_in, ny_in, nz_in, nc_in, batchsize = size(Y)
+    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1 
+        throw("Input dimensions must be multiple of 2")
+    end
+    nx_out = Int(round(nx_in*2))
+    ny_out = Int(round(ny_in*2))
+    nz_out = Int(round(ny_in*2))
+    nc_out = Int(round(nc_in/8))
+    X = cuzeros(Y, nx_out, ny_out, nz_out, nc_out, batchsize)
+
+    if pattern == "column"
+        X = reshape(Y, nx_out, ny_out, nz_out, nc_out, batchsize)
+    elseif pattern == "patch"
+        X[1:nx_in, 1:ny_in, 1:nz_in, :, :] = Y[:, :, :, 1: nc_out, :]
+        X[nx_in+1:end, 1:ny_in, 1:nz_in, :, :] = Y[:, :, :, nc_out+1: 2*nc_out, :]
+        X[1:nx_in, ny_in+1:end, 1:nz_in, :, :] = Y[:, :, :, 2*nc_out+1: 3*nc_out, :]
+        X[nx_in+1:end, ny_in+1:end, 1:nz_in, :, :] = Y[:, :, :, 3*nc_out+1: 4*nc_out, :]
+        X[1:nx_in, 1:ny_in, nz_in+1:end, :, :] = Y[:, :, :, 4*nc_out+1: 5*nc_out, :]
+        X[nx_in+1:end, 1:ny_in, nz_in+1:end, :, :] = Y[:, :, :, 5*nc_out+1: 6*nc_out, :]
+        X[1:nx_in, ny_in+1:end, nz_in+1:end, :, :] = Y[:, :, :, 6*nc_out+1: 7*nc_out, :]
+        X[nx_in+1:end, ny_in+1:end, nz_in+1:end, :, :] = Y[:, :, :, 7*nc_out+1: 8*nc_out, :]
+    elseif pattern == "checkerboard"
+        throw("Specified pattern not defined.")
+    else
+        throw("Specified pattern not defined.")
+    end
+    return X
+end
+
 function unsqueeze(X::AbstractArray{T,4}, Y::AbstractArray{T,4}; pattern="column") where T
     return unsqueeze(X; pattern=pattern), unsqueeze(Y; pattern=pattern)
 end
 
+function unsqueeze(X::AbstractArray{T,5}, Y::AbstractArray{T,5}; pattern="column") where T
+    return unsqueeze(X; pattern=pattern), unsqueeze(Y; pattern=pattern)
+end
 
 ####################################################################################################
 # Squeeze and unsqueeze using the wavelet transform
@@ -162,6 +229,21 @@ function wavelet_squeeze(X::AbstractArray{T,4}; type=WT.db1) where T
     return Y
 end
 
+function wavelet_squeeze(X::AbstractArray{T,5}; type=WT.db1) where T
+    nx_in, ny_in, nz_in, nc_in, batchsize = size(X)
+    nx_out = Int(round(nx_in/2))
+    ny_out = Int(round(ny_in/2))
+    nz_out = Int(round(nz_in/2))
+    nc_out = Int(round(nc_in*8))
+    Y = cuzeros(X, nx_out, ny_out, nz_out, nc_out, batchsize)
+    for i=1:batchsize
+        for j=1:nc_in
+            Ycurr = dwt(X[:,:,:,j,i], wavelet(type), 1)
+            Y[:, :, :, (j-1)*8 + 1: j*8, i] = squeeze(reshape(Ycurr, nx_in, ny_in, nz_in, 1, 1); pattern="patch")
+        end
+    end
+    return Y
+end
 
 """
     X = wavelet_unsqueeze(Y; type=WT.db1)
@@ -200,6 +282,22 @@ function wavelet_unsqueeze(Y::AbstractArray{T,4}; type=WT.db1) where T
     return X
 end
 
+function wavelet_unsqueeze(Y::AbstractArray{T,5}; type=WT.db1) where T
+    nx_in, ny_in, nz_in, nc_in, batchsize = size(Y)
+    nx_out = Int(round(nx_in*2))
+    ny_out = Int(round(ny_in*2))
+    nz_out = Int(round(nz_in*2))
+    nc_out = Int(round(nc_in/8))
+    X = cuzeros(Y, nx_out, ny_out, nz_out, nc_out, batchsize)
+    for i=1:batchsize
+        for j=1:nc_out
+            Ycurr = unsqueeze(Y[:, :, :, (j-1)*8 + 1: j*8, i:i]; pattern="patch")[:, :, :, 1, 1]
+            Xcurr = idwt(Ycurr, wavelet(type), 1)
+            X[:, :, :, j, i] = reshape(Xcurr, nx_out, ny_out, nz_out, 1, 1)
+        end
+    end
+    return X
+end
 
 ####################################################################################################
 # Split and concatenate
@@ -294,3 +392,5 @@ function tensor_cat(X::AbstractArray{T,1}, Y::AbstractArray{T,1}) where T
 end
 
 tensor_cat(X::Tuple{AbstractArray{T,4}, AbstractArray{T,4}}) where T = tensor_cat(X[1], X[2])
+tensor_cat(X::Tuple{AbstractArray{T,5}, AbstractArray{T,5}}) where T = tensor_cat(X[1], X[2])
+
