@@ -60,7 +60,7 @@ end
 
 @Flux.functor HyperbolicLayer
 
-# Constructor
+# Constructor 2D
 function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, kernel::Int64,
     stride::Int64, pad::Int64; action="same", α=1f0, hidden_factor=1)
 
@@ -87,7 +87,36 @@ function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, ke
     return HyperbolicLayer(W, b, α, cdims, action)
 end
 
-# Constructor for given weights
+# Constructor 3D
+function HyperbolicLayer(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, batchsize::Int64, kernel::Int64,
+    stride::Int64, pad::Int64; action="same", α=1f0, hidden_factor=1)
+
+    # Set ouput/hidden dimensions
+    if action == "same"
+        n_out = n_in
+    elseif action == "up"
+        n_out = Int(n_in/8)
+        nx = Int(nx*2)
+        ny = Int(ny*2)
+        nz = Int(nz*2)
+    elseif action == "down"
+        n_out = Int(n_in*8)
+        nx = Int(nx/2)
+        ny = Int(ny/2)
+        nz = Int(nz/2)
+    end
+    n_hidden = n_out*hidden_factor
+
+    W = Parameter(glorot_uniform(kernel, kernel, kernel, n_out, n_hidden))
+    b = Parameter(zeros(Float32, n_hidden))
+
+    cdims = DenseConvDims((nx, ny, nz, n_out, batchsize), (kernel, kernel, kernel, n_out, n_hidden);
+        stride=(stride, stride, stride), padding=(pad, pad, pad))
+
+    return HyperbolicLayer(W, b, α, cdims, action)
+end
+
+# Constructor for given weights 2D
 function HyperbolicLayer(W::AbstractArray{Float32, 4}, b::AbstractArray{Float32, 1}, nx::Int64, ny::Int64,
     batchsize::Int64, stride::Int64, pad::Int64; action="same", α=1f0)
 
@@ -115,6 +144,36 @@ function HyperbolicLayer(W::AbstractArray{Float32, 4}, b::AbstractArray{Float32,
     return HyperbolicLayer(W, b, α, cdims, action)
 end
 
+# Constructor for given weights 3D
+function HyperbolicLayer(W::AbstractArray{Float32, 5}, b::AbstractArray{Float32, 1}, nx::Int64, ny::Int64, nz::Int64,
+    batchsize::Int64, stride::Int64, pad::Int64; action="same", α=1f0)
+
+    kernel, n_in, n_hidden = size(W)[3:5]
+
+    # Set ouput/hidden dimensions
+    if action == "same"
+        n_out = n_in
+    elseif action == "up"
+        n_out = Int(n_in/8)
+        nx = Int(nx*2)
+        ny = Int(ny*2)
+        nz = Int(nz*2)
+    elseif action == "down"
+        n_out = Int(n_in*8)
+        nx = Int(nx/2)
+        ny = Int(ny/2)
+        nz = Int(nz/2)
+    end
+
+    W = Parameter(W)
+    b = Parameter(b)
+
+    cdims = DenseConvDims((nx, ny, nz, n_out, batchsize), (kernel, kernel, kernel, n_out, n_hidden);
+        stride=(stride, stride, stride), padding=(pad, pad, pad))
+
+    return HyperbolicLayer(W, b, α, cdims, action)
+end
+
 # Forward pass
 function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer)
 
@@ -133,7 +192,11 @@ function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer)
     end
 
     # Symmetric convolution w/ relu activation
-    X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
+    if length(size(X_curr)) == 4
+        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
+    else
+        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, 1, :, 1)
+    end
     X_relu = ReLU(X_conv)
     X_convT = -∇conv_data(X_relu, HL.W.data, HL.cdims)
 
@@ -147,7 +210,11 @@ end
 function inverse(X_curr, X_new, HL::HyperbolicLayer; save=false)
 
     # Symmetric convolution w/ relu activation
-    X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
+    if length(size(X_curr)) == 4
+        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
+    else
+        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, 1, :, 1)
+    end
     X_relu = ReLU(X_conv)
     X_convT = -∇conv_data(X_relu, HL.W.data, HL.cdims)
 
@@ -189,8 +256,11 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
     ΔX_conv = ReLUgrad(ΔX_relu, X_conv)
     ΔX_curr += ∇conv_data(ΔX_conv, HL.W.data, HL.cdims)
     ΔW += ∇conv_filter(X_curr, ΔX_conv, HL.cdims)
-    Δb = sum(ΔX_conv; dims=[1,2,4])[1,1,:,1]
-
+    if length(size(X_curr)) == 4
+        Δb = sum(ΔX_conv; dims=[1,2,4])[1,1,:,1]
+    else
+        Δb = sum(ΔX_conv; dims=[1,2,3,5])[1,1,1,:,1]
+    end
     ΔX_curr += 2f0*ΔX_new
     ΔX_prev = -ΔX_new
 

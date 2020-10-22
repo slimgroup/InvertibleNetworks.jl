@@ -3,9 +3,9 @@ using InvertibleNetworks, NNlib, LinearAlgebra, Test
 # Data
 nx = 128
 ny = 128
+nz = 128
 n_in = 3
 batchsize = 4
-n_hidden = 3
 k = 3   # kernel size
 s = 1   # stride
 p = 1   # padding
@@ -14,11 +14,11 @@ p = 1   # padding
 # Hyperbolic layer
 
 # Data
-X_prev = zeros(Float32, nx, ny, n_in, batchsize)
-X_curr = randn(Float32, nx, ny, n_in, batchsize)
+X_prev = zeros(Float32, nx, ny, nz, n_in, batchsize)
+X_curr = randn(Float32, nx, ny, nz, n_in, batchsize)
 
 # Layer
-HL = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action="down", α=1f-1, hidden_factor=2)
+HL = HyperbolicLayer(nx, ny, nz, n_in, batchsize, k, s, p; action="down", α=1f-1, hidden_factor=2)
 
 Y_curr, Y_new = HL.forward(X_prev, X_curr)
 X_prev_, X_curr_ = HL.inverse(Y_curr, Y_new)
