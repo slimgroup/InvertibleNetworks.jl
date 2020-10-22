@@ -102,3 +102,52 @@ end
 @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
+
+###################################################################################################
+# Jacobian-related tests
+
+# Gradient test
+
+# Initialization
+CS = LearnedCouplingLayerSLIM(nx1, nx2, nx_in, nd1, nd2, nd_in, nx_hidden, batchsize; logdet=true, permute=true)
+θ = deepcopy(get_params(CS))
+CS0 = LearnedCouplingLayerSLIM(nx1, nx2, nx_in, nd1, nd2, nd_in, nx_hidden, batchsize; logdet=true, permute=true)
+θ0 = deepcopy(get_params(CS0))
+X = randn(Float32, nx1, nx2, nx_in, batchsize)
+D = randn(Float32, nd1*nd2*nd_in, batchsize).*10f0
+
+# Perturbation
+dθ = θ-θ0
+dX = randn(Float32, nx1, nx2, nx_in, batchsize)
+dD = randn(Float32, nd1*nd2*nd_in, batchsize).*10f0
+
+# Jacobian eval
+dY, Y, _ = CS.jacobian(dX, dD, dθ, X, D)
+
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 5
+err5 = zeros(Float32, maxiter)
+err6 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(CS, θ+h*dθ)
+    Y_, _ = CS.forward(X+h*dX, D+h*dD)
+    err5[j] = norm(Y_ - Y)
+    err6[j] = norm(Y_ - Y - h*dY)
+    print(err5[j], "; ", err6[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Adjoint test
+
+set_params!(CS, θ)
+dY, Y, _ = CS.jacobian(dX, dD, dθ, X, D)
+dY_ = randn(Float32, size(dY))
+dX_, dD_, dθ_, _ = CS.adjointJacobian(dY_, Y, D)
+a = dot(dY, dY_)
+b = dot(dX, dX_)+dot(dD, dD_)+dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)
