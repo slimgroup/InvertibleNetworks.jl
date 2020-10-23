@@ -197,7 +197,7 @@ end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
 function backward(Δη::AbstractArray{Float32, 4}, Δs::AbstractArray{Float32, 4}, 
-    η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, J, UL::NetworkLoop)
+    η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, J, UL::NetworkLoop; set_grad::Bool=true)
 
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
@@ -206,8 +206,16 @@ function backward(Δη::AbstractArray{Float32, 4}, Δs::AbstractArray{Float32, 4
     N = cuzeros(Δη, nx, ny, n_in-2, batchsize)
     typeof(Δs) == Float32 && (Δs = 0f0.*s)  # make Δs zero tensor
 
-    for j=maxiter:-1:1
-        Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+    # Initialize net parameters
+    set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
+
+    for j = maxiter:-1:1
+        if set_grad
+            Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+        else
+            Δηs_, Δθ_L, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s); set_grad=set_grad)
+            push!(Δθ, Δθ_L)
+        end
 
         # Inverse pass
         η = ηs_[:, :, 1:1, :]
@@ -223,12 +231,12 @@ function backward(Δη::AbstractArray{Float32, 4}, Δs::AbstractArray{Float32, 4
         Δg = UL.AN[j].backward(Δgn, gn)[1]
         Δη = reshape(J'*J*reshape(Δg, :, batchsize), nx, ny, 1, batchsize) + Δηs_[:, :, 1:1, :]
     end
-    return Δη, Δs, η, s
+    set_grad ? (return Δη, Δs, η, s) : (Δη, Δs, Δθ, η, s)
 end
 
 # 3D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
 function backward(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5}, 
-    η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, J, UL::NetworkLoop)
+    η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, J, UL::NetworkLoop; set_grad::Bool=true)
 
     # Dimensions
     nx, ny, nz, n_s, batchsize = size(s)
@@ -237,8 +245,16 @@ function backward(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5
     N = cuzeros(Δη, nx, ny, nz, n_in-2, batchsize)
     typeof(Δs) == Float32 && (Δs = 0f0.*s)  # make Δs zero tensor
 
-    for j=maxiter:-1:1
-        Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+    # Initialize net parameters
+    set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
+
+    for j = maxiter:-1:1
+        if set_grad
+            Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+        else
+            Δηs_, Δθ_L, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s); set_grad=set_grad)
+            push!(Δθ, Δθ_L)
+        end
 
         # Inverse pass
         η = ηs_[:, :, :, 1:1, :]
@@ -254,8 +270,21 @@ function backward(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5
         Δg = UL.AN[j].backward(Δgn, gn)[1]
         Δη = reshape(J'*J*reshape(Δg, :, batchsize), nx, ny, nz, 1, batchsize) + Δηs_[:, :, :, 1:1, :]
     end
-    return Δη, Δs, η, s
+    set_grad ? (return Δη, Δs, η, s) : (Δη, Δs, Δθ, η, s)
 end
+
+
+## Jacobian-related utils
+
+function jacobian(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, J, UL::NetworkLoop)
+    throw(ArgumentError("Jacobian for NetworkLoop not yet implemented"))
+end
+
+adjointJacobian(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5}, 
+η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, J, UL::NetworkLoop; set_grad::Bool=true) = backward(Δη, Δs, η, s, d, J, UL; set_grad=false)
+
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(UL::NetworkLoop)

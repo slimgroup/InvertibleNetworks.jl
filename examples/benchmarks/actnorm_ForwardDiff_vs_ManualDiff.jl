@@ -51,15 +51,16 @@ for i = 1:length(n)
     t_noAD[i] = (@elapsed for i = 1:neval jacobian(dX, ds, db, X0, s0, b0)[1]; end;)/neval
 
     # Print msg
-    println("[", i, "/", length(n), "] --- time= AD:", t_AD[i], ", no AD: ", t_noAD[i])
+    println("[", i, "/", length(n), "] --- size= ", n[i], ", time= AD:", t_AD[i], ", no AD: ", t_noAD[i])
 
 end
 
 # Plotting
 figure()
 title(string("Timings for ActNorm jacobian evaluations (AD vs no AD); n_ch=", n_in, ", batchsize=", batchsize))
-loglog(n, t_AD./neval)
+loglog(n, t_AD)
 loglog(n, t_noAD)
 legend(["AD", "no AD"])
 xlabel("n (size(input)=n^3)")
+grid("on")
 savefig("AD_vs_noAD.png")
