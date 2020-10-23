@@ -152,10 +152,10 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
         Δgs = CS.RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), gs)
     else
         Δgs, Δθ_RB = CS.RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), gs; set_grad=set_grad)
-        _, ∇logdet = CS.RB.backward(cat(SigmoidGrad(ΔS_, S), 0f0.*ΔT; dims=3), gs; set_grad=set_grad)
+        _, ∇logdet_RB = CS.RB.backward(cat(SigmoidGrad(ΔS_, S), 0f0.*ΔT; dims=3), gs; set_grad=set_grad)
     end
     Δgn = Δgs[:,:,1:1,:]
-    set_grad ? (Δg = CS.AN.backward(Δgn, gn)[1]) : ((Δg, Δθ_AN) = CS.AN.backward(Δgn, gn; set_grad=set_grad)[1:2])
+    set_grad ? (Δg = CS.AN.backward(Δgn, gn)[1]) : ((Δg, Δθ_AN, ∇logdet_AN) = CS.AN.backward(Δgn, gn; set_grad=set_grad)[1:2])
     Jg = J*reshape(Δg, :, batchsize)
     ΔD = -Jg
     ΔX1_ = tensor_cat(reshape(J'*Jg, nx, ny, 1, batchsize), Δgs[:,:,2:end,:]) + ΔY1_
@@ -166,7 +166,7 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
         set_grad ? (ΔX = CS.C.inverse((ΔX_, tensor_cat(X1_, X2_)))[1]) : ((ΔX, Δθ_C2) = CS.C.inverse((ΔX_, tensor_cat(X1_, X2_)); set_grad=set_grad)[1:2])
     end
 
-    set_grad ? (return ΔX, ΔD, X) : (return ΔX, ΔD, cat(Δθ_C1+Δθ_C2, Δθ_RB, Δθ_AN; dims=1), X, ∇logdet)
+    set_grad ? (return ΔX, ΔD, X) : (return ΔX, ΔD, cat(Δθ_C1+Δθ_C2, Δθ_RB, Δθ_AN; dims=1), X, cat(0f0.*Δθ_C1, ∇logdet_RB, ∇logdet_AN; dims=1))
 end
 
 
