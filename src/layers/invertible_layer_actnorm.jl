@@ -139,7 +139,7 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
     ΔX = ΔY .* reshape(AN.s.data, 1, 1, :, 1)
     Δs = sum(ΔY .* X, dims=[1, 2, 4])[1, 1, :, 1]
     if AN.logdet
-        set_grad ? (Δs -= logdet_backward(nx, ny, AN.s)) : (∇logdet = logdet_backward(nx, ny, AN.s))
+        set_grad ? (Δs -= logdet_backward(nx, ny, AN.s)) : (Δs_ = logdet_backward(nx, ny, AN.s))
     end
     Δb = sum(ΔY, dims=[1, 2, 4])[1, 1, :, 1]
     if set_grad
@@ -151,7 +151,7 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
     if set_grad
         return ΔX, X
     else
-        AN.logdet ? (return ΔX, Δθ, X, ∇logdet) : (return ΔX, Δθ, X)
+        AN.logdet ? (return ΔX, Δθ, X, [Parameter(Δs_), Parameter(0f0*Δb)]) : (return ΔX, Δθ, X)
     end
 end
 
@@ -162,7 +162,7 @@ function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, 
     ΔX = ΔY .* reshape(AN.s.data, 1, 1, 1, :, 1)
     Δs = sum(ΔY .* X, dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
     if AN.logdet
-        set_grad ? (Δs -= logdet_backward(nx, ny, nz, AN.s)) : (∇logdet = logdet_backward(nx, ny, nz, AN.s))
+        set_grad ? (Δs -= logdet_backward(nx, ny, nz, AN.s)) : (Δs_ = logdet_backward(nx, ny, nz, AN.s))
     end
     Δb = sum(ΔY, dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
     if set_grad
@@ -174,7 +174,7 @@ function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, 
     if set_grad
         return ΔX, X
     else
-        AN.logdet ? (return ΔX, Δθ, X, ∇logdet) : (return ΔX, Δθ, X)
+        AN.logdet ? (return ΔX, Δθ, X, [Parameter(Δs_), Parameter(0f0*Δb)]) : (return ΔX, Δθ, X)
     end
 end
 
