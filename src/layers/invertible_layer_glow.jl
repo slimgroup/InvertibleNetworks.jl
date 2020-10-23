@@ -132,7 +132,7 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
     ΔT = copy(ΔY1)
     ΔS = ΔY1 .* X1
     if L.logdet
-        set_grad ? (ΔS -= glow_logdet_backward(S)) : (∇logdet = glow_logdet_backward(S))
+        set_grad ? (ΔS -= glow_logdet_backward(S)) : (ΔS_ = glow_logdet_backward(S))
     end
 
     ΔX1 = ΔY1 .* S
@@ -140,6 +140,7 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
         ΔX2 = L.RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), X2) + ΔY2
     else
         ΔX2, Δθrb = L.RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), X2; set_grad=set_grad)
+        _, ∇logdet = L.RB.backward(cat(SigmoidGrad(ΔS_, S), 0f0.*ΔT; dims=3), X2; set_grad=set_grad)
         ΔX2 += ΔY2
     end
     ΔX_ = tensor_cat(ΔX1, ΔX2)
@@ -153,7 +154,7 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
     if set_grad
         return ΔX, X
     else
-        L.logdet ? (return ΔX, Δθ, X, ∇logdet) : (return ΔX, Δθ, X)
+        L.logdet ? (return ΔX, Δθ, X, cat(0f0*Δθ[1:3], ∇logdet; dims=1)) : (return ΔX, Δθ, X)
     end
 end
 
@@ -183,7 +184,7 @@ function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X, 
 
     # Gauss-Newton approximation of logdet terms
     JΔθ = L.RB.jacobian(zeros(Float32, size(ΔX2)), Δθ[4:end], X2)[1][:, :, 1:k, :]
-    GNΔθ = -L.RB.adjointJacobian(tensor_cat(SigmoidGrad(JΔθ, S), zeros(Float32, size(S))), X2)[2]
+    GNΔθ = cat(0f0*Δθ[1:3], -L.RB.adjointJacobian(tensor_cat(SigmoidGrad(JΔθ, S), zeros(Float32, size(S))), X2)[2]; dims=1)
 
     L.logdet ? (return ΔY, Y, glow_logdet_forward(S), GNΔθ) : (return ΔY, Y)
 end
