@@ -131,7 +131,7 @@ function inverse(Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing)
 end
 
 function backward(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing, set_grad::Bool=true)
-    isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
+    isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     # Y-lane
     if set_grad
@@ -191,8 +191,8 @@ function backward(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing, 
             return ΔX, ΔY, Δθ, X, Y
         else
             ∇logdet = cat(∇logdet_CLX, ∇logdet_CLY, ∇logdet_CLYX; dims=1)
-            ~isnothing(CH.C_X) && (∇logdet = cat(∇logdet, 0f0.*Δθ_CX; dims=1))
-            ~isnothing(CH.C_Y) && (∇logdet = cat(∇logdet, 0f0.*Δθ_CY; dims=1))
+            ~isnothing(CH.C_X) && (∇logdet = cat(∇logdet, 0f0*Δθ_CX; dims=1))
+            ~isnothing(CH.C_Y) && (∇logdet = cat(∇logdet, 0f0*Δθ_CY; dims=1))
             return ΔX, ΔY, Δθ, X, Y, ∇logdet
         end
     end
