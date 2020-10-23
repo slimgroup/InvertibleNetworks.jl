@@ -61,23 +61,51 @@ function forward(X, AL::AffineLayer)
 end
 
 # Inverse pass: Input Y, Output X
-function inverse(Y, AL::AffineLayer)
-    X = (Y .- AL.b.data) ./ (AL.s.data .+ eps(1.0))   # avoid division by 0
+function inverse(Y, AL::AffineLayer; eps::Float32=0f0)
+    X = (Y .- AL.b.data) ./ (AL.s.data .+ eps)   # avoid division by 0
     return X
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function backward(ΔY, Y, AL::AffineLayer)
+function backward(ΔY, Y, AL::AffineLayer; set_grad::Bool=true)
     nx, ny, n_in, batchsize = size(Y)
     X = inverse(Y, AL)
     ΔX = ΔY .* AL.s.data
     Δs = sum(ΔY .* X, dims=4)[:,:,:,1]
-    AL.logdet == true && (Δs -= logdet_backward(AL.s))
+    if AL.logdet
+        set_grad ? (Δs -= logdet_backward(AL.s)) : (Δs_ = logdet_backward(AL.s))
+    end
     Δb = sum(ΔY, dims=4)[:,:,:,1]
-    AL.s.grad = Δs
-    AL.b.grad = Δb
-    return ΔX, X
+    if set_grad
+        AL.s.grad = Δs
+        AL.b.grad = Δb
+    else
+        Δθ = [Parameter(Δs), Parameter(Δb)]
+    end
+    if set_grad
+        return ΔX, X
+    else
+        AL.logdet ? (return ΔX, Δθ, X, [Parameter(Δs_), Parameter(0f0.*Δb)]) : (return ΔX, Δθ, X)
+    end
 end
+
+
+## Jacobian-related utils
+
+function jacobian(ΔX, Δθ, X, AL::AffineLayer)
+    Y = X .* AL.s.data .+ AL.b.data
+    ΔY = ΔX .* AL.s.data + X .* Δθ[1].data .+ Δθ[2].data
+    if AL.logdet
+        return ΔY, Y, logdet_forward(AL.s), [Parameter(logdet_hessian(AL.s).*Δθ[1].data), 0f0*Δθ[2]]
+    else
+        return ΔY, Y
+    end
+end
+
+adjointJacobian(ΔY, Y, AL::AffineLayer) = backward(ΔY, Y, AL; set_grad=false)
+
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(AL::AffineLayer)
@@ -91,3 +119,4 @@ get_params(AL::AffineLayer) = [AL.s, AL.b]
 # Logdet
 logdet_forward(s) = sum(log.(abs.(s.data)))
 logdet_backward(s) = 1f0 ./ s.data
+logdet_hessian(s) = -1f0 ./ s.data.^2f0
