@@ -374,14 +374,24 @@ function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, H::CouplingLayerHINT; scale
     isnothing(logdet) ? logdet = (H.logdet && ~H.is_reversed) : logdet = logdet
     isnothing(permute) ? permute = H.permute : permute = permute
 
+    # Selecting parameters
+    if permute == "none"
+        Δθscale = Δθ[1:5]
+        Δθ = Δθ[6:end]
+    else
+        Δθscale = Δθ[1:5]
+        Δθ_C = Δθ[end-2:end]
+        Δθ = Δθ[6:end-3]
+    end
+
     # Permutation
     if permute == "full" || permute == "both"
-        ΔX, X = H.C.jacobian(ΔX, Δθ[end-2:end], X)
+        ΔX, X = H.C.jacobian(ΔX, Δθ_C, X)
     end
     Xa, Xb = tensor_split(X)
     ΔXa, ΔXb = tensor_split(ΔX)
     if permute == "lower"
-        ΔXb, Xb = H.C.jacobian(ΔXb, Δθ[end-2:end], Xb)
+        ΔXb, Xb = H.C.jacobian(ΔXb, Δθ_C, Xb)
     end
 
     # Initialize Gauss-Newton approx of logdet term
@@ -402,37 +412,37 @@ function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, H::CouplingLayerHINT; scale
     end
 
     # HINT coupling
-    idx_Δθ_scale = (scale-1)*5+1:scale*5
+    # idx_Δθ_scale = (scale-1)*5+1:scale*5
     if recursive
         # Call function recursively
         if logdet
             ΔYa, Ya, logdet1, GNΔθ1 = jacobian(ΔXa, Δθ, Xa, H; scale=scale+1, permute="none")
             ΔY_temp, Y_temp, logdet2, GNΔθ2 = jacobian(ΔXb, Δθ, Xb, H; scale=scale+1, permute="none")
-            _, ΔYb, _, Yb, logdet3, GNΔθ3 = H.CL[scale].jacobian(ΔXa, ΔY_temp, Δθ[idx_Δθ_scale], Xa, Y_temp)
+            _, ΔYb, _, Yb, logdet3, GNΔθ3 = H.CL[scale].jacobian(ΔXa, ΔY_temp, Δθscale, Xa, Y_temp)
             logdet_full = logdet1 + logdet2 + logdet3
             GNΔθ_full[1:5] .= GNΔθ3
             (permute != "none") ? (GNΔθ_full[6:end-3] .= GNΔθ1 + GNΔθ2) : (GNΔθ_full[6:end] .= GNΔθ1 + GNΔθ2)
         else
             ΔYa, Ya = jacobian(ΔXa, Δθ, Xa, H; scale=scale+1, permute="none")
             ΔY_temp, Y_temp = jacobian(ΔXb, Δθ, Xb, H; scale=scale+1, permute="none")
-            _, ΔYb, _, Yb = H.CL[scale].jacobian(ΔXa, ΔY_temp, Δθ[idx_Δθ_scale], Xa, Y_temp)
+            _, ΔYb, _, Yb = H.CL[scale].jacobian(ΔXa, ΔY_temp, Δθscale, Xa, Y_temp)
         end
     else
         # Coarsest scale
         Ya = copy(Xa)
         ΔYa = copy(ΔXa)
         if logdet
-            _, ΔYb, _, Yb, logdet_full, GNΔθ3 = H.CL[scale].jacobian(ΔXa, ΔXb, Δθ[idx_Δθ_scale], Xa, Xb)
+            _, ΔYb, _, Yb, logdet_full, GNΔθ3 = H.CL[scale].jacobian(ΔXa, ΔXb, Δθscale, Xa, Xb)
             GNΔθ_full[1:5] .= GNΔθ3
         else
-            _, ΔYb, _, Yb = H.CL[scale].jacobian(ΔXa, ΔXb, Δθ[idx_Δθ_scale], Xa, Xb)
+            _, ΔYb, _, Yb = H.CL[scale].jacobian(ΔXa, ΔXb, Δθscale, Xa, Xb)
         end
     end
 
     Y = tensor_cat(Ya, Yb)
     ΔY = tensor_cat(ΔYa, ΔYb)
     if permute == "both"
-        ΔY, Y = H.C.jacobianInverse(ΔY, Δθ[end-2:end], Y)
+        ΔY, Y = H.C.jacobianInverse(ΔY, Δθ_C, Y)
     end
     logdet ? (return ΔY, Y, logdet_full, GNΔθ_full) : (return ΔY, Y)
 
