@@ -105,15 +105,6 @@ function cat_states(XY_save::AbstractArray{Array, 2}, X::AbstractArray{Float32, 
     return Float32.(X_full), Float32.(Y_full)  # convert to Array{Float32, 1}
 end
 
-function cat_states(Y_save::AbstractArray{Array, 1}, Y::AbstractArray{Float32, 4})
-    Y_full = []
-    for j=1:size(Y_save, 1)
-        Y_full = cat(Y_full, vec(Y_save[j, 1]); dims=1)
-    end
-    Y_full = cat(Y_full, vec(Y); dims=1)
-    return Float32.(Y_full)
-end
-
 # Split 1D vector in latent space back to states Zi
 function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{Float32, 1}, Y_full::AbstractArray{Float32, 1})
     L = length(XY_dims) + 1
@@ -127,19 +118,6 @@ function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{Fl
     X = reshape(X_full[count: count + prod(XY_dims[end])-1], Int.(XY_dims[end].*(.5, .5, 4, 1)))
     Y = reshape(Y_full[count: count + prod(XY_dims[end])-1], Int.(XY_dims[end].*(.5, .5, 4, 1)))
     return XY_save, X, Y
-end
-
-# Split 1D vector in latent space back to states Zi
-function split_states(XY_dims::AbstractArray{Tuple, 1}, Y_full::AbstractArray{Float32, 1})
-    L = length(XY_dims) + 1
-    Y_save = Array{Array}(undef, L-1)
-    count = 1
-    for j=1:L-1
-        Y_save[j] = reshape(Y_full[count: count + prod(XY_dims[j])-1], XY_dims[j])
-        count += prod(XY_dims[j])
-    end
-    Y = reshape(Y_full[count: count + prod(XY_dims[end])-1], Int.(XY_dims[end].*(.5, .5, 4, 1)))
-    return Y_save, Y
 end
 
 # Forward pass and compute logdet
