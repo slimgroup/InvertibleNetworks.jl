@@ -114,7 +114,7 @@ end
 
 # Forward pass and compute logdet
 function forward(X, H::NetworkMultiScaleHINT)
-    H.split_scales && (X_save = Array{Array}(undef, H.L-1, 2))
+    H.split_scales && (X_save = Array{Array}(undef, H.L-1))
     logdet = 0f0
     for i=1:H.L
         X = wavelet_squeeze(X)
