@@ -2,49 +2,69 @@
 # Author: Gabrio Rizzuti, grizzuti3@gatech.edu
 # Date: October 2020
 
-using InvertibleNetworks, LinearAlgebra, PyPlot, Images, TestImages
+using InvertibleNetworks, LinearAlgebra, Statistics, PyPlot, Images, TestImages
+using Flux; import Flux.Optimise.update!
 using Random; Random.seed!(123)
+# flag_gpu = true
+flag_gpu = false
+flag_gpu && (using CUDA)
 
 # Load image
-Ŷ = Float32.(testimage("mandril_gray"))
+Y = Float32.(testimage("mandril_gray")); Y = (Y.-mean(Y))./sqrt(var(Y))
+nx, ny = size(Y)
+Y = reshape(Y, nx, ny, 1, 1)
+for i = 1:2
+    global Y = wavelet_squeeze(Y)
+end
+nx, ny, n_ch = size(Y)[1:3]
+flag_gpu && (Y = Y |> gpu)
 
 # Initialize HINT layer
-nx, ny = size(d)
-n_ch = 1
-n_hidden = 64
+n_hidden = n_ch
 batchsize = 1
-logdet = false
-N = CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=logdet, permute="full")
+N = Composition(
+    CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full"), 
+    CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full"),
+    CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full"))
+flag_gpu && (N = N |> gpu)
 
 # Fixed input
 X = randn(Float32, nx, ny, n_ch, batchsize)
+flag_gpu && (X = X |> gpu)
 
 # Loss function
-loss(Y) = 0.5f0*norm(Ŷ-Y)^2f0
-∇loss(Y) = Y-Ŷ
+loss(Y_) = norm(Y-Y_)^2f0/norm(Y)^2f0
+∇loss(Y_) = 2f0*(Y_-Y)/norm(Y)^2f0
 
 # Training
 lr = 1f-3
+opt = Flux.ADAM(lr)
 maxiter = 1000
 fval = zeros(Float32, maxiter)
 for i = 1:maxiter
 
     # Evaluate network
-    Y = N.forward(X)
+    Y_, _ = N.forward(X)
 
     # Evaluate objective
-    fval[i] = loss(Y)
-    (mod(i, 10) == 0 || i == 1) && (print("Iteration: ", i, "; f = ", fval[i], "\n"))
+    fval[i] = loss(Y_)
+    (mod(i, 10) == 0 || i == 1) && (print("Iteration: ", i, "; f = ", sqrt(fval[i]), "\n"))
 
     # Compute gradient
-    ΔY = ∇loss(Y)
-    J = Jacobian(N, X)
-    _, Δθ = adjoint(J)*ΔY
+    ΔY = ∇loss(Y_)
+    N.backward(ΔY, Y_)
 
     # Update parameters
-    θ = get_params(N)
-    lr_ = lr*norm.(θ)./(norm.(Δθ).+1f-10)
-    θ = θ-lr_.*Δθ
-    set_params!(N, θ)
+    for p in get_params(N)
+        update!(opt, p.data, p.grad)
+    end
+    clear_grad!(N)
 
 end
+
+Y_ = N.forward(X)
+for i = 1:2
+    global Y_ = wavelet_unsqueeze(Y_)
+    global Y = wavelet_unsqueeze(Y)
+end
+flag_gpu && (Y = Y |> cpu; Y_ = Y_ |> cpu)
