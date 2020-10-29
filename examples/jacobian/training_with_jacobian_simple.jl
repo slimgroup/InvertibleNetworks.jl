@@ -1,12 +1,11 @@
-# Example of training speed-up with Jacobians
+# Example of training with learning rates computed from Jacobians
 # Author: Gabrio Rizzuti, grizzuti3@gatech.edu
 # Date: October 2020
 
-using InvertibleNetworks, LinearAlgebra, Statistics, PyPlot, Images, TestImages
-using Flux; import Flux.Optimise.update!
+using InvertibleNetworks, LinearAlgebra, Statistics, Flux, PyPlot, Images, TestImages
 using Random; Random.seed!(123)
-# flag_gpu = true
-flag_gpu = false
+flag_gpu = true
+# flag_gpu = false
 flag_gpu && (using CUDA)
 
 # Load image
@@ -20,12 +19,11 @@ nx, ny, n_ch = size(Y)[1:3]
 flag_gpu && (Y = Y |> gpu)
 
 # Initialize HINT layer
-n_hidden = n_ch
+n_hidden = 2*n_ch
 batchsize = 1
-N = Composition(
-    CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full"), 
-    CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full"),
-    CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full"))
+N = CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full")∘
+    CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full")∘
+    CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full")
 flag_gpu && (N = N |> gpu)
 
 # Fixed input
@@ -33,32 +31,33 @@ X = randn(Float32, nx, ny, n_ch, batchsize)
 flag_gpu && (X = X |> gpu)
 
 # Loss function
-loss(Y_) = norm(Y-Y_)^2f0/norm(Y)^2f0
-∇loss(Y_) = 2f0*(Y_-Y)/norm(Y)^2f0
+loss(Y_) = 0.5f0*norm(Y-Y_)^2f0
+∇loss(Y_) = Y_-Y
 
 # Training
-lr = 1f-3
-opt = Flux.ADAM(lr)
+lr = 0.5f0
 maxiter = 1000
 fval = zeros(Float32, maxiter)
 for i = 1:maxiter
 
     # Evaluate network
-    Y_, _ = N.forward(X)
+    Y_ = N.forward(X)
 
     # Evaluate objective
     fval[i] = loss(Y_)
-    (mod(i, 10) == 0 || i == 1) && (print("Iteration: ", i, "; f = ", sqrt(fval[i]), "\n"))
+    (mod(i, 10) == 0 || i == 1) && (print("Iteration: ", i, "; err_rel = ", sqrt(2f0*fval[i]/norm(Y)^2f0), "\n"))
 
     # Compute gradient
     ΔY = ∇loss(Y_)
-    N.backward(ΔY, Y_)
+    ΔX, Δθ, _ = N.adjointJacobian(ΔY, Y_)
+
+    # Computing quasi-optimal step-length
+    JΔθ, _ = N.jacobian(0f0.*X, Δθ, X)
+    α = dot(JΔθ, ΔY)/dot(JΔθ, JΔθ)
 
     # Update parameters
-    for p in get_params(N)
-        update!(opt, p.data, p.grad)
-    end
-    clear_grad!(N)
+    θ = get_params(N)
+    set_params!(N, θ-lr*α.*Δθ)
 
 end
 

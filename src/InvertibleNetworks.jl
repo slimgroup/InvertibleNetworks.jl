@@ -10,7 +10,7 @@ import LinearAlgebra.dot, LinearAlgebra.norm, LinearAlgebra.adjoint
 import Flux.glorot_uniform
 import CUDA: CuArray
 
-using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote#, ForwardDiff
+using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote, JOLI
 
 export clear_grad!, glorot_uniform
 
@@ -29,7 +29,7 @@ include("utils/dimensionality_operations.jl")
 include("utils/activation_functions.jl")
 include("utils/test_distributions.jl")
 include("utils/neuralnet.jl")
-include("utils/invnet_linops.jl")
+# include("utils/invnet_linops.jl")
 include("utils/invertible_network_sequential.jl")
 
 # Single network layers (invertible and non-invertible)
