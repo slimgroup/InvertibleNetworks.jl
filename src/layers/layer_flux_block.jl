@@ -90,7 +90,7 @@ end
 ## Jacobian utilities
 
 function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
-    throw(ArgumentError("Jacobian for Flux block not yet implemented, sorry :("))
+    throw(ArgumentError("Jacobian for Flux block not yet implemented"))
 end
 
 function adjointJacobian(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock)

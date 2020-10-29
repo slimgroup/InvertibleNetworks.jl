@@ -292,10 +292,13 @@ adjointJacobian(ΔZx, ΔZy, Zx, Zy, CH::NetworkMultiScaleConditionalHINT) = back
 # Clear gradients
 function clear_grad!(CH::NetworkMultiScaleConditionalHINT)
     depth = length(CH.CL)
-    for j=1:depth
-        clear_grad!(CH.AN_X[j])
-        clear_grad!(CH.AN_Y[j])
-        clear_grad!(CH.CL[j])
+    L, K = size(CH.CL)
+    for i = 1:L
+        for j = 1:K
+            clear_grad!(CH.AN_X[i, j])
+            clear_grad!(CH.AN_Y[i, j])
+            clear_grad!(CH.CL[i, j])
+        end
     end
 end
 

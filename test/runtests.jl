@@ -14,6 +14,7 @@ layers = ["test_utils/test_objectives.jl",
           # Layers
           "test_layers/test_residual_block.jl",
           "test_layers/test_flux_block.jl",
+          "test_layers/test_resnet.jl",
           "test_layers/test_layer_conv1x1.jl",
           "test_layers/test_coupling_layer_basic.jl",
           "test_layers/test_coupling_layer_irim.jl",
@@ -32,6 +33,7 @@ networks = ["test_networks/test_unrolled_loop.jl",
             "test_networks/test_generator.jl",
             "test_networks/test_glow.jl",
             "test_networks/test_hyperbolic_network.jl",
+            "test_networks/test_multiscale_hint_network.jl",
             "test_networks/test_conditional_hint_network.jl"]
 
 if test_suite == "all" || test_suite == "layers"

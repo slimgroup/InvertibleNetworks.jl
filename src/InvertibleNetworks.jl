@@ -29,7 +29,6 @@ include("utils/dimensionality_operations.jl")
 include("utils/activation_functions.jl")
 include("utils/test_distributions.jl")
 include("utils/neuralnet.jl")
-# include("utils/invnet_linops.jl")
 include("utils/invertible_network_sequential.jl")
 
 # Single network layers (invertible and non-invertible)
