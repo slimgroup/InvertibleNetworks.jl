@@ -34,8 +34,8 @@ l = l1+l2+l3
 
 Y_, l_ = N.forward(X)
 
-@test isapprox(Y, Y_; rtol=1f-10)
-@test isapprox(l, l_; rtol=1f-10)
+@test isapprox(Y, Y_; rtol=1f-3)
+@test isapprox(l, l_; rtol=1f-3)
 
 
 ###############################################################################
@@ -47,8 +47,8 @@ N_ = N1∘N2∘N3
 Y, l = N.forward(X)
 Y_, l_ = N_.forward(X)
 
-@test isapprox(Y, Y_; rtol=1f-10)
-@test isapprox(l, l_; rtol=1f-10)
+@test isapprox(Y, Y_; rtol=1f-3)
+@test isapprox(l, l_; rtol=1f-3)
 
 
 ###############################################################################

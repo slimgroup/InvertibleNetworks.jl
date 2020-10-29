@@ -37,7 +37,7 @@ Y, lgdt = AL.forward(X)
 AL = AffineLayer(nx, ny, nc; logdet=true)
 X = randn(Float32, nx, ny, nc, batchsize)
 X0 = randn(Float32, nx, ny, nc, batchsize)
-dX = X - X0
+dX = X - X0; dX *= norm(X0)/norm(dX)
 
 # Forward pass
 Y = AL.forward(X)[1]
@@ -66,7 +66,7 @@ function loss(AL, X, Y)
 end
 
 # Gradient test for X
-maxiter = 6
+maxiter = 5
 print("\nGradient test affine layer\n")
 f0, ΔX = loss(AL, X0, Y)[1:2]
 h = .1f0
@@ -96,7 +96,7 @@ set_params!(AL0, θ0)
 θ0 = deepcopy(θ0)
 dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
 
-maxiter = 6
+maxiter = 5
 print("\nGradient test affine layer\n")
 f0, ΔX, Δθ = loss(AL0, X, Y)
 h = 0.1f0

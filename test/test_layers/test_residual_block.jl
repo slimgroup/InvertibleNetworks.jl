@@ -31,11 +31,11 @@ W03 = glorot_uniform(k1, k1, 2*n_in, n_hidden)
 b01 = glorot_uniform(n_hidden)
 b02 = glorot_uniform(n_hidden)
 
-dW1 = (W1 - W01)/norm(W01)
-dW2 = (W2 - W02)/norm(W02)
-dW3 = (W3 - W03)/norm(W03)
-db1 = (b1 - b01)/norm(b01)
-db2 = (b2 - b02)/norm(b02)
+dW1 = W1 - W01; dW1 *= norm(W01)/norm(dW1)
+dW2 = W2 - W02; dW2 *= norm(W02)/norm(dW2)
+dW3 = W3 - W03; dW3 *= norm(W03)/norm(dW3)
+db1 = b1 - b01; db1 *= norm(b01)/norm(db1)
+db2 = b2 - b02; db2 *= norm(b02)/norm(db2)
 
 # Residual blocks
 RB = ResidualBlock(W1, W2, W3, b1, b2, nx, ny, batchsize)   # true weights
@@ -110,7 +110,7 @@ print("\nGradient test convolutions\n")
 for j=1:maxiter
     RB0.b1.data = b01 + h*db1
     RB0.b2.data = b02 + h*db2
-    f = loss(RB0, X, Y)[1]
+    f = loss(RB0, X0, Y)[1]
     err5[j] = abs(f - f0)
     err6[j] = abs(f - f0 - h*dot(db1, Δb1) - h*dot(db2, Δb2))
     print(err5[j], "; ", err6[j], "\n")

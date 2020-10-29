@@ -84,7 +84,7 @@ for i=1:length(H0.HL)
     h1 = 0.1f0
     print("\nGradient test invertible layer for layer $(i)\n")
     W0s = H0.HL[i].W.data
-    dWg = H.HL[i].W.data - W0s
+    dWg = H.HL[i].W.data - W0s; dWg *= norm(W0s)/norm(dWg)
     f01, ΔX1, ΔWg, _ = loss(H0, X, i)
     for j=1:maxiter
         H0.HL[i].W.data = W0s + h1*dWg
