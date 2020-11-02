@@ -14,7 +14,7 @@ Random.seed!(11)
 nx = 16
 ny = 16
 n_channel = 8
-n_hidden = 32
+n_hidden = 8
 batchsize = 2
 
 function inv_test(nx, ny, n_channel, batchsize, rev, logdet, permute)

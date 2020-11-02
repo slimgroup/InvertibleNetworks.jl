@@ -6,8 +6,8 @@ using InvertibleNetworks, LinearAlgebra, Test, Random
 Random.seed!(11)
 
 # Define network
-nx = 64
-ny = 64
+nx = 16
+ny = 16
 n_in = 2
 n_hidden = 4
 batchsize = 2
