@@ -7,6 +7,11 @@ abstract type NeuralNetLayer end
 
 abstract type InvertibleNetwork end
 
+function Base.show(io::IO, m::Union{NeuralNetLayer, InvertibleNetwork}) 
+    println(typeof(m))
+end
+
+
 function Base.getproperty(obj::Union{InvertibleNetwork,NeuralNetLayer}, sym::Symbol)
     if sym == :forward
         return (args...; kwargs...) -> forward(args..., obj; kwargs...)
