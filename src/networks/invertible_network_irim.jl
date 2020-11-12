@@ -113,11 +113,16 @@ function forward(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d,
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
     n_in = n_s + 1
+    prod(size(d)) == prod(size(η)) ? is_rtm = true : is_rtm = false
     maxiter = length(UL.L)
     N = cuzeros(η, nx, ny, n_in-2, batchsize)
 
     for j=1:maxiter
-        g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        if is_rtm
+            g = J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize)
+        else
+            g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        end
         g = reshape(g, nx, ny, 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
         s_ = s + tensor_cat(gn, N)
@@ -135,11 +140,16 @@ function forward(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d,
     # Dimensions
     nx, ny, nz, n_s, batchsize = size(s)
     n_in = n_s + 1
+    prod(size(d)) == prod(size(η)) ? is_rtm = true : is_rtm = false
     maxiter = length(UL.L)
     N = cuzeros(η, nx, ny, nz, n_in-2, batchsize)
 
     for j=1:maxiter
-        g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        if is_rtm
+            g = J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize)
+        else
+            g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        end
         g = reshape(g, nx, ny, nz, 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
         s_ = s + tensor_cat(gn, N)
@@ -157,6 +167,7 @@ function inverse(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d,
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
     n_in = n_s + 1
+    prod(size(d)) == prod(size(η)) ? is_rtm = true : is_rtm = false
     maxiter = length(UL.L)
     N = cuzeros(η, nx, ny, n_in-2, batchsize)
 
@@ -165,7 +176,11 @@ function inverse(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d,
         η = ηs_[:, :, 1:1, :]
         s_ = ηs_[:, :, 2:end, :]
 
-        g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        if is_rtm
+            g = J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize)
+        else
+            g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        end
         g = reshape(g, nx, ny, 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
         s = s_ - tensor_cat(gn, N)
@@ -179,6 +194,7 @@ function inverse(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d,
     # Dimensions
     nx, ny, nz, n_s, batchsize = size(s)
     n_in = n_s + 1
+    prod(size(d)) == prod(size(η)) ? is_rtm = true : is_rtm = false
     maxiter = length(UL.L)
     N = cuzeros(η, nx, ny, nz, n_in-2, batchsize)
 
@@ -187,7 +203,11 @@ function inverse(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d,
         η = ηs_[:, :, :, 1:1, :]
         s_ = ηs_[:, :, :, 2:end, :]
 
-        g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        if is_rtm
+            g = J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize)
+        else
+            g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        end
         g = reshape(g, nx, ny, nz, 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
         s = s_ - tensor_cat(gn, N)
@@ -202,6 +222,7 @@ function backward(Δη::AbstractArray{Float32, 4}, Δs::AbstractArray{Float32, 4
     # Dimensions
     nx, ny, n_s, batchsize = size(s)
     n_in = n_s + 1
+    prod(size(d)) == prod(size(η)) ? is_rtm = true : is_rtm = false
     maxiter = length(UL.L)
     N = cuzeros(Δη, nx, ny, n_in-2, batchsize)
     typeof(Δs) == Float32 && (Δs = 0f0.*s)  # make Δs zero tensor
@@ -212,7 +233,11 @@ function backward(Δη::AbstractArray{Float32, 4}, Δs::AbstractArray{Float32, 4
         # Inverse pass
         η = ηs_[:, :, 1:1, :]
         s_ = ηs_[:, :, 2:end, :]
-        g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        if is_rtm
+            g = J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize)
+        else
+            g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        end
         g = reshape(g, nx, ny, 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
         s = s_ - tensor_cat(gn, N)
@@ -221,7 +246,11 @@ function backward(Δη::AbstractArray{Float32, 4}, Δs::AbstractArray{Float32, 4
         Δs = Δηs_[:, :, 2:end, :]
         Δgn = Δs[:, :, 1:1, :]
         Δg = UL.AN[j].backward(Δgn, gn)[1]
-        Δη = reshape(J'*J*reshape(Δg, :, batchsize), nx, ny, 1, batchsize) + Δηs_[:, :, 1:1, :]
+        if is_rtm
+            Δη = reshape(J*reshape(Δg, :, batchsize), nx, ny, 1, batchsize) + Δηs_[:, :, 1:1, :]
+        else
+            Δη = reshape(J'*J*reshape(Δg, :, batchsize), nx, ny, 1, batchsize) + Δηs_[:, :, 1:1, :]
+        end
     end
     return Δη, Δs, η, s
 end
@@ -233,6 +262,7 @@ function backward(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5
     # Dimensions
     nx, ny, nz, n_s, batchsize = size(s)
     n_in = n_s + 1
+    prod(size(d)) == prod(size(η)) ? is_rtm = true : is_rtm = false
     maxiter = length(UL.L)
     N = cuzeros(Δη, nx, ny, nz, n_in-2, batchsize)
     typeof(Δs) == Float32 && (Δs = 0f0.*s)  # make Δs zero tensor
@@ -243,7 +273,11 @@ function backward(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5
         # Inverse pass
         η = ηs_[:, :, :, 1:1, :]
         s_ = ηs_[:, :, :, 2:end, :]
-        g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        if is_rtm
+            g = J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize)
+        else
+            g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
+        end
         g = reshape(g, nx, ny, nz, 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
         s = s_ - tensor_cat(gn, N)
@@ -252,7 +286,11 @@ function backward(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5
         Δs = Δηs_[:, :, :, 2:end, :]
         Δgn = Δs[:, :, :, 1:1, :]
         Δg = UL.AN[j].backward(Δgn, gn)[1]
-        Δη = reshape(J'*J*reshape(Δg, :, batchsize), nx, ny, nz, 1, batchsize) + Δηs_[:, :, :, 1:1, :]
+        if is_rtm
+            Δη = reshape(J*reshape(Δg, :, batchsize), nx, ny, nz, 1, batchsize) + Δηs_[:, :, :, 1:1, :]
+        else
+            Δη = reshape(J'*J*reshape(Δg, :, batchsize), nx, ny, nz, 1, batchsize) + Δηs_[:, :, :, 1:1, :]
+        end
     end
     return Δη, Δs, η, s
 end
