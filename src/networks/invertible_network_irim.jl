@@ -123,14 +123,14 @@ function forward(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d,
         gn = UL.AN[j].forward(g)   # normalize
         s_ = s + tensor_cat(gn, N0)
 
-        ηs = UL.L[j].forward(cat(η, s_; dims=3))
+        ηs = UL.L[j].forward(tensor_cat(η, s_))
         η, s = tensor_split(ηs; split_index=1)
     end
     return η, s
 end
 
 # 2D Inverse loop: Input (η, s), Output (η, s)
-function inverse(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, 4}, d, J, UL::NetworkLoop) where N
+function inverse(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d, J, UL::NetworkLoop) where N
 
     # Dimensions
     n_in = size(s, N-1) + 1
@@ -147,7 +147,7 @@ function inverse(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, 4}, d,
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
         g = reshape(g, nn..., 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
-        s = s_ - tensor_cat(gn, N)
+        s = s_ - tensor_cat(gn, N0)
     end
     return η, s
 end
@@ -181,15 +181,15 @@ function backward(Δη::AbstractArray{Float32, N}, Δs::AbstractArray{Float32, N
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
         g = reshape(g, nn..., 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
-        s = s_ - tensor_cat(gn, N)
+        s = s_ - tensor_cat(gn, N0)
 
         # Gradients
-        Δs1, Δs2 = tensor_split(Δηs_[:, :, 2:end, :]; split_index=1)
-        Δgn = tensor_split(Δs1[:, :, 1:1, :]; split_index=1)[1]
+        Δs2, Δs = tensor_split(Δηs_; split_index=1)
+        Δgn = tensor_split(Δs; split_index=1)[1]
         Δg = UL.AN[j].backward(Δgn, gn)[1]
-        Δη = reshape(J'*J*reshape(Δg, :, batchsize), n..., 1, batchsize) + Δs2
+        Δη = reshape(J'*J*reshape(Δg, :, batchsize), nn..., 1, batchsize) + Δs2
     end
-    set_grad ? (return Δη, Δs1, η, s) : (Δη, Δs1, Δθ, η, s)
+    set_grad ? (return Δη, Δs, η, s) : (Δη, Δs, Δθ, η, s)
 end
 
 ## Jacobian-related utils
