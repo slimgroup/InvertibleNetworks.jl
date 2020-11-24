@@ -6,7 +6,7 @@ ny = 32
 n_ch = 16
 n_hidden = 64
 batchsize = 2
-logdet = true
+logdet = false
 N1 = CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=logdet, permute="full")
 N2 = CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=logdet, permute="full")
 N3 = CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=logdet, permute="full")
@@ -20,8 +20,3 @@ N10 = CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=logdet, permut
 
 # Integrated backward pass w/ Zygote
 N = Chain(N1, N2, N3, N4, N5, N6, N7, N8, N9, N10)
-X = randn(Float32, nx, ny, n_ch, batchsize)
-Y, ∂Y_T = Zygote.pullback(N, X)
-lgdet = logdetjac() # to get logdets!
-ΔY = randn(Float32, nx, ny, n_ch, batchsize)
-ΔX = ∂Y_T(ΔY) # cannot be run twice! Must run pullback first
