@@ -1,4 +1,5 @@
 using ChainRulesCore
+export logdetjac
 import ChainRulesCore: frule, rrule
 
 
@@ -7,46 +8,51 @@ import ChainRulesCore: frule, rrule
 """
 Invertible global state type, it keeps track of invertible blocks of operations (each block being a sequence of contiguous invertible layers)
 """
-mutable struct StateInvertibleOperations
+mutable struct InvertibleOperationsTape
     Y::Array{Any,1}
     layer_blocks::Array{Any,1}
     counter_block::Int64
     counter_layer::Int64
+    logdet::Union{Nothing,Float32}
 end
 
 """
 Constructor
 """
-StateInvertibleOperations() = StateInvertibleOperations([], [], 0, 0)
+InvertibleOperationsTape() = InvertibleOperationsTape([], [], 0, 0, nothing)
 
 # Initialize global state
-const GLOBAL_STATE_INVOPS = StateInvertibleOperations()
+const GLOBAL_STATE_INVOPS = InvertibleOperationsTape()
 export GLOBAL_STATE_INVOPS
 
 """
 Get current state
 """
-current(state::StateInvertibleOperations) = state.Y[state.counter_block]
+function current(state::InvertibleOperationsTape)
+    state.counter_block == 0 && throw(ArgumentError("Please, run forward pass first, to rebuild global state."))
+    return state.Y[state.counter_block]
+end
 
 """
 Reset state
 """
-function reset!(state::StateInvertibleOperations)
+function reset!(state::InvertibleOperationsTape)
     state.Y = []
     state.layer_blocks = []
     state.counter_block = 0
     state.counter_layer = 0
+    state.logdet = nothing
 end
 
 """
 Determine if the input is related to a new block of invertible operations
 """
-isa_newblock(state::StateInvertibleOperations, X) = (state.counter_block == 0) || !(state.Y[end] == X)
+isa_newblock(state::InvertibleOperationsTape, X) = (state.counter_block == 0) || !(state.Y[end] == X)
 
 """
 Error if mismatch between state and network
 """
-function check_coherence(state::StateInvertibleOperations, net::Union{NeuralNetLayer,InvertibleNetwork})
+function check_coherence(state::InvertibleOperationsTape, net::Union{NeuralNetLayer,InvertibleNetwork})
     if state.counter_block != 0 && state.counter_layer != 0 && state.layer_blocks[state.counter_block][state.counter_layer] != net
         reset!(state)
         throw(ArgumentError("Current state does not correspond to current layer, resetting state..."))
@@ -56,7 +62,7 @@ end
 """
 Update state in the forward pass
 """
-function forward_update!(state::StateInvertibleOperations, X::Array{Float32,N}, Y::Array{Float32,N}, net::Union{NeuralNetLayer,InvertibleNetwork}) where N
+function forward_update!(state::InvertibleOperationsTape, X::Array{Float32,N}, Y::Array{Float32,N}, logdet::Union{Nothing,Float32}, net::Union{NeuralNetLayer,InvertibleNetwork}) where N
 
     if isa_newblock(state, X)
         push!(state.Y, Y)
@@ -68,13 +74,16 @@ function forward_update!(state::StateInvertibleOperations, X::Array{Float32,N}, 
         push!(state.layer_blocks[state.counter_block], net)
         state.counter_layer += 1
     end
+    if logdet isa Float32
+        state.logdet === nothing ? (state.logdet = logdet) : (state.logdet += logdet)
+    end
 
 end
 
 """
 Update state in the backward pass
 """
-function backward_update!(state::StateInvertibleOperations, X::Array{Float32,N}) where N
+function backward_update!(state::InvertibleOperationsTape, X::Array{Float32,N}) where N
 
     if state.counter_layer == 1 # Check if first layer of current block
         state.Y[state.counter_block] = nothing
@@ -92,14 +101,18 @@ end
 
 ## Chain rules for invertible networks
 
+# # Forward-mode AD rule
+# function frule((_, ΔX, Δθ), net::Union{NeuralNetLayer,InvertibleNetwork}, X, θ::Union{Nothing,Array{Parameter,1}},)
+#   TO DO
+# end
+
 # General pullback function
-function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float32,N}; state::StateInvertibleOperations=GLOBAL_STATE_INVOPS) where N
+function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float32,N}; state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where N
 
     # Check state coherency
     check_coherence(state, net)
 
     # Backward pass
-    # ΔY isa Tuple && (ΔY = ΔY[1])
     ΔX, X_ = net.backward(ΔY, current(state))
 
     # Update state
@@ -109,17 +122,14 @@ function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float
 
 end
 
-# Forward-mode AD
-# ...
-
-# Reverse-mode AD
-function rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X; state::StateInvertibleOperations=GLOBAL_STATE_INVOPS)
+# Reverse-mode AD rule
+function rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X; state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS)
 
     # Forward pass
-    Y = net.forward(X)
+    net.logdet ? ((Y, logdet) = net.forward(X)) : (Y = net.forward(X); logdet = nothing)
 
     # Update state
-    forward_update!(state, X, Y, net)
+    forward_update!(state, X, Y, logdet, net)
 
     # Pullback
     ∂Y_T(ΔY) = pullback(net, ΔY; state=state)
@@ -127,3 +137,8 @@ function rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X; state::StateInve
     return Y, ∂Y_T
 
 end
+
+
+## Logdet utilities for Zygote pullback
+
+logdetjac(; state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) = state.logdet
