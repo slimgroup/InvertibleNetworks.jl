@@ -45,7 +45,6 @@ function loss(L, X, Y)
     return f, ΔX, L.C.v1.grad, L.C.v2.grad, L.C.v3.grad, L.RB.W1.grad, L.RB.W2.grad, L.RB.W3.grad
 end
 
-
 # Gradient test w.r.t. input X0
 Y = L.forward(X)
 f0, ΔX = loss(L, X0, Y)[1:2]
@@ -123,7 +122,6 @@ end
 @test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
-
 ###################################################################################################
 # Jacobian-related tests
 
@@ -151,9 +149,9 @@ err7 = zeros(Float32, maxiter)
 err8 = zeros(Float32, maxiter)
 for j=1:maxiter
     set_params!(L, θ+h*dθ)
-    Y_ = L.forward(X+h*dX)
-    err7[j] = norm(Y_ - Y)
-    err8[j] = norm(Y_ - Y - h*dY)
+    Y_loc = L.forward(X+h*dX)
+    err7[j] = norm(Y_loc - Y)
+    err8[j] = norm(Y_loc - Y - h*dY)
     print(err7[j], "; ", err8[j], "\n")
     global h = h/2f0
 end

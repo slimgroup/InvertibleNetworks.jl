@@ -75,7 +75,7 @@ function AffineCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::In
 end
 
 # Forward pass: Input X, Output Y
-function forward(X::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM)
+function forward(X::AbstractArray{Float32, N}, D, J, CS::AffineCouplingLayerSLIM) where N
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(X)

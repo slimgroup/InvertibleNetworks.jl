@@ -56,92 +56,59 @@ function ActNorm(k; logdet=false)
     return ActNorm(k, s, b, logdet, false)
 end
 
-# 2D Foward pass: Input X, Output Y
-function forward(X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
+# 2-3D Foward pass: Input X, Output Y
+function forward(X::AbstractArray{Float32, N}, AN::ActNorm; logdet=nothing) where N
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
-    nx, ny, n_in, batchsize = size(X)
+    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    dims = collect(1:N-1); dims[end] +=1
 
     # Initialize during first pass such that
     # output has zero mean and unit variance
     if isnothing(AN.s.data) && !AN.is_reversed
-        μ = mean(X; dims=[1, 2, 4])[1, 1, :, 1]
-        σ_sqr = var(X; dims=[1, 2, 4])[1, 1, :, 1]
+        μ = mean(X; dims=dims)[inds...]
+        σ_sqr = var(X; dims=dims)[inds...]
         AN.s.data = 1f0 ./ sqrt.(σ_sqr)
         AN.b.data = -μ ./ sqrt.(σ_sqr)
     end
-    Y = X .* reshape(AN.s.data, 1, 1, :, 1) .+ reshape(AN.b.data, 1, 1, :, 1)
+    Y = X .* reshape(AN.s.data, inds...) .+ reshape(AN.b.data, inds...)
 
     # If logdet true, return as second ouput argument
-    logdet ? (return Y, logdet_forward(nx, ny, AN.s)) : (return Y)
+    logdet ? (return Y, logdet_forward(size(X)[1:N-2]..., AN.s)) : (return Y)
 end
 
-# 3D Foward pass: Input X, Output Y
-function forward(X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
-    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
-    nx, ny, nz, n_in, batchsize = size(X)
-
-    # Initialize during first pass such that
-    # output has zero mean and unit variance
-    if isnothing(AN.s.data) && !AN.is_reversed
-        μ = mean(X; dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-        σ_sqr = var(X; dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-        AN.s.data = 1f0 ./ sqrt.(σ_sqr)
-        AN.b.data = -μ ./ sqrt.(σ_sqr)
-    end
-    Y = X .* reshape(AN.s.data, 1, 1, 1, :, 1) .+ reshape(AN.b.data, 1, 1, 1, :, 1)
-
-    # If logdet true, return as second ouput argument
-    logdet ? (return Y, logdet_forward(nx, ny, nz, AN.s)) : (return Y)
-end
-
-# 2D Inverse pass: Input Y, Output X
-function inverse(Y::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
+# 2-3D Inverse pass: Input Y, Output X
+function inverse(Y::AbstractArray{Float32, N}, AN::ActNorm; logdet=nothing) where N
     isnothing(logdet) ? logdet = (AN.logdet && AN.is_reversed) : logdet = logdet
-    nx, ny, _, _ = size(Y)
+    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    dims = collect(1:N-1); dims[end] +=1
 
     # Initialize during first pass such that
     # output has zero mean and unit variance
     if isnothing(AN.s.data) && AN.is_reversed
-        μ = mean(Y; dims=[1,2,4])[1,1,:,1]
-        σ_sqr = var(Y; dims=[1,2,4])[1,1,:,1]
+        μ = mean(Y; dims=dims)[inds...]
+        σ_sqr = var(Y; dims=dims)[inds...]
         AN.s.data = sqrt.(σ_sqr)
         AN.b.data = μ
     end
-    X = (Y .- reshape(AN.b.data, 1, 1, :, 1)) ./ reshape(AN.s.data, 1, 1, :, 1)
+    X = (Y .- reshape(AN.b.data, inds...)) ./ reshape(AN.s.data, inds...)
 
     # If logdet true, return as second ouput argument
-    logdet ? (return X, -logdet_forward(nx, ny, AN.s)) : (return X)
+    logdet ? (return X, -logdet_forward(size(Y)[1:N-2]..., AN.s)) : (return X)
 end
 
-# 3D Inverse pass: Input Y, Output X
-function inverse(Y::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
-    isnothing(logdet) ? logdet = (AN.logdet && AN.is_reversed) : logdet = logdet
-    nx, ny, nz, _, _ = size(Y)
+# 2-3D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
+function backward(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, AN::ActNorm; set_grad::Bool = true) where N
+    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    dims = collect(1:N-1); dims[end] +=1
+    nn = size(ΔY)[1:N-2]
 
-    # Initialize during first pass such that
-    # output has zero mean and unit variance
-    if isnothing(AN.s.data) && AN.is_reversed
-        μ = mean(Y; dims=[1,2,3,5])[1,1,1,:,1]
-        σ_sqr = var(Y; dims=[1,2,3,5])[1,1,1,:,1]
-        AN.s.data = sqrt.(σ_sqr)
-        AN.b.data = μ
-    end
-    X = (Y .- reshape(AN.b.data, 1, 1, 1, :, 1)) ./ reshape(AN.s.data, 1, 1, 1, :, 1)
-
-    # If logdet true, return as second ouput argument
-    logdet ? (return X, -logdet_forward(nx, ny, nz, AN.s)) : (return X)
-end
-
-# 2D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, AN::ActNorm; set_grad::Bool = true)
-    nx, ny, n_in, batchsize = size(Y)
     X = inverse(Y, AN; logdet=false)
-    ΔX = ΔY .* reshape(AN.s.data, 1, 1, :, 1)
-    Δs = sum(ΔY .* X, dims=[1, 2, 4])[1, 1, :, 1]
+    ΔX = ΔY .* reshape(AN.s.data, inds...)
+    Δs = sum(ΔY .* X, dims=dims)[inds...]
     if AN.logdet
-        set_grad ? (Δs -= logdet_backward(nx, ny, AN.s)) : (Δs_ = logdet_backward(nx, ny, AN.s))
+        set_grad ? (Δs -= logdet_backward(nn..., AN.s)) : (Δs_ = logdet_backward(nn..., AN.s))
     end
-    Δb = sum(ΔY, dims=[1, 2, 4])[1, 1, :, 1]
+    Δb = sum(ΔY, dims=dims)[inds...]
     if set_grad
         AN.s.grad = Δs
         AN.b.grad = Δb
@@ -154,43 +121,21 @@ function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, 
         AN.logdet ? (return ΔX, Δθ, X, [Parameter(Δs_), Parameter(0f0*Δb)]) : (return ΔX, Δθ, X)
     end
 end
-
-# 3D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function backward(ΔY::AbstractArray{Float32, 5}, Y::AbstractArray{Float32, 5}, AN::ActNorm; set_grad::Bool = true)
-    nx, ny, nz, n_in, batchsize = size(Y)
-    X = inverse(Y, AN; logdet=false)
-    ΔX = ΔY .* reshape(AN.s.data, 1, 1, 1, :, 1)
-    Δs = sum(ΔY .* X, dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-    if AN.logdet
-        set_grad ? (Δs -= logdet_backward(nx, ny, nz, AN.s)) : (Δs_ = logdet_backward(nx, ny, nz, AN.s))
-    end
-    Δb = sum(ΔY, dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-    if set_grad
-        AN.s.grad = Δs
-        AN.b.grad = Δb
-    else
-        Δθ = [Parameter(Δs), Parameter(Δb)]
-    end
-    if set_grad
-        return ΔX, X
-    else
-        AN.logdet ? (return ΔX, Δθ, X, [Parameter(Δs_), Parameter(0f0*Δb)]) : (return ΔX, Δθ, X)
-    end
-end
-
 
 ## Reverse-layer functions
+# 2-3D Backward pass (inverse): Input (ΔX, X), Output (ΔX, X)
+function backward_inv(ΔX::AbstractArray{Float32, N}, X::AbstractArray{Float32, N}, AN::ActNorm; set_grad::Bool = true) where N
+    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    dims = collect(1:N-1); dims[end] +=1
+    nn = size(ΔY)[1:N-2]
 
-# 2D Backward pass (inverse): Input (ΔX, X), Output (ΔX, X)
-function backward_inv(ΔX::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, AN::ActNorm; set_grad::Bool = true)
-    nx, ny, n_in, batchsize = size(X)
     Y = forward(X, AN; logdet=false)
-    ΔY = ΔX ./ reshape(AN.s.data, 1, 1, :, 1)
-    Δs = -sum(ΔX .* X ./ reshape(AN.s.data, 1, 1, :, 1), dims=[1, 2, 4])[1, 1, :, 1]
+    ΔY = ΔX ./ reshape(AN.s.data, inds...)
+    Δs = -sum(ΔX .* X ./ reshape(AN.s.data, inds...), dims=dims)[inds...]
     if AN.logdet
         set_grad ? (Δs += logdet_backward(nx, ny, AN.s)) : (∇logdet = -logdet_backward(nx, ny, AN.s))
     end
-    Δb = -sum(ΔX ./ reshape(AN.s.data, 1, 1, :, 1), dims=[1, 2, 4])[1, 1, :, 1]
+    Δb = -sum(ΔX ./ reshape(AN.s.data, inds...), dims=dims)[inds...]
     if set_grad
         AN.s.grad = Δs
         AN.b.grad = Δb
@@ -203,36 +148,12 @@ function backward_inv(ΔX::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 
         AN.logdet ? (return ΔY, Δθ, Y, ∇logdet) : (return ΔY, Δθ, Y)
     end
 end
-
-# 3D Backward pass (inverse): Input (ΔX, X), Output (ΔX, X)
-function backward_inv(ΔX::AbstractArray{Float32, 5}, X::AbstractArray{Float32, 5}, AN::ActNorm; set_grad::Bool = true)
-    nx, ny, nz, n_in, batchsize = size(X)
-    Y = forward(X, AN; logdet=false)
-    ΔY = ΔX ./ reshape(AN.s.data, 1, 1, 1, :, 1)
-    Δs = -sum(ΔX .* X ./ reshape(AN.s.data, 1, 1, 1, :, 1), dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-    if AN.logdet
-        set_grad ? (Δs += logdet_backward(nx, ny, nz, AN.s)) : (∇logdet = -logdet_backward(nx, ny, nz, AN.s))
-    end
-    Δb = -sum(ΔX ./ reshape(AN.s.data, 1, 1, 1, :, 1), dims=[1, 2, 3, 5])[1, 1, 1, :, 1]
-    if set_grad
-        AN.s.grad = Δs
-        AN.b.grad = Δb
-    else
-        Δθ = [Parameter(Δs), Parameter(Δb)]
-    end
-    if set_grad
-        return ΔY, Y
-    else
-        AN.logdet ? (return ΔY, Δθ, Y, ∇logdet) : (return ΔY, Δθ, Y)
-    end
-end
-
 
 ## Jacobian-related functions
-
-# 2D
-function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::AbstractArray{Parameter, 1}, X::AbstractArray{Float32, 4}, AN::ActNorm; logdet=nothing)
+# 2-£D
+function jacobian(ΔX::AbstractArray{Float32, N}, Δθ::AbstractArray{Parameter, 1}, X::AbstractArray{Float32, N}, AN::ActNorm; logdet=nothing) where N
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
+    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
     Δs = Δθ[1].data
     Δb = Δθ[2].data
 
@@ -240,34 +161,12 @@ function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::AbstractArray{Parameter,
     logdet ? (Y, lgdet) = forward(X, AN; logdet=logdet) : Y = forward(X, AN; logdet=logdet)
 
     # Jacobian evaluation
-    ΔY = ΔX .* reshape(AN.s.data, 1, 1, :, 1) .+ X .* reshape(Δs, 1, 1, :, 1) .+ reshape(Δb, 1, 1, :, 1)
+    ΔY = ΔX .* reshape(AN.s.data, inds...) .+ X .* reshape(Δs, inds...) .+ reshape(Δb, inds...)
 
     # Hessian evaluation of logdet terms
     if logdet
         nx, ny, _, _ = size(X)
         HlogΔθ = [Parameter(logdet_hessian(nx, ny, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
-        return ΔY, Y, lgdet, HlogΔθ
-    else
-        return ΔY, Y
-    end
-end
-
-# 3D
-function jacobian(ΔX::AbstractArray{Float32, 5}, Δθ::AbstractArray{Parameter, 1}, X::AbstractArray{Float32, 5}, AN::ActNorm; logdet=nothing)
-    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
-    Δs = Δθ[1].data
-    Δb = Δθ[2].data
-
-    # Evaluating forward evaluation
-    logdet ? (Y, lgdet) = forward(X, AN; logdet=logdet) : Y = forward(X, AN; logdet=logdet)
-
-    # Jacobian evaluation
-    ΔY = ΔX .* reshape(AN.s.data, 1, 1, 1, :, 1) .+ X .* reshape(Δs, 1, 1, 1, :, 1) .+ reshape(Δb, 1, 1, 1, :, 1)
-
-    # Hessian evaluation of logdet terms
-    if logdet
-        nx, ny, nz, _, _ = size(X)
-        HlogΔθ = [Parameter(logdet_hessian(nx, ny, nz, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
         return ΔY, Y, lgdet, HlogΔθ
     else
         return ΔY, Y
@@ -281,20 +180,16 @@ end
 
 
 ## Logdet utils
-
 # 2D Logdet
 logdet_forward(nx, ny, s) = nx*ny*sum(log.(abs.(s.data)))
 logdet_backward(nx, ny, s) = nx*ny ./ s.data
 logdet_hessian(nx, ny, s) = -nx*ny ./ s.data.^2f0
-
 # 3D Logdet
 logdet_forward(nx, ny, nz, s) = nx*ny*nz*sum(log.(abs.(s.data)))
 logdet_backward(nx, ny, nz, s) = nx*ny*nz ./ s.data
 logdet_hessian(nx, ny, nz, s) = -nx*ny*nz ./ s.data.^2f0
 
-
 ## Other utilities
-
 # Clear gradients
 function clear_grad!(AN::ActNorm)
     AN.s.grad = nothing
