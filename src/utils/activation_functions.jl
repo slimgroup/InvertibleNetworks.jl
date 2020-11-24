@@ -199,15 +199,9 @@ end
 
  See also: [`GaLUgrad`](@ref)
 """
-function GaLU(x::AbstractArray{Float32, 4})
-    k = Int(size(x, 3) / 2)
-    y = x[:, :, 1:k, :] .* Sigmoid(x[:, :, k+1:end, :])
-    return y
-end
-
-function GaLU(x::AbstractArray{Float32, 5})
-    k = Int(size(x, 4) / 2)
-    y = x[:, :, :, 1:k, :] .* Sigmoid(x[:, :, :, k+1:end, :])
+function GaLU(x::AbstractArray{Float32, N}) where N
+    x1, x2 = tensor_split(x)
+    y =  x1 .* Sigmoid(x2)
     return y
 end
 
@@ -228,44 +222,20 @@ end
 
  See also: [`GaLU`](@ref)
 """
-function GaLUgrad(Δy::AbstractArray{Float32, 4}, x::AbstractArray{Float32, 4})
-    k = Int(size(x, 3) / 2)
-    x1 = x[:, :, 1:k, :]
-    x2 = x[:, :, k+1:end, :]
+function GaLUgrad(Δy::AbstractArray{Float32, N}, x::AbstractArray{Float32, N}) where N
+    k = Int(size(x, N-1) / 2)
+    x1, x2 = tensor_split(x)
     Δx = 0f0.*x
-    Δx[:, :, 1:k, :] = Sigmoid(x2) .* Δy
-    Δx[:, :, k+1:end, :] = SigmoidGrad(Δy, nothing; x=x2) .* x1
+    Δx = tensor_cat(Sigmoid(x2) .* Δy, SigmoidGrad(Δy, nothing; x=x2) .* x1)
     return Δx
 end
 
-function GaLUgrad(Δy::AbstractArray{Float32, 5}, x::AbstractArray{Float32, 5})
-    k = Int(size(x, 4) / 2)
-    x1 = x[:, :, :, 1:k, :]
-    x2 = x[:, :, :, k+1:end, :]
-    Δx = 0f0.*x
-    Δx[:, :, :, 1:k, :] = Sigmoid(x2) .* Δy
-    Δx[:, :, :, k+1:end, :] = SigmoidGrad(Δy, nothing; x=x2) .* x1
-    return Δx
-end
-
-function GaLUjacobian(Δx::AbstractArray{Float32, 4}, x::AbstractArray{Float32, 4})
+function GaLUjacobian(Δx::AbstractArray{Float32, N}, x::AbstractArray{Float32, N}) where N
     k = Int(size(x, 3) / 2)
-    x1  =  x[:, :, 1:k,     :]
-    Δx1 = Δx[:, :, 1:k,     :]
-    x2  =  x[:, :, k+1:end, :]
-    Δx2 = Δx[:, :, k+1:end, :]
-    s = Sigmoid(x2); Δs = SigmoidGrad(Δx2, nothing; x=x2)
-    y = x1 .* s
-    Δy = Δx1 .* s + x1 .* Δs
-    return Δy, y
-end
-function GaLUjacobian(Δx::AbstractArray{Float32, 5}, x::AbstractArray{Float32, 5})
-    k = Int(size(x, 4) / 2)
-    x1  =  x[:, :, :, 1:k,     :]
-    Δx1 = Δx[:, :, :, 1:k,     :]
-    x2  =  x[:, :, :, k+1:end, :]
-    Δx2 = Δx[:, :, :, k+1:end, :]
-    s = Sigmoid(x2); Δs = SigmoidGrad(Δx2, nothing; x=x2)
+    x1, x2 = tensor_split(x)
+    Δx1, Δx2 = tensor_split(Δx)
+    s = Sigmoid(x2)
+    Δs = SigmoidGrad(Δx2, nothing; x=x2)
     y = x1 .* s
     Δy = Δx1 .* s + x1 .* Δs
     return Δy, y

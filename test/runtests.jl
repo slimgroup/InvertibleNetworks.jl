@@ -5,7 +5,6 @@ using InvertibleNetworks, Test
 
 const test_suite = get(ENV, "test_suite", "all") # "all", "basics", "layers" or "networks"
 
-
 basics = ["test_utils/test_objectives.jl",
           "test_utils/test_sequential.jl",
           "test_utils/test_nnlib_convolution.jl",

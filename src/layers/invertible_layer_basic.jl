@@ -91,79 +91,35 @@ function CouplingLayerBasic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidd
     return CouplingLayerBasic(RB, logdet, activation, false)
 end
 
-# 2D Forward pass: Input X, Output Y
-function forward(X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing)
+# 2D/3D Forward pass: Input X, Output Y
+function forward(X1::AbstractArray{Float32, N}, X2::AbstractArray{Float32, N}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing) where N
     isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
 
     # Coupling layer
-    k = size(X1, 3)
-    Y1 = copy(X1)
-    logS_T = L.RB.forward(X1)
-    S = L.activation.forward(logS_T[:, :, 1:k, :])
-    T = logS_T[:, :, k+1:end, :]
-    Y2 = S.*X2 + T
+    logS_T1, logS_T2 = tensor_split(L.RB.forward(X1))
+    S = L.activation.forward(logS_T1)
+    Y2 = S.*X2 + logS_T2
 
     if logdet
-        save ? (return Y1, Y2, coupling_logdet_forward(S), S) : (return Y1, Y2, coupling_logdet_forward(S))
+        save ? (return X1, Y2, coupling_logdet_forward(S), S) : (return X1, Y2, coupling_logdet_forward(S))
     else
-        save ? (return Y1, Y2, S) : (return Y1, Y2)
+        save ? (return X1, Y2, S) : (return X1, Y2)
     end
 end
 
-# 3D Forward pass: Input X, Output Y
-function forward(X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing)
-    isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
-
-    # Coupling layer
-    k = size(X1, 4)
-    Y1 = copy(X1)
-    logS_T = L.RB.forward(X1)
-    S = L.activation.forward(logS_T[:, :, :, 1:k,: ])
-    T = logS_T[:, :, :, k+1:end, :]
-    Y2 = S.*X2 + T
-
-    if logdet
-        save ? (return Y1, Y2, coupling_logdet_forward(S), S) : (return Y1, Y2, coupling_logdet_forward(S))
-    else
-        save ? (return Y1, Y2, S) : (return Y1, Y2)
-    end
-end
-
-# 2D Inverse pass: Input Y, Output X
-function inverse(Y1::AbstractArray{Float32, 4}, Y2::AbstractArray{Float32, 4}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing)
+# 2D/3D Inverse pass: Input Y, Output X
+function inverse(Y1::AbstractArray{Float32, N}, Y2::AbstractArray{Float32, N}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing) where N
     isnothing(logdet) ? logdet = (L.logdet && L.is_reversed) : logdet = logdet
 
     # Inverse layer
-    k = size(Y1, 3)
-    X1 = copy(Y1)
-    logS_T = L.RB.forward(X1)
-    S = L.activation.forward(logS_T[:, :, 1:k, :])
-    T = logS_T[:, :, k+1:end, :]
-    X2 = (Y2 - T) ./ (S .+ eps(1f0)) # add epsilon to avoid division by 0
+    logS_T1, logS_T2 = tensor_split(L.RB.forward(Y1))
+    S = L.activation.forward(logS_T1)
+    X2 = (Y2 - logS_T2) ./ (S .+ eps(1f0)) # add epsilon to avoid division by 0
 
     if logdet
-        save == true ? (return X1, X2, -coupling_logdet_forward(S), S) : (return X1, X2, -coupling_logdet_forward(S))
+        save == true ? (return Y1, X2, -coupling_logdet_forward(S), S) : (return Y1, X2, -coupling_logdet_forward(S))
     else
-        save == true ? (return X1, X2, S) : (return X1, X2)
-    end
-end
-
-# 3D Inverse pass: Input Y, Output X
-function inverse(Y1::AbstractArray{Float32, 5}, Y2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save=false, logdet=true)
-    isnothing(logdet) ? logdet = (L.logdet && L.is_reversed) : logdet = logdet
-
-    # Inverse layer
-    k = size(Y1, 4)
-    X1 = copy(Y1)
-    logS_T = L.RB.forward(X1)
-    S = L.activation.forward(logS_T[:, :, :, 1:k, :])
-    T = logS_T[:, :, :, k+1:end, :]
-    X2 = (Y2 - T) ./ (S .+ eps(1f0)) # add epsilon to avoid division by 0
-
-    if logdet
-        save == true ? (return X1, X2, -coupling_logdet_forward(S), S) : (return X1, X2, -coupling_logdet_forward(S))
-    else
-        save == true ? (return X1, X2, S) : (return X1, X2)
+        save == true ? (return Y1, X2, S) : (return X1, X2)
     end
 end
 
@@ -228,56 +184,26 @@ end
 ## Jacobian-related functions
 
 # 2D
-function jacobian(ΔX1::AbstractArray{Float32, 4}, ΔX2::AbstractArray{Float32, 4}, Δθ::AbstractArray{Parameter, 1}, X1::AbstractArray{Float32, 4}, X2::AbstractArray{Float32, 4}, L::CouplingLayerBasic; save=false, logdet=nothing)
+function jacobian(ΔX1::AbstractArray{Float32, N}, ΔX2::AbstractArray{Float32, N}, Δθ::AbstractArray{Parameter, 1},
+                  X1::AbstractArray{Float32, N}, X2::AbstractArray{Float32, N}, L::CouplingLayerBasic;
+                  save=false, logdet=nothing) where N
     isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
 
-    k = size(X1, 3)
-    Y1 = copy(X1)
-    ΔY1 = copy(ΔX1)
-    logS_T = L.RB.forward(X1)
-    ΔlogS_T = jacobian(ΔX1, Δθ, X1, L.RB)[1]
-    S = L.activation.forward(logS_T[:, :, 1:k, :])
-    ΔS = L.activation.backward(ΔlogS_T[:, :, 1:k, :], S)
-    T = logS_T[:, :, k+1:end, :]
-    ΔT = ΔlogS_T[:, :, k+1:end, :]
-    Y2 = S.*X2 + T
-    ΔY2 = ΔS.*X2 + S.*ΔX2 + ΔT
+    logS_T1, logS_T2 = tensor_split(L.RB.forward(X1))
+    ΔlogS_T1, ΔlogS_T2 = tensor_split(jacobian(ΔX1, Δθ, X1, L.RB)[1])
+    S = L.activation.forward(logS_T1)
+    ΔS = L.activation.backward(ΔlogS_T1, S)
+    Y2 = S.*X2 + logS_T2
+    ΔY2 = ΔS.*X2 + S.*ΔX2 + ΔlogS_T2
 
     if logdet
         # Gauss-Newton approximation of logdet terms
         JΔθ = L.RB.jacobian(zeros(Float32, size(ΔX1)), Δθ, X1)[1][:, :, 1:k, :]
         GNΔθ = -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, S), zeros(Float32, size(S))), X1)[2]
         
-        save ? (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ, S) : (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ)
+        save ? (return ΔX1, ΔY2, X1, Y2, coupling_logdet_forward(S), GNΔθ, S) : (return ΔX1, ΔY2, X1, Y2, coupling_logdet_forward(S), GNΔθ)
     else
-        save ? (return ΔY1, ΔY2, Y1, Y2, S) : (return ΔY1, ΔY2, Y1, Y2)
-    end
-end
-
-# 3D
-function jacobian(ΔX1::AbstractArray{Float32, 5}, ΔX2::AbstractArray{Float32, 5}, Δθ::AbstractArray{Parameter, 1}, X1::AbstractArray{Float32, 5}, X2::AbstractArray{Float32, 5}, L::CouplingLayerBasic; save=false, logdet=nothing)
-    isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
-
-    k = size(X1, 4)
-    Y1 = copy(X1)
-    ΔY1 = copy(ΔX1)
-    logS_T = L.RB.forward(X1)
-    ΔlogS_T = jacobian(ΔX1, Δθ, X1, L.RB)[1]
-    S = L.activation.forward(logS_T[:, :, :, 1:k, :])
-    ΔS = L.activation.backward(ΔlogS_T[:, :, :, 1:k, :], S)
-    T = logS_T[:, :, :, k+1:end, :]
-    ΔT = ΔlogS_T[:, :, :, k+1:end, :]
-    Y2 = S.*X2 + T
-    ΔY2 = ΔS.*X2 + S.*ΔX2 + ΔT
-
-    if logdet
-        # Gauss-Newton approximation of logdet terms
-        JΔθ = L.RB.jacobian(zeros(Float32, size(ΔX1)), Δθ, X1)[1][:, :, :, 1:k, :]
-        GNΔθ = -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, S), zeros(Float32, size(S))), X1)[2]
-        
-        save ? (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ, S) : (return ΔY1, ΔY2, Y1, Y2, coupling_logdet_forward(S), GNΔθ)
-    else
-        save ? (return ΔY1, ΔY2, Y1, Y2, S) : (return ΔY1, ΔY2, Y1, Y2)
+        save ? (return ΔX1, ΔY2, X1, Y2, S) : (return ΔY1, ΔY2, Y1, Y2)
     end
 end
 
@@ -288,13 +214,10 @@ end
 
 
 ## Logdet utils
-
 coupling_logdet_forward(S) = sum(log.(abs.(S))) / size(S)[end]
 coupling_logdet_backward(S) = 1f0./ S / size(S)[end]
 
-
 ## Other utils
-
 # Clear gradients
 clear_grad!(L::CouplingLayerBasic) = clear_grad!(L.RB)
 
