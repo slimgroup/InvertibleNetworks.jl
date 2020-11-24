@@ -119,7 +119,7 @@ function inverse(Y1::AbstractArray{Float32, N}, Y2::AbstractArray{Float32, N}, L
     if logdet
         save == true ? (return Y1, X2, -coupling_logdet_forward(S), S) : (return Y1, X2, -coupling_logdet_forward(S))
     else
-        save == true ? (return Y1, X2, S) : (return X1, X2)
+        save == true ? (return Y1, X2, S) : (return Y1, X2)
     end
 end
 
@@ -198,12 +198,12 @@ function jacobian(ΔX1::AbstractArray{Float32, N}, ΔX2::AbstractArray{Float32, 
 
     if logdet
         # Gauss-Newton approximation of logdet terms
-        JΔθ = L.RB.jacobian(zeros(Float32, size(ΔX1)), Δθ, X1)[1][:, :, 1:k, :]
+        JΔθ = tensor_split(L.RB.jacobian(zeros(Float32, size(ΔX1)), Δθ, X1)[1])[1]
         GNΔθ = -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, S), zeros(Float32, size(S))), X1)[2]
         
         save ? (return ΔX1, ΔY2, X1, Y2, coupling_logdet_forward(S), GNΔθ, S) : (return ΔX1, ΔY2, X1, Y2, coupling_logdet_forward(S), GNΔθ)
     else
-        save ? (return ΔX1, ΔY2, X1, Y2, S) : (return ΔY1, ΔY2, Y1, Y2)
+        save ? (return ΔX1, ΔY2, X1, Y2, S) : (return ΔX1, ΔY2, X1, Y2)
     end
 end
 

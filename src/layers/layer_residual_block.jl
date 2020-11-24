@@ -261,7 +261,7 @@ function jacobian(ΔX1::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1}, X1
 end
  
 # 2D/3D
-function adjointJacobian(ΔX4::Array{Float32, N}, X1::Array{Float32, N}, RB::ResidualBlock) where N
+function adjointJacobian(ΔX4::AbstractArray{Float32, N}, X1::AbstractArray{Float32, N}, RB::ResidualBlock) where N
     return backward(ΔX4, X1, RB; set_grad=false)
 end
 

@@ -127,13 +127,13 @@ end
 function backward_inv(ΔX::AbstractArray{Float32, N}, X::AbstractArray{Float32, N}, AN::ActNorm; set_grad::Bool = true) where N
     inds = [i!=(N-1) ? 1 : (:) for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
-    nn = size(ΔY)[1:N-2]
+    nn = size(ΔX)[1:N-2]
 
     Y = forward(X, AN; logdet=false)
     ΔY = ΔX ./ reshape(AN.s.data, inds...)
     Δs = -sum(ΔX .* X ./ reshape(AN.s.data, inds...), dims=dims)[inds...]
     if AN.logdet
-        set_grad ? (Δs += logdet_backward(nx, ny, AN.s)) : (∇logdet = -logdet_backward(nx, ny, AN.s))
+        set_grad ? (Δs += logdet_backward(nn..., AN.s)) : (∇logdet = -logdet_backward(nn..., AN.s))
     end
     Δb = -sum(ΔX ./ reshape(AN.s.data, inds...), dims=dims)[inds...]
     if set_grad
@@ -154,6 +154,7 @@ end
 function jacobian(ΔX::AbstractArray{Float32, N}, Δθ::AbstractArray{Parameter, 1}, X::AbstractArray{Float32, N}, AN::ActNorm; logdet=nothing) where N
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    nn = size(ΔX)[1:N-2]
     Δs = Δθ[1].data
     Δb = Δθ[2].data
 
@@ -166,7 +167,7 @@ function jacobian(ΔX::AbstractArray{Float32, N}, Δθ::AbstractArray{Parameter,
     # Hessian evaluation of logdet terms
     if logdet
         nx, ny, _, _ = size(X)
-        HlogΔθ = [Parameter(logdet_hessian(nx, ny, AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
+        HlogΔθ = [Parameter(logdet_hessian(nn..., AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
         return ΔY, Y, lgdet, HlogΔθ
     else
         return ΔY, Y
