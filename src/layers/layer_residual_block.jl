@@ -177,31 +177,13 @@ end
 # Functions
 
 # Forward 2D
-function forward(X1::AbstractArray{Float32, 4}, RB::ResidualBlock; save=false)
+function forward(X1::AbstractArray{Float32, N}, RB::ResidualBlock; save=false) where N
+    inds =[i!=(N-1) ? 1 : (:) for i=1:N]
 
-    Y1 = conv(X1, RB.W1.data, RB.cdims1) .+ reshape(RB.b1.data, 1, 1, :, 1)
+    Y1 = conv(X1, RB.W1.data, RB.cdims1) .+ reshape(RB.b1.data, inds...)
     X2 = ReLU(Y1)
 
-    Y2 = X2 + conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, :, 1)
-    X3 = ReLU(Y2)
-
-    Y3 = ∇conv_data(X3, RB.W3.data, RB.cdims3)
-    RB.fan == true ? (X4 = ReLU(Y3)) : (X4 = GaLU(Y3))
-
-    if save == false
-        return X4
-    else
-        return Y1, Y2, Y3, X2, X3
-    end
-end
-
-# Forward 3D
-function forward(X1::AbstractArray{Float32, 5}, RB::ResidualBlock; save=false)
-
-    Y1 = conv(X1, RB.W1.data, RB.cdims1) .+ reshape(RB.b1.data, 1, 1, 1, :, 1)
-    X2 = ReLU(Y1)
-
-    Y2 = X2 + conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, 1, 1, 1, :, 1)
+    Y2 = X2 + conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, inds...)
     X3 = ReLU(Y2)
 
     Y3 = ∇conv_data(X3, RB.W3.data, RB.cdims3)
@@ -215,7 +197,9 @@ function forward(X1::AbstractArray{Float32, 5}, RB::ResidualBlock; save=false)
 end
 
 # Backward 2D
-function backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}, RB::ResidualBlock)
+function backward(ΔX4::AbstractArray{Float32, N}, X1::AbstractArray{Float32, N}, RB::ResidualBlock; set_grad::Bool=true) where N
+    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    dims = collect(1:N-1); dims[end] +=1
 
     # Recompute forward states from input X
     Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
@@ -228,54 +212,60 @@ function backward(ΔX4::AbstractArray{Float32, 4}, X1::AbstractArray{Float32, 4}
     ΔY2 = ReLUgrad(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2) + ΔY2
     ΔW2 = ∇conv_filter(X2, ΔY2, RB.cdims2)
-    Δb2 = sum(ΔY2, dims=[1,2,4])[1,1,:,1]
+    Δb2 = sum(ΔY2, dims=dims)[inds...]
 
     ΔY1 = ReLUgrad(ΔX2, Y1)
     ΔX1 = ∇conv_data(ΔY1, RB.W1.data, RB.cdims1)
     ΔW1 = ∇conv_filter(X1, ΔY1, RB.cdims1)
-    Δb1 = sum(ΔY1, dims=[1,2,4])[1,1,:,1]
+    Δb1 = sum(ΔY1, dims=dims)[inds...]
 
     # Set gradients
-    RB.W1.grad = ΔW1
-    RB.W2.grad = ΔW2
-    RB.W3.grad = ΔW3
-    RB.b1.grad = Δb1
-    RB.b2.grad = Δb2
+    if set_grad
+        RB.W1.grad = ΔW1
+        RB.W2.grad = ΔW2
+        RB.W3.grad = ΔW3
+        RB.b1.grad = Δb1
+        RB.b2.grad = Δb2
+    else
+        Δθ = [Parameter(ΔW1), Parameter(ΔW2), Parameter(ΔW3), Parameter(Δb1), Parameter(Δb2)]
+    end
 
-    return ΔX1
+    set_grad ? (return ΔX1) : (return ΔX1, Δθ)
+end
+## Jacobian-related functions
+
+function jacobian(ΔX1::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1}, X1::AbstractArray{Float32, N}, RB::ResidualBlock) where N
+    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+
+    Y1 = conv(X1, RB.W1.data, RB.cdims1) .+ reshape(RB.b1.data, inds...)
+    ΔY1 = conv(ΔX1, RB.W1.data, RB.cdims1) + conv(X1, Δθ[1].data, RB.cdims1) .+ reshape(Δθ[4].data, inds...)
+    X2 = ReLU(Y1)
+    ΔX2 = ReLUgrad(ΔY1, Y1)
+
+    Y2 = X2 + conv(X2, RB.W2.data, RB.cdims2) .+ reshape(RB.b2.data, inds...)
+    ΔY2 = ΔX2 + conv(ΔX2, RB.W2.data, RB.cdims2) + conv(X2, Δθ[2].data, RB.cdims2) .+ reshape(Δθ[5].data, inds...)
+    X3 = ReLU(Y2)
+    ΔX3 = ReLUgrad(ΔY2, Y2)
+
+    Y3 = ∇conv_data(X3, RB.W3.data, RB.cdims3)
+    ΔY3 = ∇conv_data(ΔX3, RB.W3.data, RB.cdims3) + ∇conv_data(X3, Δθ[3].data, RB.cdims3)
+    if RB.fan == true
+        X4 = ReLU(Y3)
+        ΔX4 = ReLUgrad(ΔY3, Y3)
+    else
+        ΔX4, X4 = GaLUjacobian(ΔY3, Y3)
+    end
+
+    return ΔX4, X4
+
+end
+ 
+# 2D/3D
+function adjointJacobian(ΔX4::AbstractArray{Float32, N}, X1::AbstractArray{Float32, N}, RB::ResidualBlock) where N
+    return backward(ΔX4, X1, RB; set_grad=false)
 end
 
-# Backward 3D
-function backward(ΔX4::AbstractArray{Float32, 5}, X1::AbstractArray{Float32, 5}, RB::ResidualBlock)
-
-    # Recompute forward states from input X
-    Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
-
-    # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
-    ΔX3 = conv(ΔY3, RB.W3.data, RB.cdims3)
-    ΔW3 = ∇conv_filter(ΔY3, X3, RB.cdims3)
-
-    ΔY2 = ReLUgrad(ΔX3, Y2)
-    ΔX2 = ∇conv_data(ΔY2, RB.W2.data, RB.cdims2) + ΔY2
-    ΔW2 = ∇conv_filter(X2, ΔY2, RB.cdims2)
-    Δb2 = sum(ΔY2, dims=[1,2,3,5])[1,1,1,:,1]
-
-    ΔY1 = ReLUgrad(ΔX2, Y1)
-    ΔX1 = ∇conv_data(ΔY1, RB.W1.data, RB.cdims1)
-    ΔW1 = ∇conv_filter(X1, ΔY1, RB.cdims1)
-    Δb1 = sum(ΔY1, dims=[1,2,3,5])[1,1,1,:,1]
-
-    # Set gradients
-    RB.W1.grad = ΔW1
-    RB.W2.grad = ΔW2
-    RB.W3.grad = ΔW3
-    RB.b1.grad = Δb1
-    RB.b2.grad = Δb2
-
-    return ΔX1
-end
-
+## Other utils
 # Clear gradients
 function clear_grad!(RB::ResidualBlock)
     RB.W1.grad = nothing
@@ -285,11 +275,4 @@ function clear_grad!(RB::ResidualBlock)
     RB.b2.grad = nothing
 end
 
-"""
-    P = get_params(NL::NeuralNetLayer)
-
- Returns a cell array of all parameters in the network layer. Each cell
- entry contains a reference to the original parameter; i.e. modifying
- the paramters in `P`, modifies the parameters in `NL`.
-"""
 get_params(RB::ResidualBlock) = [RB.W1, RB.W2, RB.W3, RB.b1, RB.b2]

@@ -188,3 +188,112 @@ end
 
 @test isapprox(err7[end] / (err7[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err8[end] / (err8[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+
+###################################################################################################
+# Jacobian-related tests
+
+# Gradient test
+
+# Initialization
+batchsize=10
+v10 = randn(Float32, k)
+v20 = randn(Float32, k)
+v30 = randn(Float32, k)
+C0 = Conv1x1(v10, v20, v30; logdet=true)
+θ0 = deepcopy(get_params(C0))
+v1 = randn(Float32, k)
+v2 = randn(Float32, k)
+v3 = randn(Float32, k)
+C = Conv1x1(v1, v2, v3; logdet=true)
+θ = deepcopy(get_params(C))
+X = randn(Float32, nx, ny, k, batchsize)
+
+# Perturbation (normalized)
+dθ = θ-θ0
+for i = 1:length(θ)
+    dθ[i] = norm(θ0[i])*dθ[i]/(norm(dθ[i]).+1f-10)
+end
+dX = randn(Float32, nx, ny, k, batchsize); dX = norm(X)*dX/norm(dX)
+
+# Jacobian eval
+dY, Y = C.jacobian(dX, dθ, X)
+
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 7
+err9 = zeros(Float32, maxiter)
+err10 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(C, θ+h*dθ)
+    Y_, _ = C.forward(X+h*dX)
+    err9[j] = norm(Y_ - Y)
+    err10[j] = norm(Y_ - Y - h*dY)
+    print(err9[j], "; ", err10[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err9[end] / (err9[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err10[end] / (err10[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Adjoint test
+
+set_params!(C, θ)
+dY, Y = C.jacobian(dX, 0f0*dθ, X)
+dY_ = randn(Float32, size(dY))
+dX_, dθ_, _ = C.adjointJacobian(dY_, Y)
+a = dot(dY, dY_)
+b = dot(dX, dX_)+dot(0f0*dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)
+
+# Gradient test (inverse)
+
+# Perturbation (normalized)
+dY = randn(Float32, nx, ny, k, batchsize); dY *= norm(Y)/norm(dY)
+
+# Jacobian (inverse) eval
+dX, X = C.jacobianInverse(dY, dθ, Y)
+
+# Test
+print("\nJacobian (inverse) test\n")
+h = 0.1f0
+maxiter = 7
+err11 = zeros(Float32, maxiter)
+err12 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(C, θ+h*dθ)
+    X_, _ = C.inverse(Y+h*dY)
+    err11[j] = norm(X_ - X)
+    err12[j] = norm(X_ - X - h*dX)
+    print(err11[j], "; ", err12[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err11[end] / (err11[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err12[end] / (err12[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Inverse test
+
+dY = randn(Float32, nx, ny, k, batchsize)
+Y = randn(Float32, nx, ny, k, batchsize)
+dX = randn(Float32, nx, ny, k, batchsize)
+X = randn(Float32, nx, ny, k, batchsize)
+dX_, X_ = C.jacobianInverse(dY, 0f0*dθ, Y)
+dY_, Y_ = C.jacobian(dX_, 0f0*dθ, X_)
+@test isapprox(dY_, dY; rtol=1f-3)
+@test isapprox(Y_, Y; rtol=1f-3)
+dY_, Y_ = C.jacobian(dX, 0f0*dθ, X)
+dX_, X_ = C.jacobianInverse(dY_, 0f0*dθ, Y_)
+@test isapprox(dX_, dX; rtol=1f-3)
+@test isapprox(X_, X; rtol=1f-3)
+
+# Adjoint test (inverse)
+
+set_params!(C, θ)
+dY, Y = C.jacobianInverse(dX, dθ, X)
+dY_ = randn(Float32, size(dY))
+dX_, dθ_, _ = C.adjointJacobianInverse(dY_, Y)
+a = dot(dY, dY_)
+b = dot(dX, dX_)+dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)

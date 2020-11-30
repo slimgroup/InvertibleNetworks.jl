@@ -136,28 +136,86 @@ function inverse(Zx, Zy, Op, CI::ConditionalLayerSLIM)
     return X, Y
 end
 
-function backward(ΔZx, ΔZy, Zx, Zy, Op, CI::ConditionalLayerSLIM)
+function backward(ΔZx, ΔZy, Zx, Zy, Op, CI::ConditionalLayerSLIM; set_grad::Bool=true)
 
     # Y-lane
     ΔZy = wavelet_squeeze(ΔZy)
     Zy = wavelet_squeeze(Zy)
-    ΔYp, Yp = CI.CL_Y.backward(ΔZy, Zy)
-    ΔYs, Ys = CI.C_Y.inverse((ΔYp, Yp))
+    if set_grad
+        ΔYp, Yp = CI.CL_Y.backward(ΔZy, Zy)
+        ΔYs, Ys = CI.C_Y.inverse((ΔYp, Yp))
+    else
+        ΔYp, Δθ_CLY, Yp, ∇logdet_CLY = CI.CL_Y.backward(ΔZy, Zy; set_grad=set_grad)
+        ΔYs, Δθ_CY, Ys = CI.C_Y.inverse((ΔYp, Yp); set_grad=set_grad)
+    end
     Y = wavelet_unsqueeze(Ys)
     ΔY = wavelet_unsqueeze(ΔYs)
 
     # X-lane
     if typeof(CI.CL_XY) == LearnedCouplingLayerSLIM
-        ΔX, ΔY_, X = CI.CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)))
+        if set_grad
+            ΔX, ΔY_, X = CI.CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)))
+        else
+            ΔX, ΔY_, Δθ_CLXY, X = CI.CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)); set_grad=set_grad)
+        end
     else
-        ΔX, ΔY_, X = CI.CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)), Op)
+        if set_grad
+            ΔX, ΔY_, X = CI.CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)), Op)
+        else
+            ΔX, ΔY_, Δθ_CLXY, X = CI.CL_XY.backward(ΔZx, Zx, reshape(Y, :, size(Y, 4)), Op; set_grad=set_grad)
+        end
     end
     ΔY += reshape(ΔY_, size(ΔY))
-    ΔXp, Xp = CI.CL_X.backward(ΔX, X)
-    ΔX, X = CI.C_X.inverse((ΔXp, Xp))
+    if set_grad
+        ΔXp, Xp = CI.CL_X.backward(ΔX, X)
+        ΔX, X = CI.C_X.inverse((ΔXp, Xp))
+    else
+        ΔXp, Δθ_CLX, Xp, ∇logdet_CLX = CI.CL_X.backward(ΔX, X; set_grad=set_grad)
+        ΔX, Δθ_CX, X = CI.C_X.inverse((ΔXp, Xp); set_grad=set_grad)
+    end
 
-    return ΔX, ΔY, X, Y
+    set_grad ? (return ΔX, ΔY, X, Y) : (return ΔX, ΔY, cat(Δθ_CLX, Δθ_CLY, Δθ_CLXY, Δθ_CX, Δθ_CY; dims=1), X, Y, cat(∇logdet_CLX, ∇logdet_CLY, 0f0.*Δθ_CLXY, 0f0.*Δθ_CX, 0f0.*Δθ_CY; dims=1))
 end
+
+
+## Jacobian-related utils
+
+function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, Op, CI::ConditionalLayerSLIM)
+
+    # Selecting parameters
+    npars_cl = Int64((length(Δθ)-6)/3)
+    Δθ_CLX = Δθ[1:npars_cl]
+    Δθ_CLY = Δθ[1+npars_cl:2*npars_cl]
+    Δθ_CLXY = Δθ[1+2*npars_cl:3*npars_cl]
+    Δθ_CX = Δθ[1+3*npars_cl:3*npars_cl+3]
+    Δθ_CY = Δθ[3*npars_cl+4:end]
+
+    # Y-lane: coupling
+    Ys = wavelet_squeeze(Y)
+    ΔYs = wavelet_squeeze(ΔY)
+    ΔYp, Yp = CI.C_Y.jacobian(ΔYs, Δθ_CY, Ys)
+    ΔZy, Zy, logdet2, GNΔθ_CLY = CI.CL_Y.jacobian(ΔYp, Δθ_CLY, Yp)
+    Zy = wavelet_unsqueeze(Zy)
+    ΔZy = wavelet_unsqueeze(ΔZy)
+
+    # X-lane
+    ΔXp, Xp = CI.C_X.jacobian(ΔX, Δθ_CX, X)
+    ΔX, X, logdet1, GNΔθ_CLX = CI.CL_X.jacobian(ΔXp, Δθ_CLX, Xp)
+    if typeof(CI.CL_XY) == LearnedCouplingLayerSLIM
+        ΔZx, Zx, logdet3 = CI.CL_XY.jacobian(ΔX, reshape(ΔY, :, size(ΔY, 4)), Δθ_CLXY, X, reshape(Y, :, size(Y, 4)))   # Learn operator
+    else
+        ΔZx, Zx, logdet3 = CI.CL_XY.jacobian(ΔX, reshape(ΔY, :, size(Y, 4)), Δθ_CLXY, X, reshape(Y, :, size(Y, 4)), Op)   # Use provided operator
+    end
+
+    logdet = logdet1 + logdet2 + logdet3
+    return ΔZx, ΔZy, Zx, Zy, logdet, cat(GNΔθ_CLX, GNΔθ_CLY, 0f0.*Δθ_CLXY, 0f0.*Δθ_CX, 0f0.*Δθ_CY; dims=1)
+
+end
+
+adjointJacobian(ΔZx, ΔZy, Zx, Zy, Op, CI::ConditionalLayerSLIM) = backward(ΔZx, ΔZy, Zx, Zy, Op, CI; set_grad=false)
+
+
+## Other utils
 
 function forward_Y(Y, CI::ConditionalLayerSLIM)
     Ys = wavelet_squeeze(Y)

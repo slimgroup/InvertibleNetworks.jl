@@ -182,11 +182,7 @@ function unsqueeze(Y::AbstractArray{T,5}; pattern="column") where T
     return X
 end
 
-function unsqueeze(X::AbstractArray{T,4}, Y::AbstractArray{T,4}; pattern="column") where T
-    return unsqueeze(X; pattern=pattern), unsqueeze(Y; pattern=pattern)
-end
-
-function unsqueeze(X::AbstractArray{T,5}, Y::AbstractArray{T,5}; pattern="column") where T
+function unsqueeze(X::AbstractArray{T,N}, Y::AbstractArray{T,4}; pattern="column") where {T,N}
     return unsqueeze(X; pattern=pattern), unsqueeze(Y; pattern=pattern)
 end
 
@@ -305,92 +301,55 @@ end
 """
     Y, Z = tensor_split(X)
 
- Split 4D input tensor in half along the channel dimension. Inverse operation
+ Split ND input tensor in half along the channel dimension. Inverse operation
  of `tensor_cat`.
 
  *Input*: 
  
- - `X`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
+ - `X`: ND input tensor of dimensions `nx` [x `ny` [x `nz`]] x `n_channel` x `batchsize`
 
  *Output*:
  
- - `Y`, `Z`: 4D output tensors, each of dimensions `nx` x `ny` x `n_channel/2` x `batchsize`
+ - `Y`, `Z`: ND output tensors, each of dimensions `nx` [x `ny` [x `nz`]] x `n_channel/2` x `batchsize`
 
  See also: [`tensor_cat`](@ref)
 """
-function tensor_split(X::AbstractArray{T,4}; split_index=nothing) where T
+function tensor_split(X::AbstractArray{T,N}; split_index=nothing) where {T, N}
+    d = max(1, N-1)
     if isnothing(split_index)
-        k = Int(round(size(X, 3)/2))
+        k = Int(round(size(X, d)/2))
     else
         k = split_index
     end
-    return X[:, :, 1:k, :], X[:, :, k+1:end, :]
-end
-
-function tensor_split(X::AbstractArray{T,5}; split_index=nothing) where T
-    if isnothing(split_index)
-        k = Int(round(size(X, 4)/2))
-    else
-        k = split_index
-    end
-    return X[:, :, :, 1:k, :], X[:, :, :, k+1:end, :]
-end
-
-function tensor_split(X::AbstractArray{T,1}; split_index=nothing) where T
-    if isnothing(split_index)
-        k = Int(round(size(X, 1)/2))
-    else
-        k = split_index
-    end
-    return X[1:k], X[k+1:end]
+    return selectdim(X, d, 1:k), selectdim(X, d, k+1:size(X, d))
 end
 
 """
     X = tensor_cat(Y, Z)
 
- Concatenate 4D input tensors along the channel dimension. Inverse operation
+ Concatenate ND input tensors along the channel dimension. Inverse operation
  of `tensor_split`.
 
  *Input*: 
  
- - `Y`, `Z`: 4D input tensors, each of dimensions `nx` x `ny` x `n_channel` x `batchsize`
+ - `Y`, `Z`: ND input tensors, each of dimensions `nx` [x `ny` [x `nz`]] x `n_channel` x `batchsize`
 
  *Output*:
  
- - `X`: 4D output tensor of dimensions `nx` x `ny` x `n_channel*2` x `batchsize`
+ - `X`: ND output tensor of dimensions `nx` [x `ny` [x `nz`]] x `n_channel*2` x `batchsize`
 
  See also: [`tensor_split`](@ref)
 """
-function tensor_cat(X::AbstractArray{T,4}, Y::AbstractArray{T,4}) where T 
-    if size(X, 3) == 0
+function tensor_cat(X::AbstractArray{T,N}, Y::AbstractArray{T,N}) where {T, N}
+    d = max(1, N-1)
+    if size(X, d) == 0
         return Y
-    elseif size(Y, 3) == 0
+    elseif size(Y, d) == 0
         return X
     else
-        return cat(X, Y; dims=3)
+        return cat(X, Y; dims=d)
     end
 end
 
-function tensor_cat(X::AbstractArray{T,5}, Y::AbstractArray{T,5}) where T
-    if size(X, 4) == 0
-        return Y
-    elseif size(Y, 4) == 0
-        return X
-    else
-        return cat(X, Y; dims=4)
-    end
-end
-
-function tensor_cat(X::AbstractArray{T,1}, Y::AbstractArray{T,1}) where T
-    if size(X, 1) == 0
-        return Y
-    elseif size(Y, 1) == 0
-        return X
-    else
-        return cat(X, Y; dims=1)
-    end
-end
-
-tensor_cat(X::Tuple{AbstractArray{T,4}, AbstractArray{T,4}}) where T = tensor_cat(X[1], X[2])
-tensor_cat(X::Tuple{AbstractArray{T,5}, AbstractArray{T,5}}) where T = tensor_cat(X[1], X[2])
+tensor_cat(X::Tuple{AbstractArray{T,N}, AbstractArray{T,N}}) where {T, N} = tensor_cat(X[1], X[2])
 

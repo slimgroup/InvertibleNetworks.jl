@@ -1,8 +1,6 @@
-# Test residual block
-# Author: Philipp Witte, pwitte3@gatech.edu
-# Date: January 2020
+# Test ResNet
 
-using LinearAlgebra, InvertibleNetworks, Test, Flux
+using LinearAlgebra, InvertibleNetworks, Test
 
 # Input
 nx = 28
@@ -10,36 +8,30 @@ ny = 28
 n_in = 4
 n_hidden = 8
 batchsize = 2
-
-# Flux networks
-model = Chain(
-    Conv((3,3), n_in => n_hidden; pad=1),
-    Conv((3,3), n_hidden => n_in; pad=1)
-)
-
-model0 = Chain(
-    Conv((3,3), n_in => n_hidden; pad=1),
-    Conv((3,3), n_hidden => n_in; pad=1)
-)
+nblocks = 4
 
 # Input
 X = glorot_uniform(nx, ny, n_in, batchsize)
 X0 = glorot_uniform(nx, ny, n_in, batchsize)
 dX = X - X0
 
-# Flux blocks
-RB = FluxBlock(model)
-RB0 = FluxBlock(model0)
+# ResNet
+RN0 = ResNet(n_in, n_hidden, nblocks; k=3, p=1, s=1, norm=nothing, n_out=nothing)
+θ0 = deepcopy(get_params(RN0))
+RN = ResNet(n_in, n_hidden, nblocks; k=3, p=1, s=1, norm=nothing, n_out=nothing)
+θ = deepcopy(get_params(RN))
 
 # Observed data
-Y = RB.forward(X)
+Y = RN.forward(X)
 
-function loss(RB, X, Y)
-    Y_ = RB.forward(X)
+RN_dummy = ResNet(n_in, n_hidden, nblocks; k=3, p=1, s=1, norm=nothing, n_out=nothing)
+function loss(θ, X, Y; RN=RN_dummy)
+    set_params!(RN, θ)
+    Y_ = RN.forward(X)
     ΔY = Y_ - Y
     f = .5f0*norm(ΔY)^2
-    ΔX = RB.backward(ΔY, X)
-    return f, ΔX, RB.params[1].grad, RB.params[2].grad
+    ΔX = RN.backward(ΔY, X)
+    return f, ΔX, deepcopy(get_grads(RN))
 end
 
 
@@ -47,15 +39,15 @@ end
 # Gradient tests
 
 # Gradient test w.r.t. input
-f0, ΔX = loss(RB, X0, Y)[1:2]
+f0, ΔX = loss(θ, X0, Y)[1:2]
 h = 0.1f0
 maxiter = 5
 err1 = zeros(Float32, maxiter)
 err2 = zeros(Float32, maxiter)
 
-print("\nGradient test convolutions\n")
+print("\nGradient test\n")
 for j=1:maxiter
-    f = loss(RB, X0 + h*dX, Y)[1]
+    f = loss(θ, X0 + h*dX, Y)[1]
     err1[j] = abs(f - f0)
     err2[j] = abs(f - f0 - h*dot(dX, ΔX))
     print(err1[j], "; ", err2[j], "\n")
@@ -67,11 +59,9 @@ end
 
 
 # Gradient test for weights
-RB_ini = deepcopy(RB0)
-dW1 = RB.params[1].data - RB0.params[1].data
-dW2 = RB.params[2].data - RB0.params[2].data
+dθ = θ-θ0; dθ .*= norm.(dθ)./(norm.(θ0).+1f-10)
 
-f0, ΔX, ΔW1, ΔW2 = loss(RB0, X, Y)
+f0, ΔX, Δθ = loss(θ, X0, Y)
 h = 0.1f0
 maxiter = 5
 err3 = zeros(Float32, maxiter)
@@ -79,11 +69,9 @@ err4 = zeros(Float32, maxiter)
 
 print("\nGradient test convolutions\n")
 for j=1:maxiter
-    RB0.params[1].data[:] = RB_ini.params[1].data + h*dW1
-    RB0.params[2].data[:] = RB_ini.params[2].data + h*dW2
-    f = loss(RB0, X, Y)[1]
+    f = loss(θ+h*dθ, X0, Y)[1]
     err3[j] = abs(f - f0)
-    err4[j] = abs(f - f0 - h*dot(dW1, ΔW1) - h*dot(dW2, ΔW2))
+    err4[j] = abs(f - f0 - h*dot(dθ, Δθ))
     print(err3[j], "; ", err4[j], "\n")
     global h = h/2f0
 end

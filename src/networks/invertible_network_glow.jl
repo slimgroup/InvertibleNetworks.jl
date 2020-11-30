@@ -67,11 +67,12 @@ function NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, 
     Z_dims = Array{Tuple}(undef, L-1)   # save dimensions for inverse/backward pass
 
     for i=1:L
+        n_in *= 4 # squeeze
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = CouplingLayerGlow(Int(nx/2^i), Int(ny/2^i), n_in*4, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
+            CL[i, j] = CouplingLayerGlow(Int(nx/2^i), Int(ny/2^i), n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
         end
-        n_in *= 2
+        (i < L) && (n_in = Int64(n_in/2)) # split
     end
 
     return NetworkGlow(AN, CL, Z_dims, L, K)
@@ -106,7 +107,7 @@ function forward(X, G::NetworkGlow)
     logdet = 0f0
     for i=1:G.L
         X = squeeze(X; pattern="checkerboard")
-        for j=1:G.K
+        for j=1:G.K            
             X, logdet1 = G.AN[i, j].forward(X)
             X, logdet2 = G.CL[i, j].forward(X)
             logdet += (logdet1 + logdet2)
@@ -138,23 +139,74 @@ function inverse(X, G::NetworkGlow)
 end
 
 # Backward pass and compute gradients
-function backward(ΔX, X, G::NetworkGlow)
+function backward(ΔX, X, G::NetworkGlow; set_grad::Bool=true)
     ΔZ_save, ΔX = split_states(ΔX, G.Z_dims)
     Z_save, X = split_states(X, G.Z_dims)
+    if ~set_grad
+        Δθ = Array{Parameter, 1}(undef, 10*G.L*G.K)
+        ∇logdet = Array{Parameter, 1}(undef, 10*G.L*G.K)
+    end
+    blkidx = 10*G.L*G.K
     for i=G.L:-1:1
         if i < G.L
             X = tensor_cat(X, Z_save[i])
             ΔX = tensor_cat(ΔX, ΔZ_save[i])
         end
         for j=G.K:-1:1
-            ΔX, X = G.CL[i, j].backward(ΔX, X)
-            ΔX, X = G.AN[i, j].backward(ΔX, X)
+            if set_grad
+                ΔX, X = G.CL[i, j].backward(ΔX, X)
+                ΔX, X = G.AN[i, j].backward(ΔX, X)
+            else
+                ΔX, Δθcl_ij, X, ∇logdetcl_ij = G.CL[i, j].backward(ΔX, X; set_grad=set_grad)
+                ΔX, Δθan_ij, X, ∇logdetan_ij = G.AN[i, j].backward(ΔX, X; set_grad=set_grad)
+                Δθ[blkidx-9:blkidx] = cat(Δθan_ij, Δθcl_ij; dims=1)
+                ∇logdet[blkidx-9:blkidx] = cat(∇logdetan_ij, ∇logdetcl_ij; dims=1)
+            end
+            blkidx -= 10
         end
         X = unsqueeze(X; pattern="checkerboard")
         ΔX = unsqueeze(ΔX; pattern="checkerboard")
     end
-    return ΔX, X
+    set_grad ? (return ΔX, X) : (return ΔX, Δθ, X, ∇logdet)
 end
+
+
+## Jacobian-related utils
+
+function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, G::NetworkGlow)
+    Z_save = Array{Array}(undef, G.L-1)
+    ΔZ_save = Array{Array}(undef, G.L-1)
+    logdet = 0f0
+    GNΔθ = Array{Parameter, 1}(undef, 10*G.L*G.K)
+    blkidx = 0
+    for i=1:G.L
+        X = squeeze(X; pattern="checkerboard")
+        ΔX = squeeze(ΔX; pattern="checkerboard")
+        for j=1:G.K
+            Δθ_ij = Δθ[blkidx+1:blkidx+10]
+            ΔX, X, logdet1, GNΔθ1 = G.AN[i, j].jacobian(ΔX, Δθ_ij[1:2], X)
+            ΔX, X, logdet2, GNΔθ2 = G.CL[i, j].jacobian(ΔX, Δθ_ij[3:end], X)
+            logdet += (logdet1 + logdet2)
+            GNΔθ[blkidx+1:blkidx+10] = cat(GNΔθ1,GNΔθ2; dims=1)
+            blkidx += 10
+        end
+        if i < G.L    # don't split after last iteration
+            X, Z = tensor_split(X)
+            ΔX, ΔZ = tensor_split(ΔX)
+            Z_save[i] = Z
+            ΔZ_save[i] = ΔZ
+            G.Z_dims[i] = size(Z)
+        end
+    end
+    X = cat_states(Z_save, X)
+    ΔX = cat_states(ΔZ_save, ΔX)
+    return ΔX, X, logdet, GNΔθ
+end
+
+adjointJacobian(ΔX, X, G::NetworkGlow) = backward(ΔX, X, G; set_grad=false)
+
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(G::NetworkGlow)
@@ -170,7 +222,7 @@ end
 # Get parameters
 function get_params(G::NetworkGlow)
     L, K = size(G.AN)
-    p = []
+    p = Array{Parameter, 1}(undef, 0)
     for i=1:L
         for j=1:K
             p = cat(p, get_params(G.AN[i, j]); dims=1)

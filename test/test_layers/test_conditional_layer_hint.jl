@@ -14,7 +14,7 @@ Random.seed!(11)
 nx = 16
 ny = 16
 n_channel = 8
-n_hidden = 32
+n_hidden = 8
 batchsize = 2
 
 function inv_test(nx, ny, n_channel, batchsize, rev, logdet, permute)
@@ -143,5 +143,61 @@ for logdet in [true, false]
             grad_test_X(nx, ny, n_channel, batchsize, rev, logdet, permute)
             grad_test_par(nx, ny, n_channel, batchsize, rev, logdet, permute)
         end
+    end
+end
+
+
+###################################################################################################
+# Jacobian-related tests
+
+function jacobian_test_par(nx, ny, n_channel, batchsize, logdet, permute)
+    print("\nConditional HINT jacobian test with permute=$(permute), logdet=$(logdet)\n")
+
+    # Initialization
+    CH = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=logdet, permute=permute)
+    θ = deepcopy(get_params(CH))
+    CH0 = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=logdet, permute=permute)
+    θ0 = deepcopy(get_params(CH0))
+    X = randn(Float32, nx, ny, n_channel, batchsize)
+    Y = randn(Float32, nx, ny, n_channel, batchsize)
+
+    # Perturbation
+    dX = randn(Float32, nx, ny, n_channel, batchsize)
+    dY = randn(Float32, nx, ny, n_channel, batchsize)
+    dθ = θ-θ0
+
+    # Jacobian eval
+    dZx, dZy, Zx, Zy = CH.jacobian(dX, dY, dθ, X, Y)[1:4]
+
+    # Jacobian Test
+    h = 0.1f0
+    maxiter = 5
+    err5 = zeros(Float32, maxiter)
+    err6 = zeros(Float32, maxiter)
+    for j=1:maxiter
+        set_params!(CH, θ+h*dθ)
+        Zx_, Zy_ = CH.forward(X+h*dX, Y+h*dY)[1:2]
+        err5[j] = sqrt(norm(Zx_ - Zx)^2+norm(Zy_ - Zy)^2)
+        err6[j] = sqrt(norm(Zx_ - Zx - h*dZx)^2+norm(Zy_ - Zy - h*dZy)^2)
+        print(err5[j], "; ", err6[j], "\n")
+        h = h/2f0
+    end
+    @test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
+    @test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+    # Adjoint test
+    set_params!(CH, θ)
+    dZx, dZy, Zx, Zy = CH.jacobian(dX, dY, dθ, X, Y)[1:4]
+    dZx_ = randn(Float32, size(dZx))
+    dZy_ = randn(Float32, size(dZy))
+    dX_, dY_, dθ_ = CH.adjointJacobian(dZx_, dZy_, Zx, Zy)[1:3]
+    a = dot(dZx, dZx_)+dot(dZy, dZy_)
+    b = dot(dX, dX_)+dot(dY, dY_)+dot(dθ, dθ_)
+    @test isapprox(a, b; rtol=1f-3)
+end
+
+for logdet in [true, false]
+    for permute in [true, false]
+        jacobian_test_par(nx, ny, n_channel, batchsize, logdet, permute)
     end
 end

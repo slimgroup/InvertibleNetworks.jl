@@ -130,27 +130,72 @@ function inverse(Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing)
     logdet ? (return X, Y, logdet1 + logdet2 + logdet3) : (return X, Y)
 end
 
-function backward(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT)
+function backward(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing, set_grad::Bool=true)
+    isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     # Y-lane
-    ΔYp, Yp = CH.CL_Y.backward(ΔZy, Zy)
+    if set_grad
+        ΔYp, Yp = CH.CL_Y.backward(ΔZy, Zy)
+    else
+        if logdet
+            ΔYp, Δθ_CLY, Yp, ∇logdet_CLY = CH.CL_Y.backward(ΔZy, Zy; set_grad=set_grad)
+        else
+            ΔYp, Δθ_CLY, Yp = CH.CL_Y.backward(ΔZy, Zy; set_grad=set_grad)
+        end
+    end
 
     # X-lane: conditional layer
-    ΔYp_, ΔX, X = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx)[[1,2,4]]
+    if set_grad
+        ΔYp_, ΔX, X = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx)[[1,2,4]]
+    else
+        if logdet
+            ΔYp_, ΔX, Δθ_CLYX, _, X, ∇logdet_CLYX = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx; set_grad=set_grad)
+        else
+            ΔYp_, ΔX, Δθ_CLYX, _, X = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx; set_grad=set_grad)
+        end
+    end
     ΔYp += ΔYp_
 
     # X-lane: coupling layer
-    ΔXp, Xp = CH.CL_X.backward(ΔX, X)
+    if set_grad
+        ΔXp, Xp = CH.CL_X.backward(ΔX, X)
+    else
+        if logdet
+            ΔXp, Δθ_CLX, Xp, ∇logdet_CLX = CH.CL_X.backward(ΔX, X; set_grad=set_grad)
+        else
+            ΔXp, Δθ_CLX, Xp = CH.CL_X.backward(ΔX, X; set_grad=set_grad)
+        end
+    end
 
     # 1x1 Convolutions
     if isnothing(CH.C_X) || isnothing(CH.C_Y)
         ΔX = copy(ΔXp); X = copy(Xp)
         ΔY = copy(ΔYp); Y = copy(Yp)
     else
-        ΔX, X = CH.C_X.inverse((ΔXp, Xp))
-        ΔY, Y = CH.C_Y.inverse((ΔYp, Yp))
+        if set_grad
+            ΔX, X = CH.C_X.inverse((ΔXp, Xp))
+            ΔY, Y = CH.C_Y.inverse((ΔYp, Yp))
+        else
+            ΔX, Δθ_CX, X = CH.C_X.inverse((ΔXp, Xp); set_grad=set_grad)
+            ΔY, Δθ_CY, Y = CH.C_Y.inverse((ΔYp, Yp); set_grad=set_grad)
+        end
     end
-    return ΔX, ΔY, X, Y
+
+    if set_grad
+        return ΔX, ΔY, X, Y
+    else
+        Δθ = cat(Δθ_CLX, Δθ_CLY, Δθ_CLYX; dims=1)
+        ~isnothing(CH.C_X) && (Δθ = cat(Δθ, Δθ_CX; dims=1))
+        ~isnothing(CH.C_Y) && (Δθ = cat(Δθ, Δθ_CY; dims=1))
+        if ~logdet
+            return ΔX, ΔY, Δθ, X, Y
+        else
+            ∇logdet = cat(∇logdet_CLX, ∇logdet_CLY, ∇logdet_CLYX; dims=1)
+            ~isnothing(CH.C_X) && (∇logdet = cat(∇logdet, 0f0*Δθ_CX; dims=1))
+            ~isnothing(CH.C_Y) && (∇logdet = cat(∇logdet, 0f0*Δθ_CY; dims=1))
+            return ΔX, ΔY, Δθ, X, Y, ∇logdet
+        end
+    end
 end
 
 function backward_inv(ΔX, ΔY, X, Y, CH::ConditionalLayerHINT)
@@ -189,6 +234,72 @@ function inverse_Y(Zy, CH::ConditionalLayerHINT)
     ~isnothing(CH.C_Y) ? (Y = CH.C_Y.inverse(Yp)) : (Y = copy(Yp))
     return Y
 end
+
+
+## Jacobian-related utils
+
+function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::ConditionalLayerHINT; logdet=nothing)
+    isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
+
+    # Selecting parameters
+    npars_cx = ~isnothing(CH.C_X)*3
+    npars_cy = ~isnothing(CH.C_Y)*3
+    npars_clyx = 5
+    npars_cl = Int64((length(Δθ)-npars_cx-npars_cy-npars_clyx)/2)
+    Δθ_CLX = Δθ[1:npars_cl]
+    Δθ_CLY = Δθ[1+npars_cl:2*npars_cl]
+    Δθ_CLYX = Δθ[1+2*npars_cl:2*npars_cl+npars_clyx]
+    ~isnothing(CH.C_X) && (Δθ_CX = Δθ[2*npars_cl+npars_clyx+1:2*npars_cl+npars_clyx+npars_cx])
+    ~isnothing(CH.C_Y) && (Δθ_CY = Δθ[2*npars_cl+npars_clyx+npars_cx+1:end])
+
+    # Y-lane
+    if ~isnothing(CH.C_Y)
+        ΔYp, Yp = CH.C_Y.jacobian(ΔY, Δθ_CY, Y)
+    else
+        Yp = copy(Y)
+        ΔYp = copy(ΔY)
+    end
+    if logdet
+        ΔZy, Zy, logdet2, GNΔθ_Y = CH.CL_Y.jacobian(ΔYp, Δθ_CLY, Yp)
+    else
+        ΔZy, Zy = CH.CL_Y.jacobian(ΔYp, Δθ_CLY, Yp)
+    end
+
+    # X-lane: coupling layer
+    if ~isnothing(CH.C_X)
+        ΔXp, Xp = CH.C_X.jacobian(ΔX, Δθ_CX, X)
+    else
+        Xp = copy(X)
+        ΔXp = copy(ΔX)
+    end
+    if logdet
+        ΔX, X, logdet1, GNΔθ_X = CH.CL_X.jacobian(ΔXp, Δθ_CLX, Xp)
+    else
+        ΔX, X = CH.CL_X.jacobian(ΔXp, Δθ_CLX, Xp)
+    end
+
+    # X-lane: conditional layer
+    if logdet
+        _, ΔZx, _, Zx, logdet3, GNΔθ_YX = CH.CL_YX.jacobian(ΔYp, ΔX, Δθ_CLYX, Yp, X)
+    else
+        _, ΔZx, _, Zx = CH.CL_YX.jacobian(ΔYp, ΔX, Δθ_CLYX, Yp, X)
+    end
+
+    if logdet
+        GNΔθ = cat(GNΔθ_X, GNΔθ_Y, GNΔθ_YX; dims=1)
+        ~isnothing(CH.C_X) && (GNΔθ = cat(GNΔθ, 0f0.*Δθ_CX; dims=1))
+        ~isnothing(CH.C_Y) && (GNΔθ = cat(GNΔθ, 0f0.*Δθ_CY; dims=1))
+        return ΔZx, ΔZy, Zx, Zy, logdet1 + logdet2 + logdet3, GNΔθ
+    else
+        return ΔZx, ΔZy, Zx, Zy
+    end
+
+end
+
+adjointJacobian(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing) = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false, logdet=logdet)
+
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(CH::ConditionalLayerHINT)

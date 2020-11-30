@@ -4,13 +4,15 @@ using InvertibleNetworks, NNlib, LinearAlgebra, Test
 nx = 28
 ny = 28
 n_in = 8
-batchsize = 1
+batchsize = 3
 n_hidden = 8
 k = 3   # kernel size
 s = 1   # stride
 p = 1   # padding
 
 pars = (nx, ny, n_in, batchsize, k, s,p)
+
+
 ###################################################################################################
 # Test layer invertibility
 
@@ -118,4 +120,56 @@ for action in ["up", "down", "same"]
     test_inv(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
     test_grad_X(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
     test_grad_par(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
+end
+
+
+###################################################################################################
+# Jacobian-related tests
+
+for action in ["up", "down", "same"]
+    # Gradient test
+    # Initialization
+    HL = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, hidden_factor=8)
+    θ = deepcopy(get_params(HL))
+    HL0 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, hidden_factor=8)
+    θ0 = deepcopy(get_params(HL0))
+    X1 = randn(Float32, nx, ny, n_in, batchsize)
+    X2 = randn(Float32, nx, ny, n_in, batchsize)
+
+    # Perturbation (normalized)
+    dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
+    dX1 = randn(Float32, nx, ny, n_in, batchsize); dX1 *= norm(X1)/norm(dX1)
+    dX2 = randn(Float32, nx, ny, n_in, batchsize); dX2 *= norm(X2)/norm(dX2)
+
+    # Jacobian eval
+    dY1, dY2, Y1, Y2 = HL.jacobian(dX1, dX2, dθ, X1, X2)
+
+    # Test
+    print("\nJacobian test\n")
+    h = 0.1f0
+    maxiter = 5
+    err5 = zeros(Float32, maxiter)
+    err6 = zeros(Float32, maxiter)
+    for j=1:maxiter
+        set_params!(HL, θ+h*dθ)
+        Y1_, Y2_ = HL.forward(X1+h*dX1, X2+h*dX2)
+        err5[j] = sqrt(norm(Y1_ - Y1)^2f0+norm(Y2_ - Y2)^2f0)
+        err6[j] = sqrt(norm(Y1_ - Y1 - h*dY1)^2f0+norm(Y2_ - Y2 - h*dY2)^2f0)
+        print(err5[j], "; ", err6[j], "\n")
+        h = h/2f0
+    end
+
+    @test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
+    @test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+    # Adjoint test
+
+    set_params!(HL, θ)
+    dY1, dY2, Y1, Y2 = HL.jacobian(dX1, dX2, dθ, X1, X2)
+    dY1_ = randn(Float32, size(dY1)); dY2_ = randn(Float32, size(dY2));
+    dX1_, dX2_, dθ_, _, _ = HL.adjointJacobian(dY1_, dY2_, Y1, Y2)
+    a = dot(dY1, dY1_)+dot(dY2, dY2_)
+    b = dot(dX1, dX1_)+dot(dX2, dX2_)+dot(dθ, dθ_)
+    @test isapprox(a, b; rtol=1f-3)
+
 end

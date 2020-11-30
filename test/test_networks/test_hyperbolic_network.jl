@@ -84,7 +84,7 @@ for i=1:length(H0.HL)
     h1 = 0.1f0
     print("\nGradient test invertible layer for layer $(i)\n")
     W0s = H0.HL[i].W.data
-    dWg = H.HL[i].W.data - W0s
+    dWg = H.HL[i].W.data - W0s; dWg *= norm(W0s)/norm(dWg)
     f01, ΔX1, ΔWg, _ = loss(H0, X, i)
     for j=1:maxiter
         H0.HL[i].W.data = W0s + h1*dWg
@@ -118,3 +118,51 @@ end
 
 @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=2f1)
 @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=2f1)
+
+
+###################################################################################################
+# Jacobian-related tests
+
+# Gradient test
+
+# Initialization
+H = NetworkHyperbolic(nx, ny, n_in, batchsize, nscales, steps_per_scale; α=α0, hidden_factor=hf, ncenter=nc); H.forward(randn(Float32, nx, ny, n_in, batchsize))
+θ = deepcopy(get_params(H))
+H0 = NetworkHyperbolic(nx, ny, n_in, batchsize, nscales, steps_per_scale; α=α0, hidden_factor=hf, ncenter=nc); H0.forward(randn(Float32, nx, ny, n_in, batchsize))
+θ0 = deepcopy(get_params(H0))
+X = randn(Float32, nx, ny, n_in, batchsize)
+
+# Perturbation (normalized)
+dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
+dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
+
+# Jacobian eval
+dY, Y, _, _ = H.jacobian(dX, dθ, X)
+
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 5
+err5 = zeros(Float32, maxiter)
+err6 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(H, θ+h*dθ)
+    Y_, _ = H.forward(X+h*dX)
+    err5[j] = norm(Y_ - Y)
+    err6[j] = norm(Y_ - Y - h*dY)
+    print(err5[j], "; ", err6[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Adjoint test
+
+set_params!(H, θ)
+dY, Y, _, _ = H.jacobian(dX, dθ, X)
+dY_ = randn(Float32, size(dY))
+dX_, dθ_, _, _ = H.adjointJacobian(dY_, Y)
+a = dot(dY, dY_)
+b = dot(dX, dX_)+dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)

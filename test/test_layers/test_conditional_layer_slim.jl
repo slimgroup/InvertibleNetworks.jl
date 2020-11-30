@@ -12,10 +12,10 @@ using InvertibleNetworks, LinearAlgebra, Test
 type = "affine" # "affine", "additive" or "learned"
 
 # X dimensions
-nx1 = 32
-nx2 = 32
-nx_channel = 32
-nx_hidden = 64
+nx1 = 16
+nx2 = 16
+nx_channel = 4
+nx_hidden = 8
 batchsize = 2
 
 # Y dimensions

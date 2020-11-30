@@ -29,9 +29,9 @@ export FluxBlock
 
  See also:  [`Chain`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct FluxBlock <: NeuralNetLayer
+mutable struct FluxBlock <: NeuralNetLayer
     model::Chain
-    params::Array{Parameter}
+    params::Array{Parameter, 1}
 end
 
 @Flux.functor FluxBlock
@@ -62,7 +62,7 @@ forward(X::AbstractArray{Float32, 4}, FB::FluxBlock) = FB.model(X)
 
 
 # Backward 2D
-function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
+function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock; set_grad::Bool=true)
     
     # Backprop using Zygote
     θ = Flux.params(X, FB.model)
@@ -71,12 +71,34 @@ function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, 
 
     # Set gradients
     ΔX = grad[θ[1]]
-    for j=1:length(FB.params)
-        FB.params[j].grad = grad[θ[j+1]]
+    if set_grad
+        for j=1:length(FB.params)
+            FB.params[j].grad = grad[θ[j+1]]
+        end
+    else
+        Δθ = Array{Parameter, 1}(undef, length(FB.params))
+        for j=1:length(FB.params)
+            Δθ[j] = grad[θ[j+1]]
+        end
     end
-    return ΔX
+
+    set_grad ? (return ΔX) : (ΔX, Δθ)
+
 end
 
+
+## Jacobian utilities
+
+function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
+    throw(ArgumentError("Jacobian for Flux block not yet implemented"))
+end
+
+function adjointJacobian(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
+    return backward(ΔY, X, FB; set_grad=false)
+end
+
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(FB::FluxBlock)
@@ -94,9 +116,15 @@ end
  the paramters in `P`, modifies the parameters in `NL`.
 """
 function get_params(FB::FluxBlock)
-    params = []
-    for j=1:length(FB.params)
-        params = [params; FB.params[j]]
+    return FB.params
+end
+
+function set_params!(FB::FluxBlock, θ::Array{Parameter, 1})
+    model_params = Flux.params(FB.model)
+    nparams = length(model_params.order)
+    for j=1:nparams
+        model_params.order[j] .= θ[j].data
+        FB.params[j].data = θ[j].data
+        FB.params[j].grad = θ[j].grad
     end
-    return params
 end

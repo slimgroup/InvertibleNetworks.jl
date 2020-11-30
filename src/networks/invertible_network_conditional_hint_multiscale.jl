@@ -105,15 +105,6 @@ function cat_states(XY_save::AbstractArray{Array, 2}, X::AbstractArray{Float32, 
     return Float32.(X_full), Float32.(Y_full)  # convert to Array{Float32, 1}
 end
 
-function cat_states(Y_save::AbstractArray{Array, 1}, Y::AbstractArray{Float32, 4})
-    Y_full = []
-    for j=1:size(Y_save, 1)
-        Y_full = cat(Y_full, vec(Y_save[j, 1]); dims=1)
-    end
-    Y_full = cat(Y_full, vec(Y); dims=1)
-    return Float32.(Y_full)
-end
-
 # Split 1D vector in latent space back to states Zi
 function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{Float32, 1}, Y_full::AbstractArray{Float32, 1})
     L = length(XY_dims) + 1
@@ -127,19 +118,6 @@ function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{Fl
     X = reshape(X_full[count: count + prod(XY_dims[end])-1], Int.(XY_dims[end].*(.5, .5, 4, 1)))
     Y = reshape(Y_full[count: count + prod(XY_dims[end])-1], Int.(XY_dims[end].*(.5, .5, 4, 1)))
     return XY_save, X, Y
-end
-
-# Split 1D vector in latent space back to states Zi
-function split_states(XY_dims::AbstractArray{Tuple, 1}, Y_full::AbstractArray{Float32, 1})
-    L = length(XY_dims) + 1
-    Y_save = Array{Array}(undef, L-1)
-    count = 1
-    for j=1:L-1
-        Y_save[j] = reshape(Y_full[count: count + prod(XY_dims[j])-1], XY_dims[j])
-        count += prod(XY_dims[j])
-    end
-    Y = reshape(Y_full[count: count + prod(XY_dims[end])-1], Int.(XY_dims[end].*(.5, .5, 4, 1)))
-    return Y_save, Y
 end
 
 # Forward pass and compute logdet
@@ -186,12 +164,17 @@ function inverse(Zx, Zy, CH::NetworkMultiScaleConditionalHINT)
 end
 
 # Backward pass and compute gradients
-function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkMultiScaleConditionalHINT)
+function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkMultiScaleConditionalHINT; set_grad::Bool=true)
 
     # Split data and gradients
     if CH.split_scales
         ΔXY_save, ΔZx, ΔZy = split_states(CH.XY_dims, ΔZx, ΔZy)
         XY_save, Zx, Zy = split_states(CH.XY_dims, Zx, Zy)
+    end
+
+    if ~set_grad
+        Δθ = Array{Parameter, 1}(undef, 0)
+        ∇logdet = Array{Parameter, 1}(undef, 0)
     end
 
     for i=CH.L:-1:1
@@ -202,16 +185,24 @@ function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkMultiScaleConditionalHINT)
             Zy = tensor_cat(Zy, XY_save[i, 2])
         end
         for j=CH.K:-1:1
-            ΔZx_, ΔZy_, Zx_, Zy_ = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy)
-            ΔZx, Zx = CH.AN_X[i, j].backward(ΔZx_, Zx_)
-            ΔZy, Zy = CH.AN_Y[i, j].backward(ΔZy_, Zy_)
+            if set_grad
+                ΔZx_, ΔZy_, Zx_, Zy_ = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy)
+                ΔZx, Zx = CH.AN_X[i, j].backward(ΔZx_, Zx_)
+                ΔZy, Zy = CH.AN_Y[i, j].backward(ΔZy_, Zy_)
+            else
+                ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdet_cl = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
+                ΔZx, Δθx, Zx, ∇logdet_x = CH.AN_X[i, j].backward(ΔZx_, Zx_; set_grad=set_grad)
+                ΔZy, Δθy, Zy, ∇logdet_y = CH.AN_Y[i, j].backward(ΔZy_, Zy_; set_grad=set_grad)
+                Δθ = cat(Δθx, Δθy, Δθcl, Δθ; dims=1)
+                ∇logdet = cat(∇logdet_x, ∇logdet_y, ∇logdet_cl, ∇logdet; dims=1)
+            end
         end
         ΔZx = wavelet_unsqueeze(ΔZx)
         ΔZy = wavelet_unsqueeze(ΔZy)
         Zx = wavelet_unsqueeze(Zx)
         Zy = wavelet_unsqueeze(Zy)
     end
-    return ΔZx, ΔZy, Zx, Zy
+    set_grad ? (return ΔZx, ΔZy, Zx, Zy) : (return ΔZx, ΔZy, Δθ, Zx, Zy, ∇logdet)
 end
 
 # Forward pass and compute logdet
@@ -250,24 +241,77 @@ function inverse_Y(Zy, CH::NetworkMultiScaleConditionalHINT)
     return Zy
 end
 
+
+## Jacobian-related utils
+
+function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiScaleConditionalHINT)
+    if CH.split_scales
+        XY_save = Array{Array}(undef, CH.L-1, 2)
+        ΔXY_save = Array{Array}(undef, CH.L-1, 2)
+    end
+    logdet = 0f0
+    GNΔθ = Array{Parameter, 1}(undef, 0)
+    idxblk = 0
+    for i=1:CH.L
+        X = wavelet_squeeze(X)
+        ΔX = wavelet_squeeze(ΔX)
+        Y = wavelet_squeeze(Y)
+        ΔY = wavelet_squeeze(ΔY)
+        for j=1:CH.K
+            npars_ij = 4+length(get_params(CH.CL[i, j]))
+            Δθij = Δθ[idxblk+1:idxblk+npars_ij]
+            ΔX_, X_, logdet1, GNΔθ1 = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
+            ΔY_, Y_, logdet2, GNΔθ2 = CH.AN_Y[i, j].jacobian(ΔY, Δθij[3:4], Y)
+            ΔX, ΔY, X, Y, logdet3, GNΔθ3 = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθij[5:end], X_, Y_)
+            logdet += (logdet1 + logdet2 + logdet3)
+            GNΔθ = cat(GNΔθ, GNΔθ1, GNΔθ2, GNΔθ3; dims=1)
+            idxblk += npars_ij
+        end
+        if CH.split_scales && i < CH.L    # don't split after last iteration
+            X, Zx = tensor_split(X)
+            ΔX, ΔZx = tensor_split(ΔX)
+            Y, Zy = tensor_split(Y)
+            ΔY, ΔZy = tensor_split(ΔY)
+            XY_save[i, :] = [Zx, Zy]
+            ΔXY_save[i, :] = [ΔZx, ΔZy]
+            CH.XY_dims[i] = size(Zx)
+        end
+    end
+    if CH.split_scales
+        X, Y = cat_states(XY_save, X, Y)
+        ΔX, ΔY = cat_states(ΔXY_save, ΔX, ΔY)
+    end
+    return ΔX, ΔY, X, Y, logdet, GNΔθ
+end
+
+adjointJacobian(ΔZx, ΔZy, Zx, Zy, CH::NetworkMultiScaleConditionalHINT) = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false)
+
+
+## Other utils
+
 # Clear gradients
 function clear_grad!(CH::NetworkMultiScaleConditionalHINT)
     depth = length(CH.CL)
-    for j=1:depth
-        clear_grad!(CH.AN_X[j])
-        clear_grad!(CH.AN_Y[j])
-        clear_grad!(CH.CL[j])
+    L, K = size(CH.CL)
+    for i = 1:L
+        for j = 1:K
+            clear_grad!(CH.AN_X[i, j])
+            clear_grad!(CH.AN_Y[i, j])
+            clear_grad!(CH.CL[i, j])
+        end
     end
 end
 
 # Get parameters
 function get_params(CH::NetworkMultiScaleConditionalHINT)
-    depth = length(CH.CL)
-    p = []
-    for j=1:depth
-        p = cat(p, get_params(CH.AN_X[j]); dims=1)
-        p = cat(p, get_params(CH.AN_Y[j]); dims=1)
-        p = cat(p, get_params(CH.CL[j]); dims=1)
+    L, K = size(CH.CL)
+    p = Array{Parameter, 1}(undef, 0)
+    for i = 1:L
+        for j = 1:K
+            p = cat(p, get_params(CH.AN_X[i, j]); dims=1)
+            p = cat(p, get_params(CH.AN_Y[i, j]); dims=1)
+            p = cat(p, get_params(CH.CL[i, j]); dims=1)
+        end
     end
     return p
 end

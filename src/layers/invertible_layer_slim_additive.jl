@@ -124,30 +124,50 @@ function inverse(Y::AbstractArray{Float32, 4}, D, J, CS::AdditiveCouplingLayerSL
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, J, CS::AdditiveCouplingLayerSLIM; permute=false)
+function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, J, CS::AdditiveCouplingLayerSLIM; permute=false, set_grad::Bool = true)
 
     # Recompute forward states
     X, X_, g, gn, gs = inverse(Y, D, J, CS; save=true)
     nx1, nx2, nx_in, batchsize = size(X)
 
     # Backpropagation
-    isnothing(CS.C) ? (ΔY_ = copy(ΔY)) : (ΔY_ = CS.C.forward((ΔY, Y))[1])
+    if isnothing(CS.C)
+        ΔY_ = copy(ΔY)
+    else
+        set_grad ? (ΔY_ = CS.C.forward((ΔY, Y))[1]) : ((ΔY_, Δθ_C1) = CS.C.forward((ΔY, Y); set_grad=set_grad)[1:2])
+    end
     ΔY1_, ΔY2_ = tensor_split(ΔY_)
     ΔX2_ = copy(ΔY2_)
 
-    Δgs = CS.RB.backward(ΔY2_, gs)
+    set_grad ? (Δgs = CS.RB.backward(ΔY2_, gs)) : ((Δgs,  Δθ_RB) = CS.RB.backward(ΔY2_, gs; set_grad=set_grad))
     Δgn = Δgs[:,:,1:1,:]
-    Δg = CS.AN.backward(Δgn, gn)[1]
+    set_grad ? (Δg = CS.AN.backward(Δgn, gn)[1]) : ((Δg, Δθ_AN) = CS.AN.backward(Δgn, gn; set_grad=set_grad)[1:2])
     Jg = J*reshape(Δg, :, batchsize)
     ΔX1_= tensor_cat(reshape(J'*Jg, nx1, nx2, 1, batchsize), Δgs[:,:,2:end,:])
     ΔD = -Jg
     ΔX1_ += ΔY1_
     
     ΔX_ = tensor_cat(ΔX1_, ΔX2_)
-    isnothing(CS.   C) ? (ΔX = copy(ΔX_)) : (ΔX = CS.C.inverse((ΔX_, X_))[1])
+    if isnothing(CS.C)
+        ΔX = copy(ΔX_)
+    else
+        set_grad ? (ΔX = CS.C.inverse((ΔX_, X_))[1]) : ((ΔX, Δθ_C2) = CS.C.inverse((ΔX_, X_); set_grad=set_grad)[1:2])
+    end
 
-    return ΔX, ΔD, X
+    set_grad ? (return ΔX, ΔD, X) : (return ΔX, ΔD, cat(Δθ_C1+Δθ_C2, Δθ_RB, Δθ_AN; dims=1), X)
 end
+
+
+## Jacobian-related utils
+
+function jacobian(ΔX::AbstractArray{Float32, 4}, ΔD, X::AbstractArray{Float32, 4}, D, J, CS::AdditiveCouplingLayerSLIM)
+    throw(ArgumentError("Jacobian for AdditiveCouplingLayerSLIM not yet implemented"))
+end
+
+adjointJacobian(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, J, CS::AdditiveCouplingLayerSLIM; permute=false) = backward(ΔY, Y, D, J, CS; permute=permute, set_grad=false)
+
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(CS::AdditiveCouplingLayerSLIM)
@@ -160,7 +180,8 @@ end
 
 # Get parameters
 function get_params(CS::AdditiveCouplingLayerSLIM)
-    p = get_params(CS.RB)
-    ~isnothing(CS.C) && (p = cat(p, get_params(CS.C); dims=1))
-    return p
+    isnothing(CS.C) ? (p_C = Array{Parameter, 1}(undef, 0)) : (p_C = get_params(CS.C))
+    p_RB = get_params(CS.RB)
+    p_AN = get_params(CS.AN)
+    return cat(p_C, p_RB, p_AN; dims=1)
 end

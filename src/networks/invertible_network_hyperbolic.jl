@@ -124,21 +124,52 @@ function inverse(Y, H::NetworkHyperbolic)
 end
 
 # Backward pass
-function backward(ΔY, Y, H::NetworkHyperbolic)
+function backward(ΔY, Y, H::NetworkHyperbolic; set_grad::Bool=true)
     ΔY = wavelet_squeeze(ΔY)
     Y = wavelet_squeeze(Y)
     ΔY_curr, ΔY_new = tensor_split(ΔY)
     Y_curr, Y_new = tensor_split(Y)
+    ~set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
     for j=length(H.HL):-1:1
-        ΔY_curr, ΔY_new, Y_curr, Y_new = H.HL[j].backward(ΔY_curr, ΔY_new, Y_curr, Y_new)
+        if set_grad
+            ΔY_curr, ΔY_new, Y_curr, Y_new = H.HL[j].backward(ΔY_curr, ΔY_new, Y_curr, Y_new)
+        else
+            ΔY_curr, ΔY_new, Δθ_HLj, Y_curr, Y_new = H.HL[j].backward(ΔY_curr, ΔY_new, Y_curr, Y_new; set_grad=set_grad)
+            Δθ = cat(Δθ_HLj, Δθ; dims=1)
+        end
     end
     ΔY = tensor_cat(ΔY_curr, ΔY_new)
     Y = tensor_cat(Y_curr, Y_new)
-    ΔY, Y = H.AL.backward(ΔY, Y)
+    set_grad ? ((ΔY, Y) = H.AL.backward(ΔY, Y)) : ((ΔY, Δθ_AL, Y, ∇logdet) = H.AL.backward(ΔY, Y; set_grad=set_grad))
     ΔY = wavelet_unsqueeze(ΔY)
     Y = wavelet_unsqueeze(Y)
-    return ΔY, Y
+    set_grad ? (return ΔY, Y) : (return ΔY, cat(Δθ_AL, Δθ; dims=1), Y, ∇logdet)
 end
+
+
+## Jacobian-related utils
+
+function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, H::NetworkHyperbolic)
+    X = wavelet_squeeze(X)
+    ΔX = wavelet_squeeze(ΔX)
+    ΔX, X, logdet, GNΔθ = H.AL.jacobian(ΔX, Δθ[1:2], X)
+    X_prev, X_curr = tensor_split(X)
+    ΔX_prev, ΔX_curr = tensor_split(ΔX)
+    npars_hl = Int64((length(Δθ)-2)/length(H.HL))
+    for j=1:length(H.HL)
+        Δθj = Δθ[3+(j-1)*npars_hl:2+j*npars_hl]
+        ΔX_prev, ΔX_curr, X_prev, X_curr = H.HL[j].jacobian(ΔX_prev, ΔX_curr, Δθj, X_prev, X_curr)
+    end
+    X = tensor_cat(X_prev, X_curr)
+    ΔX = tensor_cat(ΔX_prev, ΔX_curr)
+    X = wavelet_unsqueeze(X)
+    ΔX = wavelet_unsqueeze(ΔX)
+    return ΔX, X, logdet, GNΔθ
+end
+
+adjointJacobian(ΔY, Y, H::NetworkHyperbolic) = backward(ΔY, Y, H; set_grad=false)
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(H::NetworkHyperbolic)

@@ -45,7 +45,6 @@ function loss(L, X, Y)
     return f, ΔX, L.C.v1.grad, L.C.v2.grad, L.C.v3.grad, L.RB.W1.grad, L.RB.W2.grad, L.RB.W3.grad
 end
 
-
 # Gradient test w.r.t. input X0
 Y = L.forward(X)
 f0, ΔX = loss(L, X0, Y)[1:2]
@@ -122,3 +121,50 @@ end
 
 @test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+###################################################################################################
+# Jacobian-related tests
+
+# Gradient test
+
+# Initialization
+L = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize)
+θ = deepcopy(get_params(L))
+L0 = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize)
+θ0 = deepcopy(get_params(L0))
+X = randn(Float32, nx, ny, n_in, batchsize)
+
+# Perturbation (normalized)
+dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
+dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
+
+# Jacobian eval
+dY, Y = L.jacobian(dX, dθ, X)
+
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 5
+err7 = zeros(Float32, maxiter)
+err8 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(L, θ+h*dθ)
+    Y_loc = L.forward(X+h*dX)
+    err7[j] = norm(Y_loc - Y)
+    err8[j] = norm(Y_loc - Y - h*dY)
+    print(err7[j], "; ", err8[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err7[end] / (err7[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err8[end] / (err8[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Adjoint test
+
+set_params!(L, θ)
+dY, Y = L.jacobian(dX, dθ, X)
+dY_ = randn(Float32, size(dY))
+dX_, dθ_ = L.adjointJacobian(dY_, Y)
+a = dot(dY, dY_)
+b = dot(dX, dX_)+dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)

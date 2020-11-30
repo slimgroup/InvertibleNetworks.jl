@@ -104,14 +104,36 @@ function inverse(Zx, Zy, CH::NetworkConditionalHINT; logdet=nothing)
 end
 
 # Backward pass and compute gradients
-function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT)
+function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT; set_grad::Bool=true)
     depth = length(CH.CL)
-    for j=depth:-1:1
-        ΔZx_, ΔZy_, Zx_, Zy_ = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy)
-        ΔZx, Zx = CH.AN_X[j].backward(ΔZx_, Zx_)
-        ΔZy, Zy = CH.AN_Y[j].backward(ΔZy_, Zy_)
+    if ~set_grad
+        Δθ = Array{Parameter, 1}(undef, 0)
+        CH.logdet && (∇logdet = Array{Parameter, 1}(undef, 0))
     end
-    return ΔZx, ΔZy, Zx, Zy
+    for j=depth:-1:1
+        if set_grad
+            ΔZx_, ΔZy_, Zx_, Zy_ = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy)
+            ΔZx, Zx = CH.AN_X[j].backward(ΔZx_, Zx_)
+            ΔZy, Zy = CH.AN_Y[j].backward(ΔZy_, Zy_)
+        else
+            if CH.logdet
+                ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdetcl = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
+                ΔZx, Δθx, Zx, ∇logdetx = CH.AN_X[j].backward(ΔZx_, Zx_; set_grad=set_grad)
+                ΔZy, Δθy, Zy, ∇logdety = CH.AN_Y[j].backward(ΔZy_, Zy_; set_grad=set_grad)
+                ∇logdet = cat(∇logdetx, ∇logdety, ∇logdetcl, ∇logdet; dims=1)
+            else
+                ΔZx_, ΔZy_, Δθcl, Zx_, Zy_ = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
+                ΔZx, Δθx, Zx = CH.AN_X[j].backward(ΔZx_, Zx_; set_grad=set_grad)
+                ΔZy, Δθy, Zy = CH.AN_Y[j].backward(ΔZy_, Zy_; set_grad=set_grad)
+            end
+            Δθ = cat(Δθx, Δθy, Δθcl, Δθ; dims=1)
+        end
+    end
+    if set_grad
+        return ΔZx, ΔZy, Zx, Zy
+    else
+        CH.logdet ? (return ΔZx, ΔZy, Δθ, Zx, Zy, ∇logdet) : (return ΔZx, ΔZy, Δθ, Zx, Zy)
+    end
 end
 
 # Backward reverse pass and compute gradients
@@ -145,6 +167,36 @@ function inverse_Y(Zy, CH::NetworkConditionalHINT)
     return Zy
 end
 
+## Jacobian-related utils
+
+function jacobian(ΔX, ΔY, Δθ, X, Y, CH::NetworkConditionalHINT; logdet=nothing)
+    isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
+
+    depth = length(CH.CL)
+    logdet_ = 0f0
+    logdet && (GNΔθ = Array{Parameter, 1}(undef, 0))
+    n = Int64(length(Δθ)/depth)
+    for j=1:depth
+        Δθj = Δθ[n*(j-1)+1:n*j]
+        if logdet
+            ΔX_, X_, logdet1, GNΔθ1 = CH.AN_X[j].jacobian(ΔX, Δθj[1:2], X)
+            ΔY_, Y_, logdet2, GNΔθ2 = CH.AN_Y[j].jacobian(ΔY, Δθj[3:4], Y)
+            ΔX, ΔY, X, Y, logdet3, GNΔθ3 = CH.CL[j].jacobian(ΔX_, ΔY_, Δθj[5:end], X_, Y_)
+            logdet_ += (logdet1 + logdet2 + logdet3)
+            GNΔθ = cat(GNΔθ, GNΔθ1, GNΔθ2, GNΔθ3; dims=1)
+        else
+            ΔX_, X_ = CH.AN_X[j].jacobian(ΔX, Δθj[1:2], X)
+            ΔY_, Y_ = CH.AN_Y[j].jacobian(ΔY, Δθj[3:4], Y)
+            ΔX, ΔY, X, Y = CH.CL[j].jacobian(ΔX_, ΔY_, Δθj[5:end], X_, Y_)
+        end
+    end
+    logdet ? (return ΔX, ΔY, X, Y, logdet_, GNΔθ) : (return ΔX, ΔY, X, Y)
+end
+
+adjointJacobian(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT) = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false)
+
+## Other utils
+
 # Clear gradients
 function clear_grad!(CH::NetworkConditionalHINT)
     depth = length(CH.CL)
@@ -158,7 +210,7 @@ end
 # Get parameters
 function get_params(CH::NetworkConditionalHINT)
     depth = length(CH.CL)
-    p = []
+    p = Array{Parameter, 1}(undef, 0)
     for j=1:depth
         p = cat(p, get_params(CH.AN_X[j]); dims=1)
         p = cat(p, get_params(CH.AN_Y[j]); dims=1)

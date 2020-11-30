@@ -1,10 +1,16 @@
 export NeuralNetLayer, InvertibleNetwork, ReverseLayer, ReverseNetwork
+export get_grads
 
 # Base Layer and network types with property getters
 
 abstract type NeuralNetLayer end
 
 abstract type InvertibleNetwork end
+
+function Base.show(io::IO, m::Union{NeuralNetLayer, InvertibleNetwork}) 
+    println(typeof(m))
+end
+
 
 function Base.getproperty(obj::Union{InvertibleNetwork,NeuralNetLayer}, sym::Symbol)
     if sym == :forward
@@ -17,6 +23,14 @@ function Base.getproperty(obj::Union{InvertibleNetwork,NeuralNetLayer}, sym::Sym
         return (args...; kwargs...) -> inverse_Y(args..., obj; kwargs...)
     elseif sym == :forward_Y
         return (args...; kwargs...) -> forward_Y(args..., obj; kwargs...)
+    elseif sym == :jacobian
+        return (args...; kwargs...) -> jacobian(args..., obj; kwargs...)
+    elseif sym == :jacobianInverse
+        return (args...; kwargs...) -> jacobianInverse(args..., obj; kwargs...)
+    elseif sym == :adjointJacobian
+        return (args...; kwargs...) -> adjointJacobian(args..., obj; kwargs...)
+    elseif sym == :adjointJacobianInverse
+        return (args...; kwargs...) -> adjointJacobianInverse(args..., obj; kwargs...)
     else
          # fallback to getfield
         return getfield(obj, sym)
@@ -118,4 +132,32 @@ end
 
 function get_params(RN::ReverseNetwork)
     return get_params(RN.network)
+end
+
+function get_grads(N::Union{NeuralNetLayer, InvertibleNetwork})
+    return get_grads(get_params(N))
+end
+
+function get_grads(RL::ReverseLayer)
+    return get_grads(RL.layer)
+end
+
+function get_grads(RN::ReverseNetwork)
+    return get_grads(RN.network)
+end
+
+# Set parameters
+
+function set_params!(N::Union{NeuralNetLayer, InvertibleNetwork}, θnew::Array{Parameter, 1})
+    set_params!(get_params(N), θnew)
+end
+
+# Set params for reversed layers/networks
+
+function set_params!(RL::ReverseLayer, θ::Array{Parameter, 1})
+    return set_params!(RL.layer, θ)
+end
+
+function set_params!(RN::ReverseNetwork, θ::Array{Parameter, 1})
+    return set_params!(RN.network, θ)
 end
