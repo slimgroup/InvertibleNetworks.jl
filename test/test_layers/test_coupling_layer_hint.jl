@@ -11,8 +11,8 @@ Random.seed!(11)
 # Input
 nx = 16
 ny = 16
-n_channel = 16
-n_hidden = 64
+n_channel = 4
+n_hidden = 8
 batchsize = 2
 
 function test_inv(nx, ny, n_channel, n_hidden, batchsize, permute, logdet, rev)
@@ -125,3 +125,57 @@ for permute in options
         end
     end
 end
+
+
+###################################################################################################
+# Jacobian-related tests
+
+# Gradient test
+
+# Initialization
+logdet=true
+# logdet=false
+permute="full"
+# permute="both"
+# permute="none"
+# permute="lower"
+HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=logdet)
+θ = deepcopy(get_params(HL))
+HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=logdet)
+θ0 = deepcopy(get_params(HL0))
+X = randn(Float32, nx, ny, n_channel, batchsize)
+
+# Perturbation (normalized)
+dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
+dX = randn(Float32, nx, ny, n_channel, batchsize); dX *= norm(X)/norm(dX)
+
+# Jacobian eval
+logdet ? ((dY, Y, lgdet, GNdθ) = HL.jacobian(dX, dθ, X)) : ((dY, Y) = HL.jacobian(dX, dθ, X))
+
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 5
+err5 = zeros(Float32, maxiter)
+err6 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(HL, θ+h*dθ)
+    logdet ? ((Y_, _) = HL.forward(X+h*dX)) : (Y_ = HL.forward(X+h*dX))
+    err5[j] = norm(Y_ - Y)
+    err6[j] = norm(Y_ - Y - h*dY)
+    print(err5[j], "; ", err6[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Adjoint test
+
+set_params!(HL, θ)
+logdet ? ((dY, Y, _, _) = HL.jacobian(dX, dθ, X)) : ((dY, Y) = HL.jacobian(dX, dθ, X))
+dY_ = randn(Float32, size(dY))
+logdet ? ((dX_, dθ_, _, _) = HL.adjointJacobian(dY_, Y)) : ((dX_, dθ_, _) = HL.adjointJacobian(dY_, Y))
+a = dot(dY, dY_)
+b = dot(dX, dX_)+dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)

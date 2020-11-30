@@ -108,155 +108,100 @@ function NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k
 end
 
 # 2D Forward loop: Input (η, s), Output (η, s)
-function forward(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, J, UL::NetworkLoop)
+function forward(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d, J, UL::NetworkLoop) where N
 
     # Dimensions
-    nx, ny, n_s, batchsize = size(s)
-    n_in = n_s + 1
+    n_in = size(s, N-1) + 1
+    batchsize = size(s)[end]
+    nn = size(s)[1:N-2]
     maxiter = length(UL.L)
-    N = cuzeros(η, nx, ny, n_in-2, batchsize)
+    N0 = cuzeros(η, nn..., n_in-2, batchsize)
 
     for j=1:maxiter
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-        g = reshape(g, nx, ny, 1, batchsize)
+        g = reshape(g, nn..., 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
-        s_ = s + tensor_cat(gn, N)
-
-        ηs = UL.L[j].forward(cat(η, s_; dims=3))
-        η = ηs[:, :, 1:1, :]
-        s = ηs[:, :, 2:end, :]
-    end
-    return η, s
-end
-
-# 3D Forward loop: Input (η, s), Output (η, s)
-function forward(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, J, UL::NetworkLoop)
-
-    # Dimensions
-    nx, ny, nz, n_s, batchsize = size(s)
-    n_in = n_s + 1
-    maxiter = length(UL.L)
-    N = cuzeros(η, nx, ny, nz, n_in-2, batchsize)
-
-    for j=1:maxiter
-        g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-        g = reshape(g, nx, ny, nz, 1, batchsize)
-        gn = UL.AN[j].forward(g)   # normalize
-        s_ = s + tensor_cat(gn, N)
+        s_ = s + tensor_cat(gn, N0)
 
         ηs = UL.L[j].forward(tensor_cat(η, s_))
-        η = ηs[:, :, :, 1:1, :]
-        s = ηs[:, :, :, 2:end, :]
+        η, s = tensor_split(ηs; split_index=1)
     end
     return η, s
 end
 
 # 2D Inverse loop: Input (η, s), Output (η, s)
-function inverse(η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, J, UL::NetworkLoop)
+function inverse(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d, J, UL::NetworkLoop) where N
 
     # Dimensions
-    nx, ny, n_s, batchsize = size(s)
-    n_in = n_s + 1
+    n_in = size(s, N-1) + 1
+    batchsize = size(s)[end]
+    nn = size(s)[1:N-2]
     maxiter = length(UL.L)
-    N = cuzeros(η, nx, ny, n_in-2, batchsize)
+
+    N0 = cuzeros(η, nn..., n_in-2, batchsize)
 
     for j=maxiter:-1:1
         ηs_ = UL.L[j].inverse(tensor_cat(η, s))
-        η = ηs_[:, :, 1:1, :]
-        s_ = ηs_[:, :, 2:end, :]
+        η, s_ = tensor_split(ηs_; split_index=1)
 
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-        g = reshape(g, nx, ny, 1, batchsize)
+        g = reshape(g, nn..., 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
-        s = s_ - tensor_cat(gn, N)
-    end
-    return η, s
-end
-
-# 3D Inverse loop: Input (η, s), Output (η, s)
-function inverse(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, J, UL::NetworkLoop)
-
-    # Dimensions
-    nx, ny, nz, n_s, batchsize = size(s)
-    n_in = n_s + 1
-    maxiter = length(UL.L)
-    N = cuzeros(η, nx, ny, nz, n_in-2, batchsize)
-
-    for j=maxiter:-1:1
-        ηs_ = UL.L[j].inverse(tensor_cat(η, s))
-        η = ηs_[:, :, :, 1:1, :]
-        s_ = ηs_[:, :, :, 2:end, :]
-
-        g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-        g = reshape(g, nx, ny, nz, 1, batchsize)
-        gn = UL.AN[j].forward(g)   # normalize
-        s = s_ - tensor_cat(gn, N)
+        s = s_ - tensor_cat(gn, N0)
     end
     return η, s
 end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function backward(Δη::AbstractArray{Float32, 4}, Δs::AbstractArray{Float32, 4}, 
-    η::AbstractArray{Float32, 4}, s::AbstractArray{Float32, 4}, d, J, UL::NetworkLoop)
+function backward(Δη::AbstractArray{Float32, N}, Δs::AbstractArray{Float32, N}, 
+    η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d, J, UL::NetworkLoop; set_grad::Bool=true) where N
 
     # Dimensions
-    nx, ny, n_s, batchsize = size(s)
-    n_in = n_s + 1
+    n_in = size(s, N-1) + 1
+    batchsize = size(s)[end]
+    nn = size(s)[1:N-2]
     maxiter = length(UL.L)
-    N = cuzeros(Δη, nx, ny, n_in-2, batchsize)
+
+    N0 = cuzeros(Δη, nn..., n_in-2, batchsize)
     typeof(Δs) == Float32 && (Δs = 0f0.*s)  # make Δs zero tensor
 
-    for j=maxiter:-1:1
-        Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+    # Initialize net parameters
+    set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
+
+    for j = maxiter:-1:1
+        if set_grad
+            Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+        else
+            Δηs_, Δθ_L, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s); set_grad=set_grad)
+            push!(Δθ, Δθ_L)
+        end
 
         # Inverse pass
-        η = ηs_[:, :, 1:1, :]
-        s_ = ηs_[:, :, 2:end, :]
+        η, s_ = tensor_split(ηs_; split_index=1)
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-        g = reshape(g, nx, ny, 1, batchsize)
+        g = reshape(g, nn..., 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
-        s = s_ - tensor_cat(gn, N)
+        s = s_ - tensor_cat(gn, N0)
 
         # Gradients
-        Δs = Δηs_[:, :, 2:end, :]
-        Δgn = Δs[:, :, 1:1, :]
+        Δs2, Δs = tensor_split(Δηs_; split_index=1)
+        Δgn = tensor_split(Δs; split_index=1)[1]
         Δg = UL.AN[j].backward(Δgn, gn)[1]
-        Δη = reshape(J'*J*reshape(Δg, :, batchsize), nx, ny, 1, batchsize) + Δηs_[:, :, 1:1, :]
+        Δη = reshape(J'*J*reshape(Δg, :, batchsize), nn..., 1, batchsize) + Δs2
     end
-    return Δη, Δs, η, s
+    set_grad ? (return Δη, Δs, η, s) : (Δη, Δs, Δθ, η, s)
 end
 
-# 3D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function backward(Δη::AbstractArray{Float32, 5}, Δs::AbstractArray{Float32, 5}, 
-    η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, J, UL::NetworkLoop)
-
-    # Dimensions
-    nx, ny, nz, n_s, batchsize = size(s)
-    n_in = n_s + 1
-    maxiter = length(UL.L)
-    N = cuzeros(Δη, nx, ny, nz, n_in-2, batchsize)
-    typeof(Δs) == Float32 && (Δs = 0f0.*s)  # make Δs zero tensor
-
-    for j=maxiter:-1:1
-        Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
-
-        # Inverse pass
-        η = ηs_[:, :, :, 1:1, :]
-        s_ = ηs_[:, :, :, 2:end, :]
-        g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-        g = reshape(g, nx, ny, nz, 1, batchsize)
-        gn = UL.AN[j].forward(g)   # normalize
-        s = s_ - tensor_cat(gn, N)
-
-        # Gradients
-        Δs = Δηs_[:, :, :, 2:end, :]
-        Δgn = Δs[:, :, :, 1:1, :]
-        Δg = UL.AN[j].backward(Δgn, gn)[1]
-        Δη = reshape(J'*J*reshape(Δg, :, batchsize), nx, ny, nz, 1, batchsize) + Δηs_[:, :, :, 1:1, :]
-    end
-    return Δη, Δs, η, s
+## Jacobian-related utils
+function jacobian(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, J, UL::NetworkLoop)
+    throw(ArgumentError("Jacobian for NetworkLoop not yet implemented"))
 end
 
+adjointJacobian(Δη::AbstractArray{Float32, N}, Δs::AbstractArray{Float32, N}, 
+η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d, J, UL::NetworkLoop; set_grad::Bool=true) where N = backward(Δη, Δs, η, s, d, J, UL; set_grad=false)
+
+
+## Other utils
 # Clear gradients
 function clear_grad!(UL::NetworkLoop)
     maxiter = length(UL.L)

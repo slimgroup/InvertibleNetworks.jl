@@ -228,35 +228,106 @@ function inverse(Y, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothi
 end
 
 # Input are two tensors ΔY, Y
-function backward(ΔY, Y, H::CouplingLayerHINT; scale=1, permute=nothing)
+function backward(ΔY, Y, H::CouplingLayerHINT; scale=1, permute=nothing, set_grad::Bool=true)
     isnothing(permute) ? permute = H.permute : permute = permute
-    permute == "both" && ((ΔY, Y) = H.C.forward((ΔY, Y)))
+
+    # Initializing output parameter array
+    if !set_grad
+        nscales_tot = length(H.CL)
+        nparams = 5*(nscales_tot-scale+1)
+        (permute != "none") && (nparams += 3)
+        Δθ = Array{Parameter, 1}(undef, nparams)
+        H.logdet && (∇logdet = Array{Parameter, 1}(undef, nparams))
+    end
+
+    if permute == "both"
+        if set_grad
+            ΔY, Y = H.C.forward((ΔY, Y))
+        else
+            ΔY, Δθ_C, Y = H.C.forward((ΔY, Y); set_grad=set_grad)
+            Δθ[end-2:end] .= Δθ_C
+            H.logdet && (∇logdet[end-2:end] .= [Parameter(zeros(Float32, size(H.C.v1))), Parameter(zeros(Float32, size(H.C.v2))), Parameter(zeros(Float32, size(H.C.v3)))])
+        end
+    end
     Ya, Yb = tensor_split(Y)
     ΔYa, ΔYb = tensor_split(ΔY)
+
+    # Determine whether to continue recursion
     recursive = false
     if typeof(Y) <: AbstractArray{Float32, 4} && size(Y, 3) > 4
         recursive = true
     elseif typeof(Y) <: AbstractArray{Float32, 5} && size(Y, 4) > 4
         recursive = true
     end
+
+    # HINT coupling
     if recursive
-        ΔXa, Xa = backward(ΔYa, Ya, H; scale=scale+1, permute="none")
-        ΔXa_temp, ΔXb_temp, X_temp = H.CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb)[[1,2,4]]
-        ΔXb, Xb = backward(ΔXb_temp, X_temp, H; scale=scale+1, permute="none")
+        if set_grad
+            ΔXa, Xa = backward(ΔYa, Ya, H; scale=scale+1, permute="none")
+            ΔXa_temp, ΔXb_temp, X_temp = H.CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb)[[1,2,4]]
+            ΔXb, Xb = backward(ΔXb_temp, X_temp, H; scale=scale+1, permute="none")
+        else
+            if H.logdet
+                ΔXa, Δθa, Xa, ∇logdet_a = backward(ΔYa, Ya, H; scale=scale+1, permute="none", set_grad=set_grad)
+                ΔXa_temp, ΔXb_temp, Δθ_scale, _, X_temp, ∇logdet_scale = H.CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb; set_grad=set_grad)
+                ΔXb, Δθb, Xb, ∇logdet_b = backward(ΔXb_temp, X_temp, H; scale=scale+1, permute="none", set_grad=set_grad)
+                ∇logdet[1:5] .= ∇logdet_scale
+                ∇logdet[6:5+length(∇logdet_a)] .= ∇logdet_a+∇logdet_b
+            else
+                ΔXa, Δθa, Xa = backward(ΔYa, Ya, H; scale=scale+1, permute="none", set_grad=set_grad)
+                ΔXa_temp, ΔXb_temp, Δθ_scale, _, X_temp = H.CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb; set_grad=set_grad)
+                ΔXb, Δθb, Xb = backward(ΔXb_temp, X_temp, H; scale=scale+1, permute="none", set_grad=set_grad)
+            end
+            Δθ[1:5] .= Δθ_scale
+            Δθ[6:5+length(Δθa)] .= Δθa+Δθb
+        end
         ΔXa += ΔXa_temp
     else
         Xa = copy(Ya)
         ΔXa = copy(ΔYa)
-        ΔXa_, ΔXb, Xb = H.CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb)[[1,2,4]]
+        if set_grad
+            ΔXa_, ΔXb, Xb = H.CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb)[[1,2,4]]
+        else
+            if H.logdet
+                ΔXa_, ΔXb, Δθ_scale, _, Xb, ∇logdet_scale = H.CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb; set_grad=set_grad)
+                ∇logdet[1:5] .= ∇logdet_scale
+            else
+                ΔXa_, ΔXb, Δθ_scale, _, Xb = H.CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb; set_grad=set_grad)
+            end
+            Δθ[1:5] .= Δθ_scale
+        end
         ΔXa += ΔXa_
     end
-    permute == "lower" && ((ΔXb, Xb) = H.C.inverse((ΔXb, Xb)))
+    if permute == "lower"
+        if set_grad
+            ΔXb, Xb = H.C.inverse((ΔXb, Xb))
+        else
+            ΔXb, Δθ_C, Xb = H.C.inverse((ΔXb, Xb); set_grad=set_grad)
+            H.logdet && (∇logdet[end-2:end] .= [Parameter(zeros(Float32, size(H.C.v1))), Parameter(zeros(Float32, size(H.C.v2))), Parameter(zeros(Float32, size(H.C.v3)))])
+        end
+    end
     ΔX = tensor_cat(ΔXa, ΔXb)
     X = tensor_cat(Xa, Xb)
     if permute == "full" || permute == "both"
-        (ΔX, X) = H.C.inverse((ΔX, X))
+        if set_grad
+            ΔX, X = H.C.inverse((ΔX, X))
+        else
+            ΔX, Δθ_C, X = H.C.inverse((ΔX, X); set_grad=set_grad)
+            if permute == "full"
+                Δθ[end-2:end] .= Δθ_C
+                H.logdet && (∇logdet[end-2:end] .= [Parameter(zeros(Float32, size(H.C.v1))), Parameter(zeros(Float32, size(H.C.v2))), Parameter(zeros(Float32, size(H.C.v3)))])
+            else
+                Δθ[end-2:end] += Δθ_C
+                H.logdet && (∇logdet[end-2:end] += [Parameter(zeros(Float32, size(H.C.v1))), Parameter(zeros(Float32, size(H.C.v2))), Parameter(zeros(Float32, size(H.C.v3)))])
+            end
+        end
     end
-    return ΔX, X
+
+    if set_grad
+        return ΔX, X
+    else
+        H.logdet ? (return ΔX, Δθ, X, ∇logdet) : (return ΔX, Δθ, X)
+    end
 end
 
 # Input are two tensors ΔX, X
@@ -295,6 +366,92 @@ function backward_inv(ΔX, X, H::CouplingLayerHINT; scale=1, permute=nothing)
     permute == "both" && ((ΔY, Y) = H.C.inverse((ΔY, Y)))
     return ΔY, Y
 end
+
+
+## Jacobian-related functions
+
+function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing)
+    isnothing(logdet) ? logdet = (H.logdet && ~H.is_reversed) : logdet = logdet
+    isnothing(permute) ? permute = H.permute : permute = permute
+
+    # Selecting parameters
+    if permute == "none"
+        Δθscale = Δθ[1:5]
+        Δθ = Δθ[6:end]
+    else
+        Δθscale = Δθ[1:5]
+        Δθ_C = Δθ[end-2:end]
+        Δθ = Δθ[6:end-3]
+    end
+
+    # Permutation
+    if permute == "full" || permute == "both"
+        ΔX, X = H.C.jacobian(ΔX, Δθ_C, X)
+    end
+    Xa, Xb = tensor_split(X)
+    ΔXa, ΔXb = tensor_split(ΔX)
+    if permute == "lower"
+        ΔXb, Xb = H.C.jacobian(ΔXb, Δθ_C, Xb)
+    end
+
+    # Initialize Gauss-Newton approx of logdet term
+    if logdet
+        nscales_tot = length(H.CL)
+        nparams = 5*(nscales_tot-scale+1)
+        (permute != "none") && (nparams += 3)
+        GNΔθ_full = Array{Parameter, 1}(undef, nparams)
+        (permute != "none") && (GNΔθ_full[end-2:end] = [Parameter(zeros(Float32, size(H.C.v1))), Parameter(zeros(Float32, size(H.C.v2))), Parameter(zeros(Float32, size(H.C.v3)))])
+    end
+
+    # Determine whether to continue recursion
+    recursive = false
+    if typeof(X) <: AbstractArray{Float32, 4} && size(X, 3) > 4
+        recursive = true
+    elseif typeof(X) <: AbstractArray{Float32, 5} && size(X, 4) > 4
+        recursive = true
+    end
+
+    # HINT coupling
+    # idx_Δθ_scale = (scale-1)*5+1:scale*5
+    if recursive
+        # Call function recursively
+        if logdet
+            ΔYa, Ya, logdet1, GNΔθ1 = jacobian(ΔXa, Δθ, Xa, H; scale=scale+1, permute="none")
+            ΔY_temp, Y_temp, logdet2, GNΔθ2 = jacobian(ΔXb, Δθ, Xb, H; scale=scale+1, permute="none")
+            _, ΔYb, _, Yb, logdet3, GNΔθ3 = H.CL[scale].jacobian(ΔXa, ΔY_temp, Δθscale, Xa, Y_temp)
+            logdet_full = logdet1 + logdet2 + logdet3
+            GNΔθ_full[1:5] .= GNΔθ3
+            (permute != "none") ? (GNΔθ_full[6:end-3] .= GNΔθ1 + GNΔθ2) : (GNΔθ_full[6:end] .= GNΔθ1 + GNΔθ2)
+        else
+            ΔYa, Ya = jacobian(ΔXa, Δθ, Xa, H; scale=scale+1, permute="none")
+            ΔY_temp, Y_temp = jacobian(ΔXb, Δθ, Xb, H; scale=scale+1, permute="none")
+            _, ΔYb, _, Yb = H.CL[scale].jacobian(ΔXa, ΔY_temp, Δθscale, Xa, Y_temp)
+        end
+    else
+        # Coarsest scale
+        Ya = copy(Xa)
+        ΔYa = copy(ΔXa)
+        if logdet
+            _, ΔYb, _, Yb, logdet_full, GNΔθ3 = H.CL[scale].jacobian(ΔXa, ΔXb, Δθscale, Xa, Xb)
+            GNΔθ_full[1:5] .= GNΔθ3
+        else
+            _, ΔYb, _, Yb = H.CL[scale].jacobian(ΔXa, ΔXb, Δθscale, Xa, Xb)
+        end
+    end
+
+    Y = tensor_cat(Ya, Yb)
+    ΔY = tensor_cat(ΔYa, ΔYb)
+    if permute == "both"
+        ΔY, Y = H.C.jacobianInverse(ΔY, Δθ_C, Y)
+    end
+    logdet ? (return ΔY, Y, logdet_full, GNΔθ_full) : (return ΔY, Y)
+
+end
+
+adjointJacobian(ΔY, Y, H::CouplingLayerHINT; scale=1, permute=nothing) = backward(ΔY, Y, H; scale=scale, permute=permute, set_grad=false)
+
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(H::CouplingLayerHINT)

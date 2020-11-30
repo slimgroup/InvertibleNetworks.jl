@@ -75,7 +75,7 @@ function AffineCouplingLayerSLIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::In
 end
 
 # Forward pass: Input X, Output Y
-function forward(X::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM)
+function forward(X::AbstractArray{Float32, N}, D, J, CS::AffineCouplingLayerSLIM) where N
 
     # Get dimensions
     nx, ny, n_s, batchsize = size(X)
@@ -129,30 +129,57 @@ function inverse(Y::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM; permute=false)
+function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM; permute=false, set_grad::Bool=true)
 
     # Recompute forward states
     X, X1_, X2_, gn, gs, S  = inverse(Y, D, J, CS; save=true)
     nx, ny, n_s, batchsize = size(Y)
 
     # Backpropagation
-    isnothing(CS.C) ? (ΔY_ = copy(ΔY)) : (ΔY_ = CS.C.forward((ΔY, Y))[1])
+    if isnothing(CS.C)
+        ΔY_ = copy(ΔY)
+    else
+        set_grad ? (ΔY_ = CS.C.forward((ΔY, Y))[1]) : ((ΔY_, Δθ_C1) = CS.C.forward((ΔY, Y); set_grad=set_grad)[1:2])
+    end
     ΔY1_, ΔY2_ = tensor_split(ΔY_)
     ΔT = copy(ΔY2_)
     ΔS = ΔY2_ .* X2_
-    CS.logdet == true && (ΔS -= slim_logdet_backward(S))
+    if CS.logdet
+        set_grad ? (ΔS -= slim_logdet_backward(S)) : (ΔS_ = slim_logdet_backward(S))
+    end
     ΔX2_ = ΔY2_ .* S
-    Δgs = CS.RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), gs)
+    if set_grad
+        Δgs = CS.RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), gs)
+    else
+        Δgs, Δθ_RB = CS.RB.backward(cat(SigmoidGrad(ΔS, S), ΔT; dims=3), gs; set_grad=set_grad)
+        _, ∇logdet_RB = CS.RB.backward(cat(SigmoidGrad(ΔS_, S), 0f0.*ΔT; dims=3), gs; set_grad=set_grad)
+    end
     Δgn = Δgs[:,:,1:1,:]
-    Δg = CS.AN.backward(Δgn, gn)[1]
+    set_grad ? (Δg = CS.AN.backward(Δgn, gn)[1]) : ((Δg, Δθ_AN, ∇logdet_AN) = CS.AN.backward(Δgn, gn; set_grad=set_grad)[1:2])
     Jg = J*reshape(Δg, :, batchsize)
     ΔD = -Jg
     ΔX1_ = tensor_cat(reshape(J'*Jg, nx, ny, 1, batchsize), Δgs[:,:,2:end,:]) + ΔY1_
     ΔX_ = tensor_cat(ΔX1_, ΔX2_)
-    isnothing(CS.C) ? (ΔX = copy(ΔX_)) : (ΔX = CS.C.inverse((ΔX_, tensor_cat(X1_, X2_)))[1])
+    if isnothing(CS.C)
+        ΔX = copy(ΔX_)
+    else
+        set_grad ? (ΔX = CS.C.inverse((ΔX_, tensor_cat(X1_, X2_)))[1]) : ((ΔX, Δθ_C2) = CS.C.inverse((ΔX_, tensor_cat(X1_, X2_)); set_grad=set_grad)[1:2])
+    end
 
-    return ΔX, ΔD, X
+    set_grad ? (return ΔX, ΔD, X) : (return ΔX, ΔD, cat(Δθ_C1+Δθ_C2, Δθ_RB, Δθ_AN; dims=1), X, cat(0f0.*Δθ_C1, ∇logdet_RB, ∇logdet_AN; dims=1))
 end
+
+
+## Jacobian-related utils
+
+function jacobian(ΔX::AbstractArray{Float32, 4}, ΔD, X::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM)
+    throw(ArgumentError("Jacobian for AffineCouplingLayerSLIM not yet implemented"))
+end
+
+adjointJacobian(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, J, CS::AffineCouplingLayerSLIM; permute=false) = backward(ΔY, Y, D, J, CS; permute=permute, set_grad=false)
+
+
+# Other utils
 
 # Clear gradients
 function clear_grad!(CS::AffineCouplingLayerSLIM)
@@ -165,9 +192,10 @@ end
 
 # Get parameters
 function get_params(CS::AffineCouplingLayerSLIM)
-    p = get_params(CS.RB)
-    ~isnothing(CS.C) && (p = cat(p, get_params(CS.C); dims=1))
-    return p
+    isnothing(CS.C) ? (p_C = Array{Parameter, 1}(undef, 0)) : (p_C = get_params(CS.C))
+    p_RB = get_params(CS.RB)
+    p_AN = get_params(CS.AN)
+    return cat(p_C, p_RB, p_AN; dims=1)
 end
 
 # Logdet

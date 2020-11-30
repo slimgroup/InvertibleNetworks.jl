@@ -228,3 +228,57 @@ end
 @test isapprox(err7[end] / (err7[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err8[end] / (err8[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
+
+###################################################################################################
+# Jacobian-related tests
+
+# Gradient test
+
+# Initialization
+RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+L0 = CouplingLayerBasic(RB0; logdet=true, activation=Sigmoid2Layer())
+θ0 = deepcopy(get_params(L0))
+RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+L = CouplingLayerBasic(RB; logdet=true, activation=Sigmoid2Layer())
+θ = deepcopy(get_params(L))
+X1 = randn(Float32, nx, ny, n_in, batchsize)
+X2 = randn(Float32, nx, ny, n_in, batchsize)
+
+# Perturbation (normalized)
+dθ = θ-θ0
+for i = 1:length(θ)
+    dθ[i] = norm(θ0[i])*dθ[i]/(norm(dθ[i]).+1f-10)
+end
+dX1 = randn(Float32, nx, ny, n_in, batchsize); dX1 = norm(X1)*dX1/norm(dX1)
+dX2 = randn(Float32, nx, ny, n_in, batchsize); dX2 = norm(X2)*dX2/norm(dX2)
+
+# Jacobian eval
+dY1, dY2, Y1, Y2 = L.jacobian(dX1, dX2, dθ, X1, X2)
+
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 5
+err9 = zeros(Float32, maxiter)
+err10 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(L, θ+h*dθ)
+    Y1_, Y2_ = L.forward(X1+h*dX1, X2+h*dX2)
+    err9[j] = sqrt(norm(Y1_ - Y1)^2f0+norm(Y2_ - Y2)^2f0)
+    err10[j] = sqrt(norm(Y1_ - Y1 - h*dY1)^2f0+norm(Y2_ - Y2 - h*dY2)^2f0)
+    print(err9[j], "; ", err10[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err9[end] / (err9[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err10[end] / (err10[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Adjoint test
+
+set_params!(L, θ)
+dY1, dY2, Y1, Y2 = L.jacobian(dX1, dX2, dθ, X1, X2)
+dY1_ = randn(Float32, size(dY1)); dY2_ = randn(Float32, size(dY2))
+dX1_, dX2_, dθ_ = L.adjointJacobian(dY1_, dY2_, Y1, Y2)
+a = dot(dY1, dY1_)+dot(dY2, dY2_)
+b = dot(dX1, dX1_)+dot(dX2, dX2_)+dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)

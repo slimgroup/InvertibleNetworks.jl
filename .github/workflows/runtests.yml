@@ -4,14 +4,17 @@ on: push
 
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.tests }} - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      test_suite:  ${{ matrix.tests }}
 
     strategy:
       fail-fast: false
 
       matrix:
         version: ['1.3', '1.4', '1.5']
+        tests: ["basics", "layers", "networks"]
         os: [ubuntu-latest]
 
     steps:
@@ -22,6 +25,11 @@ jobs:
         uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.version }}
+
+      - name: Add SLIM registery for JOLI
+        run: |
+           julia --color=yes --check-bounds=yes -e 'using Pkg;Pkg.update();Pkg.Registry.add(RegistrySpec(url="https://github.com/slimgroup/SLIMregistryJL.git"))'
+
 
       - name: Build InvertibleNetworks.jl
         uses: julia-actions/julia-buildpkg@latest

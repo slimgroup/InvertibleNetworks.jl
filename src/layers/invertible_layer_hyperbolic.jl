@@ -243,7 +243,7 @@ function inverse(X_curr, X_new, HL::HyperbolicLayer; save=false)
 end
 
 # Backward pass
-function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
+function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer; set_grad::Bool=true)
 
     # Recompute forward states
     X_prev_in, X_curr_in, X_conv, X_relu = inverse(X_curr, X_new, HL; save=true)
@@ -265,8 +265,12 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
     ΔX_prev = -ΔX_new
 
     # Set gradients
-    HL.W.grad = ΔW
-    HL.b.grad = Δb
+    if set_grad
+        HL.W.grad = ΔW
+        HL.b.grad = Δb
+    else
+        Δθ = [Parameter(ΔW), Parameter(Δb)]
+    end
 
     # Change dimensions
     if HL.action == "same"
@@ -282,8 +286,60 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
         throw("Specified operation not defined.")
     end
 
-    return ΔX_prev_in, ΔX_curr_in, X_prev_in, X_curr_in
+    set_grad ? (return ΔX_prev_in, ΔX_curr_in, X_prev_in, X_curr_in) : (return ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in)
 end
+
+
+## Jacobian utilities
+
+# 2D
+function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::HyperbolicLayer)
+
+    # Change dimensions
+    if HL.action == "same"
+        X_prev = identity(X_prev_in)
+        X_curr = identity(X_curr_in)
+        ΔX_prev = identity(ΔX_prev_in)
+        ΔX_curr = identity(ΔX_curr_in)
+    elseif HL.action == "up"
+        X_prev = wavelet_unsqueeze(X_prev_in)
+        X_curr = wavelet_unsqueeze(X_curr_in)
+        ΔX_prev = wavelet_unsqueeze(ΔX_prev_in)
+        ΔX_curr = wavelet_unsqueeze(ΔX_curr_in)
+    elseif HL.action == "down"
+        X_prev = wavelet_squeeze(X_prev_in)
+        X_curr = wavelet_squeeze(X_curr_in)
+        ΔX_prev = wavelet_squeeze(ΔX_prev_in)
+        ΔX_curr = wavelet_squeeze(ΔX_curr_in)
+    else
+        throw("Specified operation not defined.")
+    end
+
+    # Symmetric convolution w/ relu activation
+    if length(size(X_curr)) == 4
+        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
+    else
+        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, 1, :, 1)
+    end
+    ΔX_conv = conv(ΔX_curr, HL.W.data, HL.cdims) .+ conv(X_curr, Δθ[1].data, HL.cdims) .+ reshape(Δθ[2].data, 1, 1, :, 1)
+    X_relu = ReLU(X_conv)
+    ΔX_relu = ReLUgrad(ΔX_conv, X_conv)
+    X_convT = -∇conv_data(X_relu, HL.W.data, HL.cdims)
+    ΔX_convT = -∇conv_data(ΔX_relu, HL.W.data, HL.cdims)-∇conv_data(X_relu, Δθ[1].data, HL.cdims)
+
+    # Update
+    X_new = 2f0*X_curr - X_prev + HL.α*X_convT
+    ΔX_new = 2f0*ΔX_curr - ΔX_prev + HL.α*ΔX_convT
+
+    return ΔX_curr, ΔX_new, X_curr, X_new
+end
+
+function adjointJacobian(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
+    return backward(ΔX_curr, ΔX_new, X_curr, X_new, HL; set_grad=false)
+end
+
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(HL::HyperbolicLayer)

@@ -113,7 +113,3 @@ ax9.set_xlim([-3.5, 3.5]); ax9.set_ylim([-3.5, 3.5])
 ax10 = subplot(2,5,10); plot(Zx[1, 1, 1, :], Zx[1, 1, 2, :], "."); 
 plot(Zy_fixed[1, 1, 1, :], Zy_fixed[1, 1, 2, :], "r."); title(L"Latent space: $zx \sim \hat{p}_{zx}$")
 ax10.set_xlim([-3.5, 3.5]); ax10.set_ylim([-3.5, 3.5])
-
-
-
-

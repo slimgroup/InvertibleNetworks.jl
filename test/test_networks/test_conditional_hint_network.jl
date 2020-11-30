@@ -6,8 +6,8 @@ using InvertibleNetworks, LinearAlgebra, Test, Random
 Random.seed!(11)
 
 # Define network
-nx = 64
-ny = 64
+nx = 16
+ny = 16
 n_in = 2
 n_hidden = 4
 batchsize = 2
@@ -89,3 +89,103 @@ for CH in nets
     test_inv(CH, nx, ny, n_in)
     test_grad(CH, nx, ny, n_in)
 end
+
+
+###################################################################################################
+# Jacobian-related tests: NetworkConditionalHINT
+
+# Gradient test
+
+# Initialization
+CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+θ = deepcopy(get_params(CH))
+CH0 = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+θ0 = deepcopy(get_params(CH0))
+X = randn(Float32, nx, ny, n_in, batchsize)
+Y = randn(Float32, nx, ny, n_in, batchsize)
+
+# Perturbation (normalized)
+dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
+dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
+dY = randn(Float32, nx, ny, n_in, batchsize); dY *= norm(Y)/norm(dY)
+
+# Jacobian eval
+dZx, dZy, Zx, Zy, _, _ = CH.jacobian(dX, dY, dθ, X, Y)
+
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 5
+err5 = zeros(Float32, maxiter)
+err6 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(CH, θ+h*dθ)
+    Zx_, Zy_, _ = CH.forward(X+h*dX, Y+h*dY)
+    err5[j] = sqrt(norm(Zx_ - Zx)^2+norm(Zy_ - Zy)^2)
+    err6[j] = sqrt(norm(Zx_ - Zx - h*dZx)^2+norm(Zy_ - Zy - h*dZy)^2)
+    print(err5[j], "; ", err6[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Adjoint test
+
+set_params!(CH, θ)
+dZx, dZy, Zx, Zy, _, _ = CH.jacobian(dX, dY, dθ, X, Y)
+dZx_ = randn(Float32, size(dZx)); dZy_ = randn(Float32, size(dZy))
+dX_, dY_, dθ_, _, _ = CH.adjointJacobian(dZx_, dZy_, Zx, Zy)
+a = dot(dZx, dZx_)+dot(dZy, dZy_)
+b = dot(dX, dX_)+dot(dY, dY_)+dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)
+
+
+###################################################################################################
+# Jacobian-related tests: NetworkMultiScaleConditionalHINT
+
+# Gradient test
+
+# Initialization
+CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+θ = deepcopy(get_params(CH))
+CH0 = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+θ0 = deepcopy(get_params(CH0))
+X = randn(Float32, nx, ny, n_in, batchsize)
+Y = randn(Float32, nx, ny, n_in, batchsize)
+
+# Perturbation (normalized)
+dθ = θ-θ0; dθ .*= (norm.(θ).+1f-6)./(norm.(dθ).+1f-6)
+dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
+dY = randn(Float32, nx, ny, n_in, batchsize); dY *= norm(Y)/norm(dY)
+
+# Jacobian eval
+dZx, dZy, Zx, Zy, _, _ = CH.jacobian(dX, dY, dθ, X, Y)
+
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 5
+err5 = zeros(Float32, maxiter)
+err6 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(CH, θ+h*dθ)
+    Zx_, Zy_, _ = CH.forward(X+h*dX, Y+h*dY)
+    err5[j] = sqrt(norm(Zx_ - Zx)^2+norm(Zy_ - Zy)^2)
+    err6[j] = sqrt(norm(Zx_ - Zx - h*dZx)^2+norm(Zy_ - Zy - h*dZy)^2)
+    print(err5[j], "; ", err6[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Adjoint test
+
+set_params!(CH, θ)
+dZx, dZy, Zx, Zy, _, _ = CH.jacobian(dX, dY, dθ, X, Y)
+dZx_ = randn(Float32, size(dZx)); dZy_ = randn(Float32, size(dZy))
+dX_, dY_, dθ_, _, _, _ = CH.adjointJacobian(dZx_, dZy_, Zx, Zy)
+a = dot(dZx, dZx_)+dot(dZy, dZy_)
+b = dot(dX, dX_)+dot(dY, dY_)+dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-1)  ####### need to check low accuracy here

@@ -73,62 +73,100 @@ function LearnedCouplingLayerSLIM(nx1, nx2, nx_in, ny1, ny2, ny_in, n_hidden, ba
 end
 
 # Forward pass: Input X, Output Y
-function forward(X::AbstractArray{Float32, 4}, D, CS::LearnedCouplingLayerSLIM)
-
-    # Get dimensions
-    nx, ny, n_s, batchsize = size(X)
-
+function forward(X::AbstractArray{Float32, N}, D, CS::LearnedCouplingLayerSLIM) where N
     # Permute and split
     isnothing(CS.C) ? (X_ = copy(X)) : (X_ = CS.C.forward(X))
     X1_, X2_ = tensor_split(X_)
 
     # Coupling layer
-    Y1_ = copy(X1_)
     Y2_ = X2_ + CS.RB.forward(X1_, D)[1]
-    Y_ = tensor_cat(Y1_, Y2_)
+    Y_ = tensor_cat(X1_, Y2_)
 
     isnothing(CS.C) ? (Y = copy(Y_)) : (Y = CS.C.inverse(Y_))
     CS.logdet == true ? (return Y, 0f0) : (return Y)
 end
 
 # Inverse pass: Input Y, Output X
-function inverse(Y::AbstractArray{Float32, 4}, D, CS::LearnedCouplingLayerSLIM; save=false)
-
-    # Get dimensions
-    nx, ny, n_s, batchsize = size(Y)
-
+function inverse(Y::AbstractArray{Float32, N}, D, CS::LearnedCouplingLayerSLIM; save=false) where N
     # Permute and split
     isnothing(CS.C) ?  (Y_ = copy(Y)) : (Y_ = CS.C.forward(Y))
     Y1_, Y2_ = tensor_split(Y_)
 
     # Coupling layer
-    X1_ = copy(Y1_)
-    X2_ = Y2_ - CS.RB.forward(X1_, D)[1]
-    X_ = tensor_cat(X1_, X2_)
+    X2_ = Y2_ - CS.RB.forward(Y1_, D)[1]
+    X_ = tensor_cat(Y1_, X2_)
 
     isnothing(CS.C) ? (X = copy(X_)) : (X = CS.C.inverse(X_))
     save == true ? (return X, X_) : (return X)
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, CS::LearnedCouplingLayerSLIM)
-
+function backward(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, D, CS::LearnedCouplingLayerSLIM; set_grad::Bool=true) where N
     # Recompute forward states
     X, X_ = inverse(Y, D, CS; save=true)
-    nx1, nx2, nx_in, batchsize = size(X)
 
     # Backpropagation
-    isnothing(CS.C) ? (ΔY_ = copy(ΔY)) : (ΔY_ = CS.C.forward((ΔY, Y))[1])
+    if isnothing(CS.C)
+        ΔY_ = copy(ΔY)
+    else
+        set_grad ? (ΔY_ = CS.C.forward((ΔY, Y))[1]) : ((ΔY_, Δθ_C1) = CS.C.forward((ΔY, Y); set_grad=set_grad)[1:2])
+    end
     ΔY1_, ΔY2_ = tensor_split(ΔY_)
-    ΔX2_ = copy(ΔY2_)
-    ΔX1_, ΔD = CS.RB.backward(ΔY2_, D.*0f0, tensor_split(X_)[1], D)[1:2]
+
+    if set_grad
+        ΔX1_, ΔD = CS.RB.backward(ΔY2_, D.*0f0, tensor_split(X_)[1], D)[1:2]
+    else
+        ΔX1_, ΔD, Δθ_RB = CS.RB.backward(ΔY2_, D.*0f0, tensor_split(X_)[1], D; set_grad=set_grad)[1:3]
+    end
     ΔX1_ += ΔY1_
     
-    ΔX_ = tensor_cat(ΔX1_, ΔX2_)
-    isnothing(CS.C) ? (ΔX = copy(ΔX_)) : (ΔX = CS.C.inverse((ΔX_, X_))[1])
+    ΔX_ = tensor_cat(ΔX1_, ΔY2_)
+    if isnothing(CS.C)
+        ΔX = copy(ΔX_)
+    else
+        set_grad ? (ΔX = CS.C.inverse((ΔX_, X_))[1]) : ((ΔX, Δθ_C2) = CS.C.inverse((ΔX_, X_); set_grad=set_grad)[1:2])
+    end
 
-    return ΔX, ΔD, X
+    set_grad ? (return ΔX, ΔD, X) : (return ΔX, ΔD, cat(Δθ_RB, Δθ_C1+Δθ_C2; dims=1), X)
 end
+
+
+## Jacobian-related utils
+function jacobian(ΔX::AbstractArray{Float32, N}, ΔD, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, N}, D, CS::LearnedCouplingLayerSLIM) where N
+    # Permute and split
+    if isnothing(CS.C)
+        X_ = copy(X)
+        ΔX_ = copy(ΔX)
+    else
+        ΔX_, X_ = CS.C.jacobian(ΔX, Δθ[8:end], X)
+    end
+    X1_, X2_ = tensor_split(X_)
+    ΔX1_, ΔX2_ = tensor_split(ΔX_)
+
+    # Coupling layer
+    ΔX2__, _, X2__, _ = CS.RB.jacobian(ΔX1_, ΔD, Δθ[1:7], X1_, D)
+    Y2_ = X2_ + X2__
+    ΔY2_ = ΔX2_ + ΔX2__
+    Y_ = tensor_cat(X1_, Y2_)
+    ΔY_ = tensor_cat(ΔX1_, ΔY2_)
+
+    if isnothing(CS.C)
+        Y = copy(Y_)
+        ΔY = copy(ΔY_)
+    else
+        ΔY, Y = CS.C.jacobianInverse(ΔY_, Δθ[8:end], Y_)
+    end
+    if CS.logdet
+        return ΔY, Y, 0f0
+    else
+        return ΔY, Y
+    end
+end
+
+adjointJacobian(ΔY::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4}, D, CS::LearnedCouplingLayerSLIM) = backward(ΔY, Y, D, CS; set_grad=false)
+
+
+## Other utils
 
 # Clear gradients
 function clear_grad!(CS::LearnedCouplingLayerSLIM)

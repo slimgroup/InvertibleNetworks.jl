@@ -130,3 +130,51 @@ end
 
 @test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+
+###################################################################################################
+# Jacobian-related tests
+
+# Gradient test
+
+# Initialization
+L = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
+θ = deepcopy(get_params(L))
+L0 = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
+θ0 = deepcopy(get_params(L0))
+X = randn(Float32, nx, ny, n_in, batchsize)
+
+# Perturbation (normalized)
+dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
+dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
+
+# Jacobian eval
+dY, Y, _, _ = L.jacobian(dX, dθ, X)
+
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 7
+err7 = zeros(Float32, maxiter)
+err8 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(L, θ+h*dθ)
+    Y_, _ = L.forward(X+h*dX)
+    err7[j] = norm(Y_ - Y)
+    err8[j] = norm(Y_ - Y - h*dY)
+    print(err7[j], "; ", err8[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err7[end] / (err7[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err8[end] / (err8[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+# Adjoint test
+
+set_params!(L, θ)
+dY, Y, _, _ = L.jacobian(dX, dθ, X)
+dY_ = randn(Float32, size(dY))
+dX_, dθ_, _, _ = L.adjointJacobian(dY_, Y)
+a = dot(dY, dY_)
+b = dot(dX, dX_)+dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)
