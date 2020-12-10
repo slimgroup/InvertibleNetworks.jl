@@ -9,8 +9,6 @@ batchsize = 4
 k = 3   # kernel size
 s = 1   # stride
 p = 1   # padding
-num_scales = 2
-layers_per_scale = 3
 
 ###################################################################################################
 # Hyperbolic layer
