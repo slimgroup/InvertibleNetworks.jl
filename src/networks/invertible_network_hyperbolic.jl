@@ -132,35 +132,26 @@ end
 
 # Backward pass
 function backward(ΔY_curr, ΔY_new, Y_curr, Y_new, H::NetworkHyperbolic; set_grad::Bool=true)
-    #~set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
+    ~set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
     for j=length(H.HL):-1:1
-        #if set_grad
-        ΔY_curr, ΔY_new, Y_curr, Y_new = H.HL[j].backward(ΔY_curr, ΔY_new, Y_curr, Y_new)
-        #else
-        #    ΔY_curr, ΔY_new, Δθ_HLj, Y_curr, Y_new = H.HL[j].backward(ΔY_curr, ΔY_new, Y_curr, Y_new; set_grad=set_grad)
-        #    Δθ = cat(Δθ_HLj, Δθ; dims=1)
-        #end
+        if set_grad
+            ΔY_curr, ΔY_new, Y_curr, Y_new = H.HL[j].backward(ΔY_curr, ΔY_new, Y_curr, Y_new)
+        else
+            ΔY_curr, ΔY_new, Δθ_HLj, Y_curr, Y_new = H.HL[j].backward(ΔY_curr, ΔY_new, Y_curr, Y_new; set_grad=set_grad)
+            Δθ = cat(Δθ_HLj, Δθ; dims=1)
+        end
     end
-    #set_grad ? (return ΔY_curr, ΔY_new, Y_curr, Y_new) : (return ΔY_curr, ΔY_new, Δθ, Y_curr, Y_new, ∇logdet)
-    return ΔY_curr, ΔY_new, Y_curr, Y_new
+    set_grad ? (return ΔY_curr, ΔY_new, Y_curr, Y_new) : (return ΔY_curr, ΔY_new, Δθ, Y_curr, Y_new)
 end
-
 
 # Jacobian-related utils
 function jacobian(ΔX_prev, ΔX_curr, Δθ::Array{Parameter, 1}, X_prev, X_curr, H::NetworkHyperbolic)
-    #ΔX, X, logdet, GNΔθ = H.AL.jacobian(ΔX, Δθ[1:2], X)
-    #X_prev, X_curr = tensor_split(X)
-    #ΔX_prev, ΔX_curr = tensor_split(ΔX)
-    npars_hl = Int64((length(Δθ)-2)/length(H.HL))
+    npars_hl = Int64(length(Δθ)/length(H.HL))
     for j=1:length(H.HL)
-        Δθj = Δθ[3+(j-1)*npars_hl:2+j*npars_hl]
+        Δθj = Δθ[1+(j-1)*npars_hl:j*npars_hl]
         ΔX_prev, ΔX_curr, X_prev, X_curr = H.HL[j].jacobian(ΔX_prev, ΔX_curr, Δθj, X_prev, X_curr)
     end
-    #X = tensor_cat(X_prev, X_curr)
-    #ΔX = tensor_cat(ΔX_prev, ΔX_curr)
-    #X = wavelet_unsqueeze(X)
-    #ΔX = wavelet_unsqueeze(ΔX)
-    return ΔX_prev, ΔX_curr, X_prev, X_curr#, logdet, GNΔθ
+    return ΔX_prev, ΔX_curr, X_prev, X_curr
 end
 
 adjointJacobian(ΔY_curr, ΔY_new, Y_curr, Y_new, H::NetworkHyperbolic) = backward(ΔY_curr, ΔY_new, Y_curr, Y_new, H; set_grad=false)

@@ -104,47 +104,49 @@ end
 ###################################################################################################
 # Jacobian-related tests
 
-# # Gradient test
+# Gradient test
 
-# # Initialization
-# H = NetworkHyperbolic(nx, ny, n_in, batchsize, architecture; α=α0); H.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
-# θ = deepcopy(get_params(H))
-# H0 = NetworkHyperbolic(nx, ny, n_in, batchsize, architecture; α=α0); H0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
-# θ0 = deepcopy(get_params(H0))
-# X_prev = randn(Float32, nx, ny, n_in, batchsize)
-# X_curr = randn(Float32, nx, ny, n_in, batchsize)
+# Initialization
+H = NetworkHyperbolic(nx, ny, n_in, batchsize, architecture; α=α0); H.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+θ = deepcopy(get_params(H))
+H0 = NetworkHyperbolic(nx, ny, n_in, batchsize, architecture; α=α0); H0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+θ0 = deepcopy(get_params(H0))
+X_prev = randn(Float32, nx, ny, n_in, batchsize)
+X_curr = randn(Float32, nx, ny, n_in, batchsize)
 
-# # Perturbation (normalized)
-# dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
-# dX_prev = randn(Float32, nx, ny, n_in, batchsize); dX_prev *= norm(X_prev)/norm(dX_prev)
-# dX_curr = randn(Float32, nx, ny, n_in, batchsize); dX_curr *= norm(X_curr)/norm(dX_curr)
+# Perturbation (normalized)
+dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
+dX_prev = randn(Float32, nx, ny, n_in, batchsize); dX_prev *= norm(X_prev)/norm(dX_prev)
+dX_curr = randn(Float32, nx, ny, n_in, batchsize); dX_curr *= norm(X_curr)/norm(dX_curr)
 
-# # Jacobian eval
-# dY_prev, dY_curr, Y_prev, Y_curr, _, _ = H.jacobian(dX_prev, dX_curr, dθ, X_prev, X_curr)
+# Jacobian eval
+dY_prev, dY_curr, Y_prev, Y_curr = H.jacobian(dX_prev, dX_curr, dθ, X_prev, X_curr)
 
-# # Test
-# print("\nJacobian test\n")
-# h = 0.1f0
-# maxiter = 5
-# err5 = zeros(Float32, maxiter)
-# err6 = zeros(Float32, maxiter)
-# for j=1:maxiter
-#     set_params!(H, θ+h*dθ)
-#     Y_prev_, Y_curr_, _ = H.forward(X_prev + h*dX_prev, X_curr + h*dX_curr)
-#     err5[j] = norm(tensor_cat(Y_prev_, Y_curr_) - tensor_cat(Y_prev, Y_curr)
-#     err6[j] = norm(tensor_cat(Y_prev_, Y_curr_) - tensor_cat(Y_prev, Y_curr - h*dY_prev - h*dY_curr)
-#     print(err5[j], "; ", err6[j], "\n")
-#     global h = h/2f0
-# end
+# Test
+print("\nJacobian test\n")
+h = 0.1f0
+maxiter = 5
+err5 = zeros(Float32, maxiter)
+err6 = zeros(Float32, maxiter)
+for j=1:maxiter
+    set_params!(H, θ+h*dθ)
+    Y_prev_, Y_curr_, _ = H.forward(X_prev + h*dX_prev, X_curr + h*dX_curr)
+    err5[j] = norm(tensor_cat(Y_prev_, Y_curr_) - tensor_cat(Y_prev, Y_curr))
+    err6[j] = norm(tensor_cat(Y_prev_, Y_curr_) - tensor_cat(Y_prev, Y_curr) - tensor_cat(h*dY_prev, h*dY_curr))
+    print(err5[j], "; ", err6[j], "\n")
+    global h = h/2f0
+end
 
-# @test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
-# @test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
-# # Adjoint test
-# set_params!(H, θ)
-# dY_prev, dY_curr, Y_prev, Y_curr, _, _ = H.jacobian(dX_prev, dX_curr, dθ, X_prev, X_curr)
-# dY_prev_ = randn(Float32, size(dY_prev)); dY_curr_ = randn(Float32, size(dY_curr))
-# dX_prev_, dX_curr_, dθ_, _, _ = H.adjointJacobian(dY_prev, dY_curr, Y_prev, Y_curr)
-# a = dot(tensor_cat(dY_prev, dY_curr), tensor_cat(dY_prev_, dY_curr_))
-# b = dot(tensor_cat(dX_prev, dX_curr), tensor_cat(dX_prev_, dX_curr_))+dot(dθ, dθ_)
-# @test isapprox(a, b; rtol=1f-3)
+# Adjoint test
+set_params!(H, θ)
+dY_prev, dY_curr, Y_prev, Y_curr = H.jacobian(dX_prev, dX_curr, dθ, X_prev, X_curr)
+dY_prev_ = randn(Float32, size(dY_prev)); dY_curr_ = randn(Float32, size(dY_curr))
+
+dX_prev_, dX_curr_, dθ_, _, _ = H.adjointJacobian(dY_prev_, dY_curr_, Y_prev, Y_curr)
+
+a = dot(tensor_cat(dY_prev, dY_curr), tensor_cat(dY_prev_, dY_curr_))
+b = dot(tensor_cat(dX_prev, dX_curr), tensor_cat(dX_prev_, dX_curr_)) + dot(dθ, dθ_)
+@test isapprox(a, b; rtol=1f-3)
