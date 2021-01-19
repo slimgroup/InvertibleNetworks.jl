@@ -10,8 +10,6 @@ k = 3   # kernel size
 s = 1   # stride
 p = 1   # padding
 
-pars = (nx, ny, n_in, batchsize, k, s,p)
-
 
 ###################################################################################################
 # Test layer invertibility
@@ -23,7 +21,7 @@ function test_inv(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
     X1 = randn(Float32, nx, ny, n_in, batchsize)
 
     # Layer
-    H1 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, hidden_factor=n_hidden)
+    H1 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, n_hidden=n_hidden)
 
     Y0, Y1 = H1.forward(X0, X1)
     X0_, X1_ = H1.inverse(Y0, Y1)
@@ -50,7 +48,7 @@ function loss(H, X_prev_in, X_curr_in, Y_curr, Y_new)
 end
 
 function test_grad_X(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
-    H1 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, hidden_factor=n_hidden)
+    H1 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, n_hidden=n_hidden)
     # Initial guess and residual
     X00 = randn(Float32, nx, ny, n_in, batchsize)
     X01 = randn(Float32, nx, ny, n_in, batchsize)
@@ -81,7 +79,7 @@ end
 
 function test_grad_par(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
     # Gradient test for W and b
-    H0 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action="down", α=.2f0, hidden_factor=8)
+    H0 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=-1, α=.2f0, n_hidden=n_hidden)
     Hini = deepcopy(H0)
 
     dW = randn(Float32, size(H0.W.data))
@@ -116,7 +114,7 @@ function test_grad_par(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
 
 end
 
-for action in ["up", "down", "same"]
+for action in [1, -1, 0]
     test_inv(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
     test_grad_X(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
     test_grad_par(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
@@ -126,12 +124,13 @@ end
 ###################################################################################################
 # Jacobian-related tests
 
-for action in ["up", "down", "same"]
+for action in [1, -1, 0]
+
     # Gradient test
     # Initialization
-    HL = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, hidden_factor=8)
+    HL = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, n_hidden=8)
     θ = deepcopy(get_params(HL))
-    HL0 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, hidden_factor=8)
+    HL0 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, n_hidden=8)
     θ0 = deepcopy(get_params(HL0))
     X1 = randn(Float32, nx, ny, n_in, batchsize)
     X2 = randn(Float32, nx, ny, n_in, batchsize)
@@ -163,7 +162,6 @@ for action in ["up", "down", "same"]
     @test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
     # Adjoint test
-
     set_params!(HL, θ)
     dY1, dY2, Y1, Y2 = HL.jacobian(dX1, dX2, dθ, X1, X2)
     dY1_ = randn(Float32, size(dY1)); dY2_ = randn(Float32, size(dY2));
