@@ -5,11 +5,11 @@
 export HyperbolicLayer
 
 """
-    HyperbolicLayer(nx, ny, n_in, batchsize, kernel, stride, pad; action="same", α=1f0, hidden_factor=1)
+    HyperbolicLayer(nx, ny, n_in, batchsize, kernel, stride, pad; action=0, α=1f0, n_hidden=1)
 
 or
 
-    HyperbolicLayer(W, b, nx, ny, batchsize, stride, pad; action="same", α=1f0)
+    HyperbolicLayer(W, b, nx, ny, batchsize, stride, pad; action=0, α=1f0)
 
 Create an invertible hyperbolic coupling layer.
 
@@ -19,15 +19,15 @@ Create an invertible hyperbolic coupling layer.
 
  - `kernel`, `stride`, `pad`: Kernel size, stride and padding of the convolutional operator
 
- - `action`: String that defines whether layer keeps the number of channels fixed (`"same"`),
-    increases it by a factor of 4 (`"up"`) or decreased it by a factor of 4 (`"down"`)
+ - `action`: String that defines whether layer keeps the number of channels fixed (`0`),
+    increases it by a factor of 4 (or 8 in 3D) (`1`) or decreased it by a factor of 4 (or 8) (`-1`).
 
  - `W`, `b`: Convolutional weight and bias. `W` has dimensions of `(kernel, kernel, n_in, n_in)`.
    `b` has dimensions of `n_in`.
 
  - `α`: Step size for second time derivative. Default is 1.
 
- - `hidden_factor`: Increase the no. of channels by `hidden_factor` in the forward convolution.
+ - `n_hidden`: Increase the no. of channels by `n_hidden` in the forward convolution.
     After applying the transpose convolution, the dimensions are back to the input dimensions.
 
 *Output*:
@@ -55,28 +55,28 @@ struct HyperbolicLayer <: NeuralNetLayer
     b::Parameter
     α::Float32
     cdims::DenseConvDims
-    action::String
+    action::Integer
 end
 
 @Flux.functor HyperbolicLayer
 
 # Constructor 2D
 function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, kernel::Int64,
-    stride::Int64, pad::Int64; action="same", α=1f0, hidden_factor=1)
+    stride::Int64, pad::Int64; action="same", α=1f0, n_hidden=nothing)
 
     # Set ouput/hidden dimensions
-    if action == "same"
+    if action == 0
         n_out = n_in
-    elseif action == "up"
+    elseif action == 1
         n_out = Int(n_in/4)
         nx = Int(nx*2)
         ny = Int(ny*2)
-    elseif action == "down"
+    elseif action == -1
         n_out = Int(n_in*4)
         nx = Int(nx/2)
         ny = Int(ny/2)
     end
-    n_hidden = n_out*hidden_factor
+    isnothing(n_hidden) && (n_hidden = n_in)
 
     W = Parameter(glorot_uniform(kernel, kernel, n_out, n_hidden))
     b = Parameter(zeros(Float32, n_hidden))
@@ -89,23 +89,23 @@ end
 
 # Constructor 3D
 function HyperbolicLayer(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, batchsize::Int64, kernel::Int64,
-    stride::Int64, pad::Int64; action="same", α=1f0, hidden_factor=1)
+    stride::Int64, pad::Int64; action=0, α=1f0, n_hidden=nothing)
 
     # Set ouput/hidden dimensions
-    if action == "same"
+    if action == 0
         n_out = n_in
-    elseif action == "up"
+    elseif action == 1
         n_out = Int(n_in/8)
         nx = Int(nx*2)
         ny = Int(ny*2)
         nz = Int(nz*2)
-    elseif action == "down"
+    elseif action == -1
         n_out = Int(n_in*8)
         nx = Int(nx/2)
         ny = Int(ny/2)
         nz = Int(nz/2)
     end
-    n_hidden = n_out*hidden_factor
+    isnothing(n_hidden) && (n_hidden = n_in)
 
     W = Parameter(glorot_uniform(kernel, kernel, kernel, n_out, n_hidden))
     b = Parameter(zeros(Float32, n_hidden))
@@ -118,18 +118,18 @@ end
 
 # Constructor for given weights 2D
 function HyperbolicLayer(W::AbstractArray{Float32, 4}, b::AbstractArray{Float32, 1}, nx::Int64, ny::Int64,
-    batchsize::Int64, stride::Int64, pad::Int64; action="same", α=1f0)
+    batchsize::Int64, stride::Int64, pad::Int64; action=0, α=1f0)
 
     kernel, n_in, n_hidden = size(W)[2:4]
 
     # Set ouput/hidden dimensions
-    if action == "same"
+    if action == 0
         n_out = n_in
-    elseif action == "up"
+    elseif action == 1
         n_out = Int(n_in/4)
         nx = Int(nx*2)
         ny = Int(ny*2)
-    elseif action == "down"
+    elseif action == -1
         n_out = Int(n_in*4)
         nx = Int(nx/2)
         ny = Int(ny/2)
@@ -146,19 +146,19 @@ end
 
 # Constructor for given weights 3D
 function HyperbolicLayer(W::AbstractArray{Float32, 5}, b::AbstractArray{Float32, 1}, nx::Int64, ny::Int64, nz::Int64,
-    batchsize::Int64, stride::Int64, pad::Int64; action="same", α=1f0)
+    batchsize::Int64, stride::Int64, pad::Int64; action=0, α=1f0)
 
     kernel, n_in, n_hidden = size(W)[3:5]
 
     # Set ouput/hidden dimensions
-    if action == "same"
+    if action == 0
         n_out = n_in
-    elseif action == "up"
+    elseif action == 1
         n_out = Int(n_in/8)
         nx = Int(nx*2)
         ny = Int(ny*2)
         nz = Int(nz*2)
-    elseif action == "down"
+    elseif action == -1
         n_out = Int(n_in*8)
         nx = Int(nx/2)
         ny = Int(ny/2)
@@ -178,13 +178,13 @@ end
 function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer)
 
     # Change dimensions
-    if HL.action == "same"
+    if HL.action == 0
         X_prev = identity(X_prev_in)
         X_curr = identity(X_curr_in)
-    elseif HL.action == "up"
+    elseif HL.action == 1
         X_prev = wavelet_unsqueeze(X_prev_in)
         X_curr = wavelet_unsqueeze(X_curr_in)
-    elseif HL.action == "down"
+    elseif HL.action == -1
         X_prev = wavelet_squeeze(X_prev_in)
         X_curr = wavelet_squeeze(X_curr_in)
     else
@@ -222,13 +222,13 @@ function inverse(X_curr, X_new, HL::HyperbolicLayer; save=false)
     X_prev = 2*X_curr - X_new + HL.α*X_convT
 
     # Change dimensions
-    if HL.action == "same"
+    if HL.action == 0
         X_prev_in = identity(X_prev)
         X_curr_in = identity(X_curr)
-    elseif HL.action == "down"
+    elseif HL.action == -1
         X_prev_in = wavelet_unsqueeze(X_prev)
         X_curr_in = wavelet_unsqueeze(X_curr)
-    elseif HL.action == "up"
+    elseif HL.action == 1
         X_prev_in = wavelet_squeeze(X_prev)
         X_curr_in = wavelet_squeeze(X_curr)
     else
@@ -273,13 +273,13 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer; set_gra
     end
 
     # Change dimensions
-    if HL.action == "same"
+    if HL.action == 0
         ΔX_prev_in = identity(ΔX_prev)
         ΔX_curr_in = identity(ΔX_curr)
-    elseif HL.action == "down"
+    elseif HL.action == -1
         ΔX_prev_in = wavelet_unsqueeze(ΔX_prev)
         ΔX_curr_in = wavelet_unsqueeze(ΔX_curr)
-    elseif HL.action == "up"
+    elseif HL.action == 1
         ΔX_prev_in = wavelet_squeeze(ΔX_prev)
         ΔX_curr_in = wavelet_squeeze(ΔX_curr)
     else
@@ -296,17 +296,17 @@ end
 function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::HyperbolicLayer)
 
     # Change dimensions
-    if HL.action == "same"
+    if HL.action == 0
         X_prev = identity(X_prev_in)
         X_curr = identity(X_curr_in)
         ΔX_prev = identity(ΔX_prev_in)
         ΔX_curr = identity(ΔX_curr_in)
-    elseif HL.action == "up"
+    elseif HL.action == 1
         X_prev = wavelet_unsqueeze(X_prev_in)
         X_curr = wavelet_unsqueeze(X_curr_in)
         ΔX_prev = wavelet_unsqueeze(ΔX_prev_in)
         ΔX_curr = wavelet_unsqueeze(ΔX_curr_in)
-    elseif HL.action == "down"
+    elseif HL.action == -1
         X_prev = wavelet_squeeze(X_prev_in)
         X_curr = wavelet_squeeze(X_curr_in)
         ΔX_prev = wavelet_squeeze(ΔX_prev_in)
