@@ -321,7 +321,11 @@ function tensor_split(X::AbstractArray{T,N}; split_index=nothing) where {T, N}
     else
         k = split_index
     end
-    return selectdim(X, d, 1:k), selectdim(X, d, k+1:size(X, d))
+
+    indsl = [i==d ? (1:k) : (:) for i=1:N]
+    indsr = [i==d ? (k+1:size(X, d)) : (:) for i=1:N]
+
+    return X[indsl...], X[indsr...]
 end
 
 """
