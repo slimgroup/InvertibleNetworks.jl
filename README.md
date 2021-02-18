@@ -3,7 +3,15 @@
 ![CI](https://github.com/slimgroup/InvertibleNetworks.jl/workflows/CI/badge.svg)
 [![DOI](https://zenodo.org/badge/239018318.svg)](https://zenodo.org/badge/latestdoi/239018318)
 
-Building blocks for invertible neural networks in the Julia programming language.
+Building blocks for invertible neural networks in the [Julia] programming language.
+
+- Memory efficient building blocks for invertible neural networks 
+- Hand-derived gradients, Jacobians $J$ , and $\log |J|$
+- [Flux] integration 
+- Support for [Zygote] and [ChainRules]
+- GPU support
+- Includes various examples of invertible neural networks, normalizing flows, variational inference, and uncertainty quantification
+
 
 ## Installation
 
@@ -11,7 +19,25 @@ Building blocks for invertible neural networks in the Julia programming language
 ] dev https://github.com/slimgroup/InvertibleNetworks.jl
 ```
 
-## Building blocks
+## Papers
+
+The following publications use [InvertibleNetworks.jl]:
+
+- **[“Preconditioned training of normalizing flows for variational inference in inverse problems”]**
+    - paper: [https://arxiv.org/abs/2101.03709](https://arxiv.org/abs/2101.03709)
+    - [presentation](https://slim.gatech.edu/Publications/Public/Conferences/AABI/2021/siahkoohi2021AABIpto/siahkoohi2021AABIpto_pres.pdf)
+    - code: [FastApproximateInference.jl]
+
+- **["Parameterizing uncertainty by deep invertible networks, an application to reservoir characterization"]**
+    - paper: [https://arxiv.org/abs/2004.07871](https://arxiv.org/abs/2004.07871)
+    - [presentation](https://slim.gatech.edu/Publications/Public/Conferences/SEG/2020/rizzuti2020SEGuqavp/rizzuti2020SEGuqavp_pres.pdf)
+    - code: [https://github.com/slimgroup/Software.SEG2020](https://github.com/slimgroup/Software.SEG2020)
+
+- **["Generalized Minkowski sets for the regularization of inverse problems"]**
+    - paper: [http://arxiv.org/abs/1903.03942](http://arxiv.org/abs/1903.03942)
+    - code: [SetIntersectionProjection.jl]
+
+## Building blocks 
 
 - 1x1 Convolutions using Householder transformations ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/layers/layer_convolution_1x1.jl))
 
@@ -36,14 +62,13 @@ Building blocks for invertible neural networks in the Julia programming language
 - Squeeze/unsqueeze using the wavelet transform
 
 
-## Applications
+## Examples
 
 - Invertible recurrent inference machines (Putzky and Welling, 2019) ([generic example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/networks/network_irim.jl))
 
 - Generative models with maximum likelihood via the change of variable formula ([example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/applications/application_glow_banana_dist.jl))
 
 - Glow: Generative flow with invertible 1x1 convolutions (Kingma and Dhariwal, 2018) ([generic example](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/networks/network_glow.jl), [source](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/src/networks/invertible_network_glow.jl))
-
 
 ## GPU support
 
@@ -91,8 +116,19 @@ This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl),
 
  - Philipp Witte, Microsoft Corporation (pwitte@microsoft.com)
 
- - Gabrio Rizzuti, Georgia Institute of Technology
+ - Gabrio Rizzuti, Utrecht University
 
  - Mathias Louboutin, Georgia Institute of Technology
 
  - Ali Siahkoohi, Georgia Institute of Technology
+
+[Flux]:https://fluxml.ai
+[Julia]:https://julialang.org
+[Zygote]:https://github.com/FluxML/Zygote.jl
+[ChainRules]:https://github.com/JuliaDiff/ChainRules.jl
+[InvertibleNetworks.jl]:https://github.com/slimgroup/InvertibleNetworks.jl
+[“Preconditioned training of normalizing flows for variational inference in inverse problems”]:https://slim.gatech.edu/content/preconditioned-training-normalizing-flows-variational-inference-inverse-problems
+[FastApproximateInference.jl]:https://github.com/slimgroup/Software.siahkoohi2021AABIpto
+["Generalized Minkowski sets for the regularization of inverse problems"]:https://slim.gatech.edu/content/generalized-minkowski-sets-regularization-inverse-problems-1
+[SetIntersectionProjection.jl]:https://github.com/slimgroup/SetIntersectionProjection.jl
+["Parameterizing uncertainty by deep invertible networks, an application to reservoir characterization"]:https://slim.gatech.edu/content/parameterizing-uncertainty-deep-invertible-networks-application-reservoir-characterization
