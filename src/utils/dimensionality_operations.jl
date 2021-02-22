@@ -2,7 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, tensor_split, tensor_cat
+export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat
 
 ####################################################################################################
 # Squeeze and unsqueeze
@@ -11,10 +11,10 @@ export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, tensor_split, ten
     Y = squeeze(X; pattern="column")
 
  Reshape input image such that each spatial dimension is reduced by a factor
- of 2, while the number of channels is increased by a factor of 4. 
+ of 2, while the number of channels is increased by a factor of 4.
 
- *Input*: 
- 
+ *Input*:
+
  - `X`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
 
  - `pattern`: Squeezing pattern
@@ -27,7 +27,7 @@ export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, tensor_split, ten
         column          patch       checkerboard
 
  *Output*:
- 
+
  - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
 
  See also: [`unsqueeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
@@ -36,7 +36,7 @@ function squeeze(X::AbstractArray{T,4}; pattern="column") where T
 
     # Dimensions
     nx_in, ny_in, nc_in, batchsize = size(X)
-    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1 
+    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1
         throw("Input dimensions must be multiple of 2")
     end
     nx_out = Int(round(nx_in/2))
@@ -66,7 +66,7 @@ function squeeze(X::AbstractArray{T,5}; pattern="column") where T
 
     # Dimensions
     nx_in, ny_in, nz_in, nc_in, batchsize = size(X)
-    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1 
+    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1
         throw("Input dimensions must be multiple of 2")
     end
     nx_out = Int(round(nx_in/2))
@@ -98,15 +98,15 @@ end
 """
     X = unsqueeze(Y; pattern="column")
 
- Undo squeezing operation by reshaping input image such that each spatial dimension is 
- increased by a factor of 2, while the number of channels is decreased by a factor of 4. 
+ Undo squeezing operation by reshaping input image such that each spatial dimension is
+ increased by a factor of 2, while the number of channels is decreased by a factor of 4.
 
- *Input*: 
- 
+ *Input*:
+
  - `Y`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
 
  - `pattern`: Squeezing pattern
- 
+
             1 2 3 4        1 1 3 3        1 3 1 3
             1 2 3 4        1 1 3 3        2 4 2 4
             1 2 3 4        2 2 4 4        1 3 1 3
@@ -115,7 +115,7 @@ end
             column          patch       checkerboard
 
  *Output*:
- 
+
  - `X`: Reshaped tensor of dimensions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
 
  See also: [`squeeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
@@ -124,7 +124,7 @@ function unsqueeze(Y::AbstractArray{T,4}; pattern="column") where T
 
     # Dimensions
     nx_in, ny_in, nc_in, batchsize = size(Y)
-    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1 
+    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1
         throw("Input dimensions must be multiple of 2")
     end
     nx_out = Int(round(nx_in*2))
@@ -154,7 +154,7 @@ function unsqueeze(Y::AbstractArray{T,5}; pattern="column") where T
 
     # Dimensions
     nx_in, ny_in, nz_in, nc_in, batchsize = size(Y)
-    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1 
+    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1
         throw("Input dimensions must be multiple of 2")
     end
     nx_out = Int(round(nx_in*2))
@@ -195,17 +195,17 @@ end
  Perform a 1-level channelwise 2D wavelet transform of X and squeeze output of each
  transform into 4 channels (per 1 input channel).
 
- *Input*: 
- 
+ *Input*:
+
  - `X`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
 
- - `type`: Wavelet filter type. Possible values are `WT.haar` for Haar wavelets, 
-    `WT.coif2`, `WT.coif4`, etc. for Coiflet wavelets, or `WT.db1`, `WT.db2`, etc. 
-    for Daubechies wavetlets. See *https://github.com/JuliaDSP/Wavelets.jl* for a 
+ - `type`: Wavelet filter type. Possible values are `WT.haar` for Haar wavelets,
+    `WT.coif2`, `WT.coif4`, etc. for Coiflet wavelets, or `WT.db1`, `WT.db2`, etc.
+    for Daubechies wavetlets. See *https://github.com/JuliaDSP/Wavelets.jl* for a
     full list.
 
  *Output*:
- 
+
  - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
 
  See also: [`wavelet_unsqueeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
@@ -248,8 +248,8 @@ end
  This reduces the number of channels by 4 and increases each spatial
  dimension by a factor of 2. Inverse operation of `wavelet_squeeze`.
 
- *Input*: 
- 
+ *Input*:
+
  - `Y`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
 
  - `type`: Wavelet filter type. Possible values are `haar` for Haar wavelets,
@@ -257,7 +257,7 @@ end
   wavetlets. See *https://github.com/JuliaDSP/Wavelets.jl* for a full list.
 
  *Output*:
- 
+
  - `X`: Reshaped tensor of dimenions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
 
  See also: [`wavelet_squeeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
@@ -295,6 +295,256 @@ function wavelet_unsqueeze(Y::AbstractArray{T,5}; type=WT.db1) where T
     return X
 end
 
+function HaarLift(x::AbstractArray{T,4},dim) where T
+  #Haar lifting
+
+  # Splitting
+  if dim==1
+    L = x[2:2:end, :, :, :]
+    H = x[1:2:end, :, :, :]
+  elseif dim==2
+    L = x[:,2:2:end, :, :]
+    H = x[:,1:2:end, :, :]
+  else
+    error("dimension for Haar lifting has to be 1 or 2 for a 4D input array")
+  end
+
+  # predict
+  H .= H .- L
+
+  #update
+  L .= L .+ H ./ T(2.0)
+
+  #normalize
+  H .= H ./sqrt(T(2.0))
+  L .= L.*sqrt(T(2.0))
+
+  return L,H
+end
+
+function invHaarLift(L::AbstractArray{T,4},H::AbstractArray{T,4},dim) where T
+  #inverse Haar lifting
+
+  #inv normalize
+  H .= H .*sqrt(T(2.0))
+  L .= L./sqrt(T(2.0))
+
+  #inv update & predict
+  L .= L .- H ./ T(2.0)
+  H .= L .+ H
+
+  #allocate output:
+  x = cat(cuzeros(L,size(L)...), cuzeros(H,size(H)...), dims=dim)
+
+  # merging (inverse split)
+  if dim==1
+    x[2:2:end, :, :, :] .= L
+    x[1:2:end, :, :, :] .= H
+  elseif dim==2
+    x[:,2:2:end, :, :] .= L
+    x[:,1:2:end, :, :] .= H
+  else
+    error("dimension for Haar lifting has to be 1 or 2 for a 4D input array")
+  end
+
+  return x
+end
+
+function HaarLift(x::AbstractArray{T,5},dim) where T
+  #Haar lifting
+
+  # Splitting
+  if dim==1
+    L = x[2:2:end, :, :, :, :]
+    H = x[1:2:end, :, :, :, :]
+  elseif dim==2
+    L = x[:,2:2:end, :, :, :]
+    H = x[:,1:2:end, :, :, :]
+  elseif dim==3
+    L = x[:, :, 2:2:end, :, :]
+    H = x[:, :, 1:2:end, :, :]
+  else
+    error("dimension for Haar lifting has to be 1, 2, or 3 for a 5D input array")
+  end
+
+  # predict
+  H .= H .- L
+
+  #update
+  L .= L .+ H ./ T(2.0)
+
+  #normalize
+  H .= H ./sqrt(T(2.0))
+  L .= L.*sqrt(T(2.0))
+
+  return L,H
+end
+
+function invHaarLift(L::AbstractArray{T,5},H::AbstractArray{T,5},dim) where T
+  #inverse Haar lifting
+
+  #inv normalize
+  H .= H .*sqrt(T(2.0))
+  L .= L./sqrt(T(2.0))
+
+  #inv update & predict
+  L .= L .- H ./ T(2.0)
+  H .= L .+ H
+
+  #allocate output:
+  x = cat(cuzeros(L,size(L)...), cuzeros(H,size(H)...), dims=dim)
+
+  # merging (inverse split)
+  if dim==1
+    x[2:2:end, :, :, :, :] .= L
+    x[1:2:end, :, :, :, :] .= H
+  elseif dim==2
+    x[:,2:2:end, :, :, :] .= L
+    x[:,1:2:end, :, :, :] .= H
+  elseif dim==3
+    x[:, :, 2:2:end, :, :] .= L
+    x[:, :, 1:2:end, :, :] .= H
+  else
+    error("dimension for Haar lifting has to be 1, 2, or 3 for a 5D input array")
+  end
+
+  return x
+end
+
+"""
+    Y = Haar_squeeze(X)
+
+ Perform a 1-level channelwise 2D (lifting) Haar transform of X and squeeze output of each
+ transform into 4 channels (per 1 input channel).
+
+ *Input*:
+
+ - `X`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
+
+ *Output*:
+
+ - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
+
+ See also: [`wavelet_unsqueeze`](@ref), [`Haar_unsqueeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
+"""
+function Haar_squeeze(x::AbstractArray{T,4}) where T
+
+        L,H = HaarLift(x,2)
+
+        a,h = HaarLift(L,1)
+        v,d = HaarLift(H,1)
+
+        return cat(a,v,h,d,dims=3)
+end
+
+"""
+    Y = Haar_squeeze(X)
+
+ Perform a 1-level channelwise 3D (lifting) Haar transform of X and squeeze output of each
+ transform into 8 channels (per 1 input channel).
+
+ *Input*:
+
+ - `X`: 5D input tensor of dimensions `nx` x `ny` x `nz` x `n_channel` x `batchsize`
+
+ *Output*:
+
+ - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `nz/2` x `n_channel*8` x `batchsize`
+
+ See also: [`wavelet_unsqueeze`](@ref), [`Haar_unsqueeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
+"""
+function Haar_squeeze(x::AbstractArray{T,5}) where T
+
+        L,H = HaarLift(x,2)
+
+        a,h = HaarLift(L,1)
+        v,d = HaarLift(H,1)
+
+        al,ah = HaarLift(a,3)
+        vl,vh = HaarLift(v,3)
+        hl,hh = HaarLift(h,3)
+        dl,dh = HaarLift(d,3)
+
+        return cat(ah,al,vh,vl,hh,hl,dh,dl,dims=4)
+end
+
+"""
+    X = invHaar_unsqueeze(Y)
+
+ Perform a 1-level inverse 2D Haar transform of Y and unsqueeze output.
+ This reduces the number of channels by 4 and increases each spatial
+ dimension by a factor of 2. Inverse operation of `Haar_squeeze`.
+
+ *Input*:
+
+ - `Y`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
+
+ *Output*:
+
+ - `X`: Reshaped tensor of dimenions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
+
+ See also: [`wavelet_unsqueeze`](@ref), [`Haar_squeeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
+"""
+function invHaar_unsqueeze(x::AbstractArray{T,4}) where T
+
+        s = size(x,3)
+
+        a = x[:, :, 1:Int(s/4), :]
+        v = x[:, :, Int(s/4+1):Int(s/2),:]
+        h = x[:, :, Int(s/2+1):Int(3*s/4),:]
+        d = x[:, :, Int(3*s/4+1):end,:]
+
+        L = invHaarLift(a,h,1)
+        H = invHaarLift(v,d,1)
+
+        x = invHaarLift(L,H ,2)
+
+        return x
+end
+
+"""
+    X = invHaar_unsqueeze(Y)
+
+ Perform a 1-level inverse 3D Haar transform of Y and unsqueeze output.
+ This reduces the number of channels by 8 and increases each spatial
+ dimension by a factor of 2. Inverse operation of `Haar_squeeze`.
+
+ *Input*:
+
+ - `Y`: 5D input tensor of dimensions `nx` x `ny` x `nz` x `n_channel` x `batchsize`
+
+ *Output*:
+
+ - `X`: Reshaped tensor of dimenions `nx*2` x `ny*2` x `nz*2` x `n_channel/8` x `batchsize`
+
+ See also: [`wavelet_unsqueeze`](@ref), [`Haar_unsqueeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
+"""
+function invHaar_unsqueeze(x::AbstractArray{T,5}) where T
+
+        s = size(x,4)
+
+        ah = x[:, :, :, 1:Int(s/8), :]
+        al = x[:, :, :, Int(s/8+1):Int(2*s/8),:]
+        vh = x[:, :, :, Int(2*s/8+1):Int(3*s/8),:]
+        vl = x[:, :, :, Int(3*s/8+1):Int(4*s/8),:]
+        hh = x[:, :, :, Int(4*s/8+1):Int(5*s/8),:]
+        hl = x[:, :, :, Int(5*s/8+1):Int(6*s/8),:]
+        dh = x[:, :, :, Int(6*s/8+1):Int(7*s/8),:]
+        dl = x[:, :, :, Int(7*s/8+1):end,:]
+
+        a = invHaarLift(al,ah,3)
+        v = invHaarLift(vl,vh,3)
+        h = invHaarLift(hl,hh,3)
+        d = invHaarLift(dl,dh,3)
+
+        L = invHaarLift(a,h,1)
+        H = invHaarLift(v,d,1)
+
+        x = invHaarLift(L,H ,2)
+
+        return x
+end
+
 ####################################################################################################
 # Split and concatenate
 
@@ -304,12 +554,12 @@ end
  Split ND input tensor in half along the channel dimension. Inverse operation
  of `tensor_cat`.
 
- *Input*: 
- 
+ *Input*:
+
  - `X`: ND input tensor of dimensions `nx` [x `ny` [x `nz`]] x `n_channel` x `batchsize`
 
  *Output*:
- 
+
  - `Y`, `Z`: ND output tensors, each of dimensions `nx` [x `ny` [x `nz`]] x `n_channel/2` x `batchsize`
 
  See also: [`tensor_cat`](@ref)
@@ -334,12 +584,12 @@ end
  Concatenate ND input tensors along the channel dimension. Inverse operation
  of `tensor_split`.
 
- *Input*: 
- 
+ *Input*:
+
  - `Y`, `Z`: ND input tensors, each of dimensions `nx` [x `ny` [x `nz`]] x `n_channel` x `batchsize`
 
  *Output*:
- 
+
  - `X`: ND output tensor of dimensions `nx` [x `ny` [x `nz`]] x `n_channel*2` x `batchsize`
 
  See also: [`tensor_split`](@ref)
@@ -356,4 +606,3 @@ function tensor_cat(X::AbstractArray{T,N}, Y::AbstractArray{T,N}) where {T, N}
 end
 
 tensor_cat(X::Tuple{AbstractArray{T,N}, AbstractArray{T,N}}) where {T, N} = tensor_cat(X[1], X[2])
-
