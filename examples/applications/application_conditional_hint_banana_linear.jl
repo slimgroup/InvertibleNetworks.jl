@@ -19,7 +19,7 @@ batchsize = 64
 depth = 8
 
 # Construct HINT network
-H = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=1, k2=1, p1=0, p2=0)
+H = NetworkConditionalHINT(n_in, n_hidden, depth; k1=1, k2=1, p1=0, p2=0)
 
 # Linear forward operator
 A = randn(Float32,2,2)

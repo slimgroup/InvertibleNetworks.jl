@@ -29,9 +29,9 @@ L0 = Array{CouplingLayerGlow}(undef, depth)
 
 for j=1:depth
     AN[j] = ActNorm(n_in; logdet=true)
-    L[j] = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
+    L[j] = CouplingLayerGlow(n_in, n_hidden; k1=1, k2=1, p1=0, p2=0, logdet=true)
     AN0[j] = ActNorm(n_in; logdet=true)
-    L0[j] = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=1, k2=1, p1=0, p2=0, logdet=true)
+    L0[j] = CouplingLayerGlow(n_in, n_hidden; k1=1, k2=1, p1=0, p2=0, logdet=true)
 end
 
 # Forward pass

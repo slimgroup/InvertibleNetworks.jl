@@ -3,7 +3,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export CouplingLayerBasic
+export CouplingLayerBasic, CouplingLayerBasic3D
 
 
 """
@@ -11,9 +11,11 @@ export CouplingLayerBasic
 
 or
 
-    CL = CouplingLayerBasic(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false) (2D)
+    CL = CouplingLayerBasic(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false, ndims=2) (2D)
 
-    CL = CouplingLayerBasic(nx, ny, nz, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false) (3D)
+    CL = CouplingLayerBasic(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false, ndims=3) (3D)
+
+    CL = CouplingLayerBasic3D(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false) (3D)
 
  Create a Real NVP-style invertible coupling layer with a residual block.
 
@@ -25,8 +27,6 @@ or
 
  or
 
- - `nx`, `ny`, `nz`: spatial dimensions of input
-
  - `n_in`, `n_hidden`: number of input and hidden channels
 
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third
@@ -35,6 +35,8 @@ or
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
 
  - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s1`)
+
+ - `ndims` : Number of dimensions
 
  *Output*:
 
@@ -74,22 +76,15 @@ end
 CouplingLayerBasic(RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerBasic(RB, logdet, activation, false)
 
 # 2D Constructor from input dimensions
-function CouplingLayerBasic(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer())
+function CouplingLayerBasic(n_in::Int64, n_hidden::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # 1x1 Convolution and residual block for invertible layer
-    RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true)
+    RB = ResidualBlock(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
 
     return CouplingLayerBasic(RB, logdet, activation, false)
 end
 
-# 3D Constructor from input dimensions
-function CouplingLayerBasic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer())
-
-    # 1x1 Convolution and residual block for invertible layer
-    RB = ResidualBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true)
-
-    return CouplingLayerBasic(RB, logdet, activation, false)
-end
+CouplingLayerBasic3D(args...;kw...) = CouplingLayerBasic(args...; kw..., ndims=3)
 
 # 2D/3D Forward pass: Input X, Output Y
 function forward(X1::AbstractArray{Float32, N}, X2::AbstractArray{Float32, N}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing) where N

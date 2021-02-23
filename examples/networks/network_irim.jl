@@ -29,7 +29,7 @@ J = joMatrix(randn(Float32, nt*nxrec*nyrec, nx*ny*nz))
 Ψ(η) = identity(η)
 
 # Unrolled loop
-L = NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; type="HINT")
+L = NetworkLoop3D(n_in, n_hidden, maxiter, Ψ; type="HINT")
 
 # Initializations
 η_obs = randn(Float32, nx, ny, nz, 1, batchsize)

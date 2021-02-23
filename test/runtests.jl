@@ -10,7 +10,8 @@ basics = ["test_utils/test_objectives.jl",
           "test_utils/test_nnlib_convolution.jl",
           "test_utils/test_activations.jl",
           "test_utils/test_squeeze.jl",
-          "test_utils/test_jacobian.jl"]
+          "test_utils/test_jacobian.jl",
+          "test_utils/test_chainrules.jl"]
 
           # Layers
 layers = ["test_layers/test_residual_block.jl",
@@ -21,10 +22,7 @@ layers = ["test_layers/test_residual_block.jl",
           "test_layers/test_coupling_layer_irim.jl",
           "test_layers/test_coupling_layer_glow.jl",
           "test_layers/test_coupling_layer_hint.jl",
-          "test_layers/test_coupling_layer_slim.jl",
-          "test_layers/test_coupling_layer_slim_learned.jl",
           "test_layers/test_conditional_layer_hint.jl",
-          "test_layers/test_conditional_layer_slim.jl",
           "test_layers/test_conditional_res_block.jl",
           "test_layers/test_hyperbolic_layer.jl",
           "test_layers/test_actnorm.jl",
@@ -39,26 +37,32 @@ networks = ["test_networks/test_unrolled_loop.jl",
 
 
 if test_suite == "all" || test_suite == "basics"
-    for t=basics
-        @testset "Test $t" begin
-            @time include(t)
+    @testset "Basics" begin
+        for t=basics
+            @testset "Test $t" begin
+                @time include(t)
+            end
         end
     end
 end
 
 if test_suite == "all" || test_suite == "layers"
-    for t=layers
-        @testset  "Test $t" begin
-            @time include(t)
+    @testset "Layers" begin
+        for t=layers
+            @testset  "Test $t" begin
+                @time include(t)
+            end
         end
     end
 end
 
 # Networks
 if test_suite == "all" || test_suite == "networks"
-    for t=networks
-        @testset  "Test $t" begin
-            @time include(t)
+    @testset "Networks" begin
+        for t=networks
+            @testset  "Test $t" begin
+                @time include(t)
+            end
         end
     end
 end

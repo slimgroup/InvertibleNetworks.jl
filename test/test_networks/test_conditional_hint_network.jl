@@ -15,8 +15,8 @@ L = 2
 K = 2
 
 # Multi-scale and single scale network
-CH0 = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
-CH1 = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
+CH0 = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
+CH1 = NetworkConditionalHINT(n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
 
 nets = [CH0, CH1, reverse(CH1)]
 
@@ -97,9 +97,9 @@ end
 # Gradient test
 
 # Initialization
-CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+CH = NetworkConditionalHINT(n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ = deepcopy(get_params(CH))
-CH0 = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+CH0 = NetworkConditionalHINT(n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ0 = deepcopy(get_params(CH0))
 X = randn(Float32, nx, ny, n_in, batchsize)
 Y = randn(Float32, nx, ny, n_in, batchsize)
@@ -147,9 +147,9 @@ b = dot(dX, dX_)+dot(dY, dY_)+dot(dθ, dθ_)
 # Gradient test
 
 # Initialization
-CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ = deepcopy(get_params(CH))
-CH0 = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+CH0 = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ0 = deepcopy(get_params(CH0))
 X = randn(Float32, nx, ny, n_in, batchsize)
 Y = randn(Float32, nx, ny, n_in, batchsize)

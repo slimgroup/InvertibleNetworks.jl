@@ -15,7 +15,7 @@ L = 2
 K = 2
 
 # Multi-scale and single scale network
-H = NetworkMultiScaleHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
+H = NetworkMultiScaleHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
 
 print("\nInvertibility test multiscale HINT network\n")
 
@@ -72,9 +72,9 @@ end
 # Gradient test
 
 # Initialization
-H = NetworkMultiScaleHINT(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0); H.forward(randn(Float32, nx, ny, n_in, batchsize))
+H = NetworkMultiScaleHINT(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0); H.forward(randn(Float32, nx, ny, n_in, batchsize))
 θ = deepcopy(get_params(H))
-H0 = NetworkMultiScaleHINT(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0); H0.forward(randn(Float32, nx, ny, n_in, batchsize))
+H0 = NetworkMultiScaleHINT(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0); H0.forward(randn(Float32, nx, ny, n_in, batchsize))
 θ0 = deepcopy(get_params(H0))
 X = randn(Float32, nx, ny, n_in, batchsize)
 

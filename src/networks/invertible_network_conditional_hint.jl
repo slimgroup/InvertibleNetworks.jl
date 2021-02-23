@@ -2,17 +2,19 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: February 2020
 
-export NetworkConditionalHINT
+export NetworkConditionalHINT, NetworkConditionalHINT3D
 
 """
-    CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+    CH = NetworkConditionalHINT(n_in, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+
+    CH = NetworkConditionalHINT3D(n_in, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
  Create a conditional HINT network for data-driven generative modeling based
  on the change of variables formula.
 
  *Input*:
 
- - `nx`, `ny`, `n_in`, `batchsize`: spatial dimensions, number of channels and batchsize of input tensors `X` and `Y`
+ - 'n_in': number of input channels
 
  - `n_hidden`: number of hidden units in residual blocks
 
@@ -56,7 +58,7 @@ end
 @Flux.functor NetworkConditionalHINT
 
 # Constructor
-function NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
+function NetworkConditionalHINT(n_in, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2)
 
     AN_X = Array{ActNorm}(undef, depth)
     AN_Y = Array{ActNorm}(undef, depth)
@@ -66,12 +68,14 @@ function NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=3, 
     for j=1:depth
         AN_X[j] = ActNorm(n_in; logdet=logdet)
         AN_Y[j] = ActNorm(n_in; logdet=logdet)
-        CL[j] = ConditionalLayerHINT(nx, ny, n_in, n_hidden, batchsize;
-                                     permute=true, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet)
+        CL[j] = ConditionalLayerHINT(n_in, n_hidden; permute=true, k1=k1, k2=k2, p1=p1, p2=p2,
+                                     s1=s1, s2=s2, logdet=logdet, ndims=ndims)
     end
 
     return NetworkConditionalHINT(AN_X, AN_Y, CL, logdet, false)
 end
+
+NetworkConditionalHINT3D(args...;kw...) = NetworkConditionalHINT(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet
 function forward(X, Y, CH::NetworkConditionalHINT; logdet=nothing)

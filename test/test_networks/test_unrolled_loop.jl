@@ -24,7 +24,7 @@ J = randn(Float32, nt*nxrec*nyrec, nx*ny*nz)
 Ψ(η) = identity(η)
 
 # Unrolled loop
-L = NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; type="HINT")
+L = NetworkLoop3D(n_in, n_hidden, maxiter, Ψ; type="HINT")
 
 # Initializations
 η = randn(Float32, nx, ny, nz, 1, batchsize)
@@ -92,7 +92,7 @@ end
 
 
 # Gradient test for weights
-L0 = NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; type="HINT")
+L0 = NetworkLoop3D(n_in, n_hidden, maxiter, Ψ; type="HINT")
 L_ini = deepcopy(L0)
 dv = L.L[1].C.v1.data - L0.L[1].C.v1.data   # just test for 2 parameters
 dW = L.L[1].CL[1].RB.W1.data - L0.L[1].CL[1].RB.W1.data

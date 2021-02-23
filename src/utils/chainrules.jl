@@ -6,6 +6,8 @@ import ChainRulesCore: frule, rrule
 ## Tape types and utilities
 
 """
+    I = InvertibleOperationsTape(Y, layer_blocks, counter_block, counter_layer, logdet)
+
 Invertible global state type, it keeps track of invertible blocks of operations (each block being a sequence of contiguous invertible layers)
 """
 mutable struct InvertibleOperationsTape
@@ -17,7 +19,9 @@ mutable struct InvertibleOperationsTape
 end
 
 """
-Constructor
+ I = InvertibleOperationsTape() = InvertibleOperationsTape([], [], 0, 0, nothing)
+
+Default  Constructor
 """
 InvertibleOperationsTape() = InvertibleOperationsTape([], [], 0, 0, nothing)
 
@@ -26,7 +30,7 @@ const GLOBAL_STATE_INVOPS = InvertibleOperationsTape()
 export GLOBAL_STATE_INVOPS
 
 """
-Get current state
+Get current state of the tape
 """
 function current(state::InvertibleOperationsTape)
     state.counter_block == 0 && throw(ArgumentError("Please, run forward pass first, to rebuild global state."))
@@ -34,7 +38,7 @@ function current(state::InvertibleOperationsTape)
 end
 
 """
-Reset state
+Reset the state of the tape
 """
 function reset!(state::InvertibleOperationsTape)
     state.Y = []
@@ -60,7 +64,7 @@ function check_coherence(state::InvertibleOperationsTape, net::Union{NeuralNetLa
 end
 
 """
-Update state in the forward pass
+Update state in the forward pass.
 """
 function forward_update!(state::InvertibleOperationsTape, X::Array{Float32,N}, Y::Array{Float32,N}, logdet::Union{Nothing,Float32}, net::Union{NeuralNetLayer,InvertibleNetwork}) where N
 
@@ -98,16 +102,10 @@ function backward_update!(state::InvertibleOperationsTape, X::Array{Float32,N}) 
 
 end
 
-
 ## Chain rules for invertible networks
-
-# # Forward-mode AD rule
-# function frule((_, ΔX, Δθ), net::Union{NeuralNetLayer,InvertibleNetwork}, X, θ::Union{Nothing,Array{Parameter,1}},)
-#   TO DO
-# end
-
 # General pullback function
-function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float32,N}; state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where N
+function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float32,N};
+                 state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where N
 
     # Check state coherency
     check_coherence(state, net)
@@ -118,12 +116,12 @@ function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float
     # Update state
     backward_update!(state, X_)
 
-    return (nothing, ΔX)
-
+    return nothing, ΔX
 end
 
 # Reverse-mode AD rule
-function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X; state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS)
+function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X;
+                              state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS)
 
     # Forward pass
     net.logdet ? ((Y, logdet) = net.forward(X)) : (Y = net.forward(X); logdet = nothing)
@@ -135,7 +133,6 @@ function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X; s
     ∂Y_T(ΔY) = pullback(net, ΔY; state=state)
 
     return Y, ∂Y_T
-
 end
 
 
