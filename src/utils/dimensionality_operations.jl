@@ -6,6 +6,21 @@ export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, inv
 
 ####################################################################################################
 # Squeeze and unsqueeze
+function patch_inds(N::NTuple{n, Int}, d::Integer) where n
+    indsX = [ix*N[1]+1:(ix+1)*N[1] for ix=[(i+1)%2 for i=1:2^(d-2)]]
+    indsY = [iy*N[2]+1:(iy+1)*N[2] for iy=[div(i-1,2)%2 for i=1:2^(d-2)]]
+    d == 4 && (return zip(indsX, indsY))
+    indsZ = [iz*N[3]+1:(iz+1)*N[3] for iz=[div(i-1,4)%2 for i=1:2^(d-2)]]
+    return zip(indsX, indsY, indsZ)
+end
+
+function checkboard_inds(N::NTuple{n, Int}, d::Integer) where n
+    indsX = [ix+1:2:N[1] for ix=[(i+1)%2 for i=1:2^(d-2)]]
+    indsY = [iy+1:2:N[2] for iy=[div(i-1,2)%2 for i=1:2^(d-2)]]
+    d == 4 && (return zip(indsX, indsY))
+    indsZ = [iz:2:N[3] for iz=[div(i-1,4)%2 for i=1:2^(d-2)]]
+    return zip(indsX, indsY, indsZ)
+end
 
 """
     Y = squeeze(X; pattern="column")
@@ -32,68 +47,36 @@ export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, inv
 
  See also: [`unsqueeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
 """
-function squeeze(X::AbstractArray{T,4}; pattern="column") where T
+function squeeze(X::AbstractArray{T, N}; pattern="column") where {T, N}
 
     # Dimensions
-    nx_in, ny_in, nc_in, batchsize = size(X)
-    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1
+    nc_in, batchsize = size(X)[N-1:N]
+    if any([mod(nn, 2) == 1 for nn=size(X)[1:N-2]])
         throw("Input dimensions must be multiple of 2")
     end
-    nx_out = Int(round(nx_in/2))
-    ny_out = Int(round(ny_in/2))
-    nc_out = Int(round(nc_in*4))
-    Y = cuzeros(X, nx_out, ny_out, nc_out, batchsize)
+    N_out = Tuple(nn÷2 for nn=size(X)[1:N-2])
+    nc_out = size(X, N-1) * 2^(N-2)
+    cinds = Tuple((:) for i=1:N-2)
 
     if pattern == "column"
-        Y = reshape(X, nx_out, ny_out, nc_out, batchsize)
+        Y = reshape(X, N_out..., nc_out, batchsize)
     elseif pattern == "patch"
-        Y[:, :, 1: nc_in, :] = X[1:nx_out, 1:ny_out, :, :]
-        Y[:, :, nc_in+1: 2*nc_in, :] = X[nx_out+1:end, 1:ny_out, :, :]
-        Y[:, :, 2*nc_in+1: 3*nc_in, :] = X[1:nx_out, ny_out+1:end, :, :]
-        Y[:, :, 3*nc_in+1: 4*nc_in, :] = X[nx_out+1:end, ny_out+1:end, :, :]
+        Y = cuzeros(X, N_out..., nc_out, batchsize)
+        iX = patch_inds(N_out, N)
+        for (i, ix)=enumerate(iX)
+            Y[cinds..., (i-1)*nc_in+1:i*nc_in, :] = X[ix..., :, :]
+        end
     elseif pattern == "checkerboard"
-        Y[:, :, 1: nc_in, :] = X[1:2:nx_in, 1:2:ny_in, 1:nc_in, :]
-        Y[:, :, nc_in+1: 2*nc_in, :] = X[2:2:nx_in, 1:2:ny_in, 1:nc_in, :]
-        Y[:, :, 2*nc_in+1: 3*nc_in, :] = X[1:2:nx_in, 2:2:ny_in, 1:nc_in, :]
-        Y[:, :, 3*nc_in+1: 4*nc_in, :] = X[2:2:nx_in, 2:2:ny_in, 1:nc_in, :]
+        Y = cuzeros(X, N_out..., nc_out, batchsize)
+        iX = checkboard_inds(size(X), N)
+        for (i, ix)=enumerate(iX)
+            Y[cinds..., (i-1)*nc_in+1:i*nc_in, :] = X[ix..., :, :]
+        end
     else
         throw("Specified pattern not defined.")
     end
     return Y
 end
-
-function squeeze(X::AbstractArray{T,5}; pattern="column") where T
-
-    # Dimensions
-    nx_in, ny_in, nz_in, nc_in, batchsize = size(X)
-    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1
-        throw("Input dimensions must be multiple of 2")
-    end
-    nx_out = Int(round(nx_in/2))
-    ny_out = Int(round(ny_in/2))
-    nz_out = Int(round(nz_in/2))
-    nc_out = Int(round(nc_in*8))
-    Y = cuzeros(X, nx_out, ny_out, nz_out, nc_out, batchsize)
-
-    if pattern == "column"
-        Y = reshape(X, nx_out, ny_out, nz_out, nc_out, batchsize)
-    elseif pattern == "patch"
-        Y[:, :, :, 1: nc_in, :] = X[1:nx_out, 1:ny_out, 1:nz_out, :, :]
-        Y[:, :, :, nc_in+1: 2*nc_in, :] = X[nx_out+1:end, 1:ny_out, 1:nz_out, :, :]
-        Y[:, :, :, 2*nc_in+1: 3*nc_in, :] = X[1:nx_out, ny_out+1:end, 1:nz_out, :, :]
-        Y[:, :, :, 3*nc_in+1: 4*nc_in, :] = X[nx_out+1:end, ny_out+1:end, 1:nz_out, :, :]
-        Y[:, :, :, 4*nc_in+1: 5*nc_in, :] = X[1:nx_out, 1:ny_out, nz_out+1:end, :, :]
-        Y[:, :, :, 5*nc_in+1: 6*nc_in, :] = X[nx_out+1:end, 1:ny_out, nz_out+1:end, :, :]
-        Y[:, :, :, 6*nc_in+1: 7*nc_in, :] = X[1:nx_out, ny_out+1:end, nz_out+1:end, :, :]
-        Y[:, :, :, 7*nc_in+1: 8*nc_in, :] = X[nx_out+1:end, ny_out+1:end, nz_out+1:end, :, :]
-    elseif pattern == "checkerboard"
-        throw("Currently not implemented for 5D tensors.")
-    else
-        throw("Specified pattern not defined.")
-    end
-    return Y
-end
-
 
 """
     X = unsqueeze(Y; pattern="column")
@@ -120,62 +103,31 @@ end
 
  See also: [`squeeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
 """
-function unsqueeze(Y::AbstractArray{T,4}; pattern="column") where T
+function unsqueeze(Y::AbstractArray{T,N}; pattern="column") where {T, N}
 
     # Dimensions
-    nx_in, ny_in, nc_in, batchsize = size(Y)
-    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1
+    batchsize = size(Y, N)
+    if any([mod(nn, 2) == 1 for nn=size(Y)[1:N-2]])
         throw("Input dimensions must be multiple of 2")
     end
-    nx_out = Int(round(nx_in*2))
-    ny_out = Int(round(ny_in*2))
-    nc_out = Int(round(nc_in/4))
-    X = cuzeros(Y, nx_out, ny_out, nc_out, batchsize)
+    N_out = Tuple(nn*2 for nn=size(Y)[1:N-2])
+    nc_out = size(Y, N-1) ÷ 2^(N-2)
+    cinds = Tuple((:) for i=1:N-2)
 
     if pattern == "column"
-        X = reshape(Y, nx_out, ny_out, nc_out, batchsize)
+        X = reshape(Y, N_out..., nc_out, batchsize)
     elseif pattern == "patch"
-        X[1:nx_in, 1:ny_in, :, :] = Y[:, :, 1: nc_out, :]
-        X[nx_in+1:end, 1:ny_in, :, :] = Y[:, :, nc_out+1: 2*nc_out, :]
-        X[1:nx_in, ny_in+1:end, :, :] = Y[:, :, 2*nc_out+1: 3*nc_out, :]
-        X[nx_in+1:end, ny_in+1:end, :, :] = Y[:, :, 3*nc_out+1: 4*nc_out, :]
+        X = cuzeros(Y, N_out..., nc_out, batchsize)
+        iX = patch_inds(size(Y), N)
+        for (i, ix)=enumerate(iX)
+            X[ix..., :, :] = Y[cinds..., (i-1)*nc_out+1:i*nc_out, :]
+        end
     elseif pattern == "checkerboard"
-        X[1:2:nx_out, 1:2:ny_out, 1:nc_out, :] = Y[:, :, 1: nc_out, :]
-        X[2:2:nx_out, 1:2:ny_out, 1:nc_out, :] = Y[:, :, nc_out+1: 2*nc_out, :]
-        X[1:2:nx_out, 2:2:ny_out, 1:nc_out, :] = Y[:, :, 2*nc_out+1: 3*nc_out, :]
-        X[2:2:nx_out, 2:2:ny_out, 1:nc_out, :] = Y[:, :, 3*nc_out+1: 4*nc_out, :]
-    else
-        throw("Specified pattern not defined.")
-    end
-    return X
-end
-
-function unsqueeze(Y::AbstractArray{T,5}; pattern="column") where T
-
-    # Dimensions
-    nx_in, ny_in, nz_in, nc_in, batchsize = size(Y)
-    if mod(nx_in, 2) == 1 || mod(ny_in, 2) == 1
-        throw("Input dimensions must be multiple of 2")
-    end
-    nx_out = Int(round(nx_in*2))
-    ny_out = Int(round(ny_in*2))
-    nz_out = Int(round(ny_in*2))
-    nc_out = Int(round(nc_in/8))
-    X = cuzeros(Y, nx_out, ny_out, nz_out, nc_out, batchsize)
-
-    if pattern == "column"
-        X = reshape(Y, nx_out, ny_out, nz_out, nc_out, batchsize)
-    elseif pattern == "patch"
-        X[1:nx_in, 1:ny_in, 1:nz_in, :, :] = Y[:, :, :, 1: nc_out, :]
-        X[nx_in+1:end, 1:ny_in, 1:nz_in, :, :] = Y[:, :, :, nc_out+1: 2*nc_out, :]
-        X[1:nx_in, ny_in+1:end, 1:nz_in, :, :] = Y[:, :, :, 2*nc_out+1: 3*nc_out, :]
-        X[nx_in+1:end, ny_in+1:end, 1:nz_in, :, :] = Y[:, :, :, 3*nc_out+1: 4*nc_out, :]
-        X[1:nx_in, 1:ny_in, nz_in+1:end, :, :] = Y[:, :, :, 4*nc_out+1: 5*nc_out, :]
-        X[nx_in+1:end, 1:ny_in, nz_in+1:end, :, :] = Y[:, :, :, 5*nc_out+1: 6*nc_out, :]
-        X[1:nx_in, ny_in+1:end, nz_in+1:end, :, :] = Y[:, :, :, 6*nc_out+1: 7*nc_out, :]
-        X[nx_in+1:end, ny_in+1:end, nz_in+1:end, :, :] = Y[:, :, :, 7*nc_out+1: 8*nc_out, :]
-    elseif pattern == "checkerboard"
-        throw("Specified pattern not defined.")
+        X = cuzeros(Y, N_out..., nc_out, batchsize)
+        iX = checkboard_inds(N_out, N)
+        for (i, ix)=enumerate(iX)
+            X[ix..., :, :] = Y[cinds..., (i-1)*nc_out+1:i*nc_out, :]
+        end
     else
         throw("Specified pattern not defined.")
     end
@@ -210,32 +162,19 @@ end
 
  See also: [`wavelet_unsqueeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
-function wavelet_squeeze(X::AbstractArray{T,4}; type=WT.db1) where T
-    nx_in, ny_in, nc_in, batchsize = size(X)
-    nx_out = Int(round(nx_in/2))
-    ny_out = Int(round(ny_in/2))
-    nc_out = Int(round(nc_in*4))
-    Y = cuzeros(X, nx_out, ny_out, nc_out, batchsize)
-    for i=1:batchsize
-        for j=1:nc_in
-            Ycurr = dwt(X[:,:,j,i], wavelet(type), 1)
-            Y[:, :, (j-1)*4 + 1: j*4, i] = squeeze(reshape(Ycurr, nx_in, ny_in, 1, 1); pattern="patch")
-        end
-    end
-    return Y
-end
+function wavelet_squeeze(X::AbstractArray{T, N}; type=WT.db1) where {T, N}
+    batchsize = size(X, N)
+    N_in = size(X)[1:N-2]
+    N_out = Tuple(nn÷2 for nn=size(X)[1:N-2])
+    nd = 2^(N-2)
+    nc_out = size(X, N-1) * nd
+    cinds = Tuple((:) for i=1:N-2)
 
-function wavelet_squeeze(X::AbstractArray{T,5}; type=WT.db1) where T
-    nx_in, ny_in, nz_in, nc_in, batchsize = size(X)
-    nx_out = Int(round(nx_in/2))
-    ny_out = Int(round(ny_in/2))
-    nz_out = Int(round(nz_in/2))
-    nc_out = Int(round(nc_in*8))
-    Y = cuzeros(X, nx_out, ny_out, nz_out, nc_out, batchsize)
+    Y = cuzeros(X, N_out..., nc_out, batchsize)
     for i=1:batchsize
-        for j=1:nc_in
-            Ycurr = dwt(X[:,:,:,j,i], wavelet(type), 1)
-            Y[:, :, :, (j-1)*8 + 1: j*8, i] = squeeze(reshape(Ycurr, nx_in, ny_in, nz_in, 1, 1); pattern="patch")
+        for j=1:size(X, N-1)
+            Ycurr = dwt(X[cinds..., j, i], wavelet(type), 1)
+            Y[cinds..., (j-1)*nd + 1: j*nd, i] = squeeze(reshape(Ycurr, N_in..., 1, 1); pattern="patch")
         end
     end
     return Y
@@ -262,285 +201,138 @@ end
 
  See also: [`wavelet_squeeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
-function wavelet_unsqueeze(Y::AbstractArray{T,4}; type=WT.db1) where T
-    nx_in, ny_in, nc_in, batchsize = size(Y)
-    nx_out = Int(round(nx_in*2))
-    ny_out = Int(round(ny_in*2))
-    nc_out = Int(round(nc_in/4))
-    X = cuzeros(Y, nx_out, ny_out, nc_out, batchsize)
-    for i=1:batchsize
+function wavelet_unsqueeze(Y::AbstractArray{T,N}; type=WT.db1) where {T, N}
+    N_out = Tuple(nn*2 for nn=size(Y)[1:N-2])
+    nd = 2^(N-2)
+    nc_out = size(Y, N-1) ÷ nd
+    cinds = Tuple((:) for i=1:N-2)
+
+    X = cuzeros(Y, N_out..., nc_out, size(Y, N))
+    for i=1:size(Y, N)
         for j=1:nc_out
-            Ycurr = unsqueeze(Y[:, :, (j-1)*4 + 1: j*4, i:i]; pattern="patch")[:, :, 1, 1]
+            Ycurr = unsqueeze(Y[cinds..., (j-1)*nd + 1: j*nd, i:i]; pattern="patch")[cinds..., 1, 1]
             Xcurr = idwt(Ycurr, wavelet(type), 1)
-            X[:, :, j, i] = reshape(Xcurr, nx_out, ny_out, 1, 1)
+            X[cinds..., j, i] = reshape(Xcurr, N_out..., 1, 1)
         end
     end
     return X
 end
 
-function wavelet_unsqueeze(Y::AbstractArray{T,5}; type=WT.db1) where T
-    nx_in, ny_in, nz_in, nc_in, batchsize = size(Y)
-    nx_out = Int(round(nx_in*2))
-    ny_out = Int(round(ny_in*2))
-    nz_out = Int(round(nz_in*2))
-    nc_out = Int(round(nc_in/8))
-    X = cuzeros(Y, nx_out, ny_out, nz_out, nc_out, batchsize)
-    for i=1:batchsize
-        for j=1:nc_out
-            Ycurr = unsqueeze(Y[:, :, :, (j-1)*8 + 1: j*8, i:i]; pattern="patch")[:, :, :, 1, 1]
-            Xcurr = idwt(Ycurr, wavelet(type), 1)
-            X[:, :, :, j, i] = reshape(Xcurr, nx_out, ny_out, nz_out, 1, 1)
-        end
-    end
-    return X
+
+########## Haaar wavelet, GPU supported #####################
+
+function HaarLift(x::AbstractArray{T,N}, dim) where {T, N}
+    dim > N - 2 && return (x,)
+    #Haar lifting
+    inds = [i==dim ? (1:2:size(x, dim)) : (:) for i=1:N];
+    # Splitting
+    H = x[inds...]
+    inds[dim] = 2:2:size(x, dim)
+    L = x[inds...]
+
+    # predict
+    H .-= L
+
+    #update
+    L .+= H ./ T(2.0)
+
+    #normalize
+    H ./= sqrt(T(2.0))
+    L .*= sqrt(T(2.0))
+
+    return L, H
 end
 
-function HaarLift(x::AbstractArray{T,4},dim) where T
-  #Haar lifting
-
-  # Splitting
-  if dim==1
-    L = x[2:2:end, :, :, :]
-    H = x[1:2:end, :, :, :]
-  elseif dim==2
-    L = x[:,2:2:end, :, :]
-    H = x[:,1:2:end, :, :]
-  else
-    error("dimension for Haar lifting has to be 1 or 2 for a 4D input array")
-  end
-
-  # predict
-  H .= H .- L
-
-  #update
-  L .= L .+ H ./ T(2.0)
-
-  #normalize
-  H .= H ./sqrt(T(2.0))
-  L .= L.*sqrt(T(2.0))
-
-  return L,H
+function invHaarLift(x::AbstractArray{T,N}, dim) where {T, N}
+    dim > N - 2 && return x
+    return invHaarLift(tensor_split(x)..., dim)
 end
 
-function invHaarLift(L::AbstractArray{T,4},H::AbstractArray{T,4},dim) where T
-  #inverse Haar lifting
+function invHaarLift(L::AbstractArray{T,N}, H::AbstractArray{T,N},dim) where {T, N}
+    #inverse Haar lifting
 
-  #inv normalize
-  H .= H .*sqrt(T(2.0))
-  L .= L./sqrt(T(2.0))
+    #inv normalize
+    H .*= sqrt(T(2.0))
+    L ./= sqrt(T(2.0))
 
-  #inv update & predict
-  L .= L .- H ./ T(2.0)
-  H .= L .+ H
+    #inv update & predict
+    L .-= H ./ T(2.0)
+    H .+= L
 
-  #allocate output:
-  x = cat(cuzeros(L,size(L)...), cuzeros(H,size(H)...), dims=dim)
+    #allocate output:
+    x = cat(cuzeros(L,size(L)...), cuzeros(H,size(H)...), dims=dim)
+    inds = [i==dim ? (1:2:size(x, dim)) : (:) for i=1:N];
+    x[inds...] .= H
+    inds[dim] = 2:2:size(x, dim)
+    x[inds...] .= L
 
-  # merging (inverse split)
-  if dim==1
-    x[2:2:end, :, :, :] .= L
-    x[1:2:end, :, :, :] .= H
-  elseif dim==2
-    x[:,2:2:end, :, :] .= L
-    x[:,1:2:end, :, :] .= H
-  else
-    error("dimension for Haar lifting has to be 1 or 2 for a 4D input array")
-  end
-
-  return x
-end
-
-function HaarLift(x::AbstractArray{T,5},dim) where T
-  #Haar lifting
-
-  # Splitting
-  if dim==1
-    L = x[2:2:end, :, :, :, :]
-    H = x[1:2:end, :, :, :, :]
-  elseif dim==2
-    L = x[:,2:2:end, :, :, :]
-    H = x[:,1:2:end, :, :, :]
-  elseif dim==3
-    L = x[:, :, 2:2:end, :, :]
-    H = x[:, :, 1:2:end, :, :]
-  else
-    error("dimension for Haar lifting has to be 1, 2, or 3 for a 5D input array")
-  end
-
-  # predict
-  H .= H .- L
-
-  #update
-  L .= L .+ H ./ T(2.0)
-
-  #normalize
-  H .= H ./sqrt(T(2.0))
-  L .= L.*sqrt(T(2.0))
-
-  return L,H
-end
-
-function invHaarLift(L::AbstractArray{T,5},H::AbstractArray{T,5},dim) where T
-  #inverse Haar lifting
-
-  #inv normalize
-  H .= H .*sqrt(T(2.0))
-  L .= L./sqrt(T(2.0))
-
-  #inv update & predict
-  L .= L .- H ./ T(2.0)
-  H .= L .+ H
-
-  #allocate output:
-  x = cat(cuzeros(L,size(L)...), cuzeros(H,size(H)...), dims=dim)
-
-  # merging (inverse split)
-  if dim==1
-    x[2:2:end, :, :, :, :] .= L
-    x[1:2:end, :, :, :, :] .= H
-  elseif dim==2
-    x[:,2:2:end, :, :, :] .= L
-    x[:,1:2:end, :, :, :] .= H
-  elseif dim==3
-    x[:, :, 2:2:end, :, :] .= L
-    x[:, :, 1:2:end, :, :] .= H
-  else
-    error("dimension for Haar lifting has to be 1, 2, or 3 for a 5D input array")
-  end
-
-  return x
+    return x
 end
 
 """
     Y = Haar_squeeze(X)
 
- Perform a 1-level channelwise 2D (lifting) Haar transform of X and squeeze output of each
- transform into 4 channels (per 1 input channel).
-
- *Input*:
-
- - `X`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
-
- *Output*:
-
- - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
-
- See also: [`wavelet_unsqueeze`](@ref), [`Haar_unsqueeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
-"""
-function Haar_squeeze(x::AbstractArray{T,4}) where T
-
-        L,H = HaarLift(x,2)
-
-        a,h = HaarLift(L,1)
-        v,d = HaarLift(H,1)
-
-        return cat(a,v,h,d,dims=3)
-end
-
-"""
-    Y = Haar_squeeze(X)
-
- Perform a 1-level channelwise 3D (lifting) Haar transform of X and squeeze output of each
+ Perform a 1-level channelwise 2D/3D (lifting) Haar transform of X and squeeze output of each
  transform into 8 channels (per 1 input channel).
 
  *Input*:
 
- - `X`: 5D input tensor of dimensions `nx` x `ny` x `nz` x `n_channel` x `batchsize`
+ - `X`: 4D/5D input tensor of dimensions `nx` x `ny` (x `nz`) x `n_channel` x `batchsize`
 
  *Output*:
 
- - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `nz/2` x `n_channel*8` x `batchsize`
+ - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` (x `nz/2`) x `n_channel*8` x `batchsize`
 
  See also: [`wavelet_unsqueeze`](@ref), [`Haar_unsqueeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
-function Haar_squeeze(x::AbstractArray{T,5}) where T
+function Haar_squeeze(x::AbstractArray{T, N}) where {T, N}
 
-        L,H = HaarLift(x,2)
+        L, H = HaarLift(x, 2)
 
-        a,h = HaarLift(L,1)
-        v,d = HaarLift(H,1)
+        a, h = HaarLift(L ,1)
+        v, d = HaarLift(H, 1)
 
-        al,ah = HaarLift(a,3)
-        vl,vh = HaarLift(v,3)
-        hl,hh = HaarLift(h,3)
-        dl,dh = HaarLift(d,3)
+        a = HaarLift(a, 3)
+        v = HaarLift(v, 3)
+        h = HaarLift(h, 3)
+        d = HaarLift(d, 3)
 
-        return cat(ah,al,vh,vl,hh,hl,dh,dl,dims=4)
+        return cat(a..., v..., h..., d...,dims=N-1)
 end
+
 
 """
     X = invHaar_unsqueeze(Y)
 
- Perform a 1-level inverse 2D Haar transform of Y and unsqueeze output.
- This reduces the number of channels by 4 and increases each spatial
- dimension by a factor of 2. Inverse operation of `Haar_squeeze`.
-
- *Input*:
-
- - `Y`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
-
- *Output*:
-
- - `X`: Reshaped tensor of dimenions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
-
- See also: [`wavelet_unsqueeze`](@ref), [`Haar_squeeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
-"""
-function invHaar_unsqueeze(x::AbstractArray{T,4}) where T
-
-        s = size(x,3)
-
-        a = x[:, :, 1:Int(s/4), :]
-        v = x[:, :, Int(s/4+1):Int(s/2),:]
-        h = x[:, :, Int(s/2+1):Int(3*s/4),:]
-        d = x[:, :, Int(3*s/4+1):end,:]
-
-        L = invHaarLift(a,h,1)
-        H = invHaarLift(v,d,1)
-
-        x = invHaarLift(L,H ,2)
-
-        return x
-end
-
-"""
-    X = invHaar_unsqueeze(Y)
-
- Perform a 1-level inverse 3D Haar transform of Y and unsqueeze output.
+ Perform a 1-level inverse 2D/3D Haar transform of Y and unsqueeze output.
  This reduces the number of channels by 8 and increases each spatial
  dimension by a factor of 2. Inverse operation of `Haar_squeeze`.
 
  *Input*:
 
- - `Y`: 5D input tensor of dimensions `nx` x `ny` x `nz` x `n_channel` x `batchsize`
+ - `Y`: 4D/5D input tensor of dimensions `nx` x `ny` (x `nz`) x `n_channel` x `batchsize`
 
  *Output*:
 
- - `X`: Reshaped tensor of dimenions `nx*2` x `ny*2` x `nz*2` x `n_channel/8` x `batchsize`
+ - `X`: Reshaped tensor of dimenions `nx*2` x `ny*2` (x `nz*2`) x `n_channel/8` x `batchsize`
 
  See also: [`wavelet_unsqueeze`](@ref), [`Haar_unsqueeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
-function invHaar_unsqueeze(x::AbstractArray{T,5}) where T
+function invHaar_unsqueeze(x::AbstractArray{T, N}) where {T, N}
 
-        s = size(x,4)
+        s = size(x, N-1)
+        a, h = tensor_split(x)
+        a, v, h, d = tensor_split(a)..., tensor_split(h)...
 
-        ah = x[:, :, :, 1:Int(s/8), :]
-        al = x[:, :, :, Int(s/8+1):Int(2*s/8),:]
-        vh = x[:, :, :, Int(2*s/8+1):Int(3*s/8),:]
-        vl = x[:, :, :, Int(3*s/8+1):Int(4*s/8),:]
-        hh = x[:, :, :, Int(4*s/8+1):Int(5*s/8),:]
-        hl = x[:, :, :, Int(5*s/8+1):Int(6*s/8),:]
-        dh = x[:, :, :, Int(6*s/8+1):Int(7*s/8),:]
-        dl = x[:, :, :, Int(7*s/8+1):end,:]
+        a = invHaarLift(a, 3)
+        v = invHaarLift(v, 3)
+        h = invHaarLift(h, 3)
+        d = invHaarLift(d, 3)
 
-        a = invHaarLift(al,ah,3)
-        v = invHaarLift(vl,vh,3)
-        h = invHaarLift(hl,hh,3)
-        d = invHaarLift(dl,dh,3)
+        L = invHaarLift(a, h, 1)
+        H = invHaarLift(v, d, 1)
 
-        L = invHaarLift(a,h,1)
-        H = invHaarLift(v,d,1)
-
-        x = invHaarLift(L,H ,2)
+        x = invHaarLift(L, H, 2)
 
         return x
 end

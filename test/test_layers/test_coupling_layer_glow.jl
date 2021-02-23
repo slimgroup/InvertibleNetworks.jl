@@ -25,7 +25,7 @@ dX = X - X0
 
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, fan=true)
+RB = ResidualBlock(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, fan=true)
 L = CouplingLayerGlow(C, RB; logdet=true)
 
 X_ = L.inverse(L.forward(X)[1])
@@ -50,7 +50,7 @@ end
 
 # Invertible layers
 C0 = Conv1x1(k)
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, fan=true)
+RB0 = ResidualBlock(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, fan=true)
 L01 = CouplingLayerGlow(C0, RB; logdet=true)
 L02 = CouplingLayerGlow(C, RB0; logdet=true)
 
@@ -138,9 +138,9 @@ end
 # Gradient test
 
 # Initialization
-L = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
+L = CouplingLayerGlow(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
 θ = deepcopy(get_params(L))
-L0 = CouplingLayerGlow(nx, ny, n_in, n_hidden, batchsize; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
+L0 = CouplingLayerGlow(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
 θ0 = deepcopy(get_params(L0))
 X = randn(Float32, nx, ny, n_in, batchsize)
 

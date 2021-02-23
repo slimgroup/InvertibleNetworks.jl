@@ -20,7 +20,7 @@ function test_inv(nx, ny, n_channel, n_hidden, batchsize, permute, logdet, rev)
     X = randn(Float32, nx, ny, n_channel, batchsize)
 
     # HINT layer w/o logdet
-    HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=logdet)
+    HL = CouplingLayerHINT(n_channel, n_hidden; permute=permute, logdet=logdet)
     rev && (HL = reverse(HL))
     # Test 
     Y = logdet ? HL.forward(X)[1] : HL.forward(X)
@@ -53,7 +53,7 @@ function grad_test_X(nx, ny, n_channel, n_hidden, batchsize, permute, logdet, re
     X0 = randn(Float32, nx, ny, n_channel, batchsize)
     dX = randn(Float32, nx, ny, n_channel, batchsize)
     # Test for input X
-    HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=logdet)
+    HL = CouplingLayerHINT(n_channel, n_hidden; permute=permute, logdet=logdet)
     rev && (HL = reverse(HL))
         
     f0, gX, X_ = lossf(HL, X0)[[1,2,4]]
@@ -80,8 +80,8 @@ end
 function grad_test_layer(nx, ny, n_channel, n_hidden, batchsize, permute, logdet, rev)
     logdet ? lossf = loss_logdet : lossf = loss
     # Test for weights
-    HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=logdet)
-    HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=logdet)
+    HL = CouplingLayerHINT(n_channel, n_hidden; permute=permute, logdet=logdet)
+    HL0 = CouplingLayerHINT(n_channel, n_hidden; permute=permute, logdet=logdet)
     rev && (HL = reverse(HL))
     rev && (HL0 = reverse(HL0))
 
@@ -139,9 +139,9 @@ permute="full"
 # permute="both"
 # permute="none"
 # permute="lower"
-HL = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=logdet)
+HL = CouplingLayerHINT(n_channel, n_hidden; permute=permute, logdet=logdet)
 θ = deepcopy(get_params(HL))
-HL0 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=logdet)
+HL0 = CouplingLayerHINT(n_channel, n_hidden; permute=permute, logdet=logdet)
 θ0 = deepcopy(get_params(HL0))
 X = randn(Float32, nx, ny, n_channel, batchsize)
 

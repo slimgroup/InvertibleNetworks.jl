@@ -28,6 +28,14 @@ kernel_size(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D
 channels_in(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_in
 channels_out(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_out
 
+function DCDims(X::AbstractArray{Float32, N}, W::AbstractArray{Float32, N}; stride=1, padding=1, nc=nothing) where N
+    sw = size(W)
+    isnothing(nc) && (nc = sw[N-1])
+    sx = (size(X)[1:N-2]..., nc, size(X)[end])
+    return DenseConvDims(sx, sw; stride=Tuple(stride for i=1:N-2), padding=Tuple(padding for i=1:N-2))
+end
+
+
 # Utils
 include("utils/parameter.jl")
 include("utils/objective_functions.jl")
@@ -52,9 +60,6 @@ include("layers/invertible_layer_irim.jl")
 include("layers/invertible_layer_glow.jl")
 include("layers/invertible_layer_hyperbolic.jl")
 include("layers/invertible_layer_hint.jl")
-include("layers/invertible_layer_slim_additive.jl")
-include("layers/invertible_layer_slim_affine.jl")
-include("layers/invertible_layer_slim_learned.jl")
 
 # Invertible network architectures
 include("networks/invertible_network_hint_multiscale.jl")
@@ -64,7 +69,6 @@ include("networks/invertible_network_hyperbolic.jl")    # Hyperbolic: Lensink et
 
 # Conditional layers and nets
 include("conditional_layers/conditional_layer_hint.jl")
-include("conditional_layers/conditional_layer_slim.jl")
 include("networks/invertible_network_conditional_hint.jl")
 include("networks/invertible_network_conditional_hint_multiscale.jl")
 

@@ -11,7 +11,7 @@ n_channel = 32
 n_hidden = 64
 batchsize = 2
 logdet = true
-N = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=logdet, permute="full")
+N = CouplingLayerHINT(n_channel, n_hidden; logdet=logdet, permute="full")
 θ = get_params(N)
 
 ## f: X × θ ↦ Y, ∂f: ΔX × Δθ ↦ ΔY

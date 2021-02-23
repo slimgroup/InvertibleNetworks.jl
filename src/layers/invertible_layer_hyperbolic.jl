@@ -98,13 +98,6 @@ HyperbolicLayer3D(W::AbstractArray{Float32, N}, b, stride, pad;
                   action=0, α=1f0) where N =
         HyperbolicLayer(W, b, stride, pad;action=actin, α=α)
 
-##### Utils
-function DCDims(X::AbstractArray{Float32, N}, W::AbstractArray{Float32, N}; stride=1, padding=1) where N
-    sw = size(W)
-    sx = (size(X)[1:N-2]..., sw[N-1], size(X)[end])
-    return DenseConvDims(sx, sw; stride=Tuple(stride for i=1:N-2), padding=Tuple(padding for i=1:N-2))
-end
-
 #################################################
 
 # Forward pass
@@ -183,7 +176,7 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer{s, p, a}
     X_prev_in, X_curr_in, X_conv, X_relu = inverse(X_curr, X_new, HL; save=true)
 
     # Backpropagate data residual and compute gradients
-    ccdims = DCDims(X_curr_in, HL.W.data; stride=s, padding=p)
+    cdims = DCDims(X_curr, HL.W.data; stride=s, padding=p)
     ΔX_convT = copy(ΔX_new)
     ΔX_relu = -HL.α*conv(ΔX_convT, HL.W.data, cdims)
     ΔW = -HL.α*∇conv_filter(ΔX_convT, X_relu, cdims)

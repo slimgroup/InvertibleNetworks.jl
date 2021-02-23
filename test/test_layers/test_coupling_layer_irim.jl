@@ -17,9 +17,9 @@ X0 = randn(Float32, nx, ny, n_in, batchsize)
 dX = X - X0
 
 # Invertible layers
-L = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize)
-L01 = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize)
-L02 = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize)
+L = CouplingLayerIRIM(n_in, n_hidden)
+L01 = CouplingLayerIRIM(n_in, n_hidden)
+L02 = CouplingLayerIRIM(n_in, n_hidden)
 
 ###################################################################################################
 # Test invertibility
@@ -128,9 +128,9 @@ end
 # Gradient test
 
 # Initialization
-L = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize)
+L = CouplingLayerIRIM(n_in, n_hidden)
 θ = deepcopy(get_params(L))
-L0 = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize)
+L0 = CouplingLayerIRIM(n_in, n_hidden)
 θ0 = deepcopy(get_params(L0))
 X = randn(Float32, nx, ny, n_in, batchsize)
 

@@ -2,17 +2,19 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: February 2020
 
-export NetworkMultiScaleConditionalHINT
+export NetworkMultiScaleConditionalHINT, NetworkMultiScaleConditionalHINT3D
 
 """
-    CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden,  L, K; split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+
+    CH = NetworkMultiScaleConditionalHINT3D(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
  Create a conditional HINT network for data-driven generative modeling based
  on the change of variables formula.
 
  *Input*: 
- 
- - `nx`, `ny`, `n_in`, `batchsize`: spatial dimensions, number of channels and batchsize of input tensors `X` and `Y`
+
+ - 'n_in': number of input channels
  
  - `n_hidden`: number of hidden units in residual blocks
 
@@ -28,6 +30,8 @@ export NetworkMultiScaleConditionalHINT
  - `p1`, `p2`: respective padding sizes for residual block layers
  
  - `s1`, `s2`: respective strides for residual block layers
+
+ - `ndims` : number of dimensions
 
  *Output*:
  
@@ -63,9 +67,8 @@ end
 @Flux.functor NetworkMultiScaleConditionalHINT
 
 # Constructor
-function NetworkMultiScaleConditionalHINT(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64,
-                                          n_hidden::Int64, L::Int64, K::Int64;
-                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
+                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2)
 
     AN_X = Array{ActNorm}(undef, L, K)
     AN_Y = Array{ActNorm}(undef, L, K)
@@ -83,14 +86,15 @@ function NetworkMultiScaleConditionalHINT(nx::Int64, ny::Int64, n_in::Int64, bat
         for j=1:K
             AN_X[i, j] = ActNorm(n_in*4; logdet=true)
             AN_Y[i, j] = ActNorm(n_in*4; logdet=true)
-            CL[i, j] = ConditionalLayerHINT(Int(nx/2^i), Int(ny/2^i), n_in*4, n_hidden, batchsize;
-                                            permute=true, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+            CL[i, j] = ConditionalLayerHINT(n_in*4, n_hidden; permute=true, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
         end
         n_in *= channel_factor
     end
 
     return NetworkMultiScaleConditionalHINT(AN_X, AN_Y, CL, XY_dims, L, K, split_scales)
 end
+
+NetworkMultiScaleConditionalHINT3D(args...;kw...) = NetworkMultiScaleConditionalHINT(args...; kw..., ndims=3)
 
 # Concatenate states Zi and final output
 function cat_states(XY_save::AbstractArray{Array, 2}, X::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4})

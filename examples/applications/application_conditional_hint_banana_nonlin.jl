@@ -20,7 +20,7 @@ batchsize = 64
 depth = 8
 
 # Conditional HINT network
-H = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth; k1=1, k2=1, p1=0, p2=0)
+H = NetworkConditionalHINT(n_in, n_hidden, depth; k1=1, k2=1, p1=0, p2=0)
 
 A = randn(Float32,2,2);
 A = A/(2*(opnorm(A)));

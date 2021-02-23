@@ -2,20 +2,20 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export NetworkLoop
+export NetworkLoop, NetworkLoop3D
 
 """
-    L = NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1) (2D)
+    L = NetworkLoop(n_in, n_hidden, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2) (2D)
 
-    L = NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1) (3D)
+    L = NetworkLoop3D(n_in, n_hidden, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1) (3D)
 
  Create an invertibel recurrent inference machine (i-RIM) consisting of an unrooled loop
  for a given number of iterations.
 
  *Input*: 
  
- - `nx`, `ny`, `nz`, `n_in`, `batchsize`: spatial dimensions, number of channels and batchsize of input tensor
- 
+ - 'n_in': number of input channels
+
  - `n_hidden`: number of hidden units in residual blocks
 
  - `maxiter`: number unrolled loop iterations
@@ -33,7 +33,9 @@ export NetworkLoop
 
  - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`) in
    residual block
-  
+
+ - `ndims` : number of dimensions
+
  *Output*:
  
  - `L`: invertible i-RIM network.
@@ -64,7 +66,7 @@ end
 @Flux.functor NetworkLoop
 
 # 2D Constructor
-function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive")
+function NetworkLoop(n_in, n_hidden, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive", ndims=2)
     
     if type == "additive"
         L = Array{CouplingLayerIRIM}(undef, maxiter)
@@ -75,9 +77,10 @@ function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3,
     AN = Array{ActNorm}(undef, maxiter)
     for j=1:maxiter
         if type == "additive"
-            L[j] = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+            L[j] = CouplingLayerIRIM(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
         elseif type == "HINT"
-            L[j] = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; logdet=false, permute="both", k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+            L[j] = CouplingLayerHINT(n_in, n_hidden; logdet=false, permute="both", k1=k1, k2=k2, p1=p1, p2=p2,
+                                     s1=s1, s2=s2, ndims=ndims)
         end
         AN[j] = ActNorm(1)
     end
@@ -86,26 +89,7 @@ function NetworkLoop(nx, ny, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3,
 end
 
 # 3D Constructor
-function NetworkLoop(nx, ny, nz, n_in, n_hidden, batchsize, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive")
-    
-    if type == "additive"
-        L = Array{CouplingLayerIRIM}(undef, maxiter)
-    elseif type == "HINT"
-        L = Array{CouplingLayerHINT}(undef, maxiter)
-    end
-    AN = Array{ActNorm}(undef, maxiter)
-    for j=1:maxiter
-        if type == "additive"
-            L[j] = CouplingLayerIRIM(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
-        elseif type == "HINT"
-            L[j] = CouplingLayerHINT(nx, ny, nz, n_in, n_hidden, batchsize; logdet=false, 
-                permute="both", k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
-        end
-        AN[j] = ActNorm(1)
-    end
-    
-    return NetworkLoop(L, AN, Ψ)
-end
+NetworkLoop3D(args...; kw...) = NetworkLoop(args...; kw..., ndims=3)
 
 # 2D Forward loop: Input (η, s), Output (η, s)
 function forward(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d, J, UL::NetworkLoop) where N

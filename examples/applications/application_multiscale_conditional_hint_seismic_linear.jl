@@ -42,8 +42,7 @@ n_hidden = 32
 batchsize = 4
 L = 1
 K = 8
-CH = NetworkMultiScaleConditionalHINT(nx, ny, n_in, batchsize, n_hidden, L, K;
-    k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, split_scales=false)
+CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, split_scales=false)
 Params = get_params(CH)
 
 # Data modeling function

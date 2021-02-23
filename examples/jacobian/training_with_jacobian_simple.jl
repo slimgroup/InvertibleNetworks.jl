@@ -21,9 +21,9 @@ flag_gpu && (Y = Y |> gpu)
 # Initialize HINT layer
 n_hidden = 2*n_ch
 batchsize = 1
-N = CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full")∘
-    CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full")∘
-    CouplingLayerHINT(nx, ny, n_ch, n_hidden, batchsize; logdet=false, permute="full")
+N = CouplingLayerHINT(n_ch, n_hidden; logdet=false, permute="full")∘
+    CouplingLayerHINT(n_ch, n_hidden; logdet=false, permute="full")∘
+    CouplingLayerHINT(n_ch, n_hidden; logdet=false, permute="full")
 flag_gpu && (N = N |> gpu)
 
 # Fixed input
