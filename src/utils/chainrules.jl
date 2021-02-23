@@ -123,7 +123,7 @@ function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float
 end
 
 # Reverse-mode AD rule
-function rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X; state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS)
+function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X; state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS)
 
     # Forward pass
     net.logdet ? ((Y, logdet) = net.forward(X)) : (Y = net.forward(X); logdet = nothing)

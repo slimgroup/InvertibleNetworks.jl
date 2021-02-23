@@ -21,8 +21,7 @@ X_curr = randn(Float32, nx, ny, nz, n_in, batchsize)
 architecture = ((0, 3), (-1, 3,), (0, 3), (1, 4), (0, 8))
 
 # Hyperbolic network
-HN = H = NetworkHyperbolic(nx, ny, nz, n_in, batchsize, architecture; 
-    k=3, s=1, p=1, logdet=true, α=1f0)
+HN = H = NetworkHyperbolic3D(n_in, architecture; k=3, s=1, p=1, logdet=true, α=1f0)
 
 # Forward/inverse pass
 Y_curr_, Y_new_, lgdet = HN.forward(X_prev, X_curr)
