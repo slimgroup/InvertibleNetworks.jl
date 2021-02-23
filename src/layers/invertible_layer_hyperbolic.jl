@@ -2,20 +2,21 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export HyperbolicLayer
+export HyperbolicLayer, HyperbolicLayer3D
 
 """
-    HyperbolicLayer(nx, ny, n_in, batchsize, kernel, stride, pad; action=0, α=1f0, n_hidden=1)
+    HyperbolicLayer(n_in, kernel, stride, pad; action=0, α=1f0, n_hidden=1)
+    HyperbolicLayer(n_in, kernel, stride, pad; action=0, α=1f0, n_hidden=1, ndims=2)
+    HyperbolicLayer3D(n_in, kernel, stride, pad; action=0, α=1f0, n_hidden=1)
 
 or
 
-    HyperbolicLayer(W, b, nx, ny, batchsize, stride, pad; action=0, α=1f0)
+    HyperbolicLayer(W, b, stride, pad; action=0, α=1f0)
+    HyperbolicLayer3D(W, b, stride, pad; action=0, α=1f0)
 
 Create an invertible hyperbolic coupling layer.
 
 *Input*:
-
- - `nx`, `ny`, `n_in`, `batchsize`: Dimensions of input tensor
 
  - `kernel`, `stride`, `pad`: Kernel size, stride and padding of the convolutional operator
 
@@ -29,6 +30,8 @@ Create an invertible hyperbolic coupling layer.
 
  - `n_hidden`: Increase the no. of channels by `n_hidden` in the forward convolution.
     After applying the transpose convolution, the dimensions are back to the input dimensions.
+
+ - `ndims`: Number of dimension of the input (2 for 2D, 3 for 3D)
 
 *Output*:
 
@@ -50,141 +53,71 @@ Create an invertible hyperbolic coupling layer.
 
  See also: [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct HyperbolicLayer <: NeuralNetLayer
+struct HyperbolicLayer{S, P, A} <: NeuralNetLayer
     W::Parameter
     b::Parameter
     α::Float32
-    cdims::DenseConvDims
-    action::Integer
 end
 
 @Flux.functor HyperbolicLayer
 
+scale_a = Dict(0 => 1, 1 => 1/2, -1 => 2, "same" => 1)
+
 # Constructor 2D
-function HyperbolicLayer(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, kernel::Int64,
-    stride::Int64, pad::Int64; action="same", α=1f0, n_hidden=nothing)
+function HyperbolicLayer(n_in::Int64, kernel::Int64, stride::Int64,
+                         pad::Int64; action="same", α=1f0, n_hidden=nothing, ndims=2)
 
     # Set ouput/hidden dimensions
-    if action == 0
-        n_out = n_in
-    elseif action == 1
-        n_out = Int(n_in/4)
-        nx = Int(nx*2)
-        ny = Int(ny*2)
-    elseif action == -1
-        n_out = Int(n_in*4)
-        nx = Int(nx/2)
-        ny = Int(ny/2)
-    end
+    n_out = Int(n_in*scale_a[action]^ndims)
     isnothing(n_hidden) && (n_hidden = n_in)
 
-    W = Parameter(glorot_uniform(kernel, kernel, n_out, n_hidden))
+    k = Tuple(kernel for i=1:ndims)
+    W = Parameter(glorot_uniform(k..., n_out, n_hidden))
     b = Parameter(zeros(Float32, n_hidden))
 
-    cdims = DenseConvDims((nx, ny, n_out, batchsize), (kernel, kernel, n_out, n_hidden);
-        stride=(stride, stride), padding=(pad, pad))
-
-    return HyperbolicLayer(W, b, α, cdims, action)
+    return HyperbolicLayer{stride, pad, action}(W, b, α)
 end
 
-# Constructor 3D
-function HyperbolicLayer(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, batchsize::Int64, kernel::Int64,
-    stride::Int64, pad::Int64; action=0, α=1f0, n_hidden=nothing)
-
-    # Set ouput/hidden dimensions
-    if action == 0
-        n_out = n_in
-    elseif action == 1
-        n_out = Int(n_in/8)
-        nx = Int(nx*2)
-        ny = Int(ny*2)
-        nz = Int(nz*2)
-    elseif action == -1
-        n_out = Int(n_in*8)
-        nx = Int(nx/2)
-        ny = Int(ny/2)
-        nz = Int(nz/2)
-    end
-    isnothing(n_hidden) && (n_hidden = n_in)
-
-    W = Parameter(glorot_uniform(kernel, kernel, kernel, n_out, n_hidden))
-    b = Parameter(zeros(Float32, n_hidden))
-
-    cdims = DenseConvDims((nx, ny, nz, n_out, batchsize), (kernel, kernel, kernel, n_out, n_hidden);
-        stride=(stride, stride, stride), padding=(pad, pad, pad))
-
-    return HyperbolicLayer(W, b, α, cdims, action)
-end
+HyperbolicLayer3D(args...; kw...) =  HyperbolicLayer(args...; kw..., ndims=3)
 
 # Constructor for given weights 2D
-function HyperbolicLayer(W::AbstractArray{Float32, 4}, b::AbstractArray{Float32, 1}, nx::Int64, ny::Int64,
-    batchsize::Int64, stride::Int64, pad::Int64; action=0, α=1f0)
+function HyperbolicLayer(W::AbstractArray{Float32, N}, b::AbstractArray{Float32, 1}, 
+                         stride::Int64, pad::Int64; action=0, α=1f0) where N
 
-    kernel, n_in, n_hidden = size(W)[2:4]
+    kernel, n_in, n_hidden = size(W)[N-3:N]
 
     # Set ouput/hidden dimensions
-    if action == 0
-        n_out = n_in
-    elseif action == 1
-        n_out = Int(n_in/4)
-        nx = Int(nx*2)
-        ny = Int(ny*2)
-    elseif action == -1
-        n_out = Int(n_in*4)
-        nx = Int(nx/2)
-        ny = Int(ny/2)
-    end
-
+    n_out = Int(n_in*scale_a[action]^(N-2))
     W = Parameter(W)
     b = Parameter(b)
 
-    cdims = DenseConvDims((nx, ny, n_out, batchsize), (kernel, kernel, n_out, n_hidden);
-        stride=(stride, stride), padding=(pad, pad))
-
-    return HyperbolicLayer(W, b, α, cdims, action)
+    return HyperbolicLayer{stride, pad, action}(W, b, α)
 end
 
-# Constructor for given weights 3D
-function HyperbolicLayer(W::AbstractArray{Float32, 5}, b::AbstractArray{Float32, 1}, nx::Int64, ny::Int64, nz::Int64,
-    batchsize::Int64, stride::Int64, pad::Int64; action=0, α=1f0)
+HyperbolicLayer3D(W::AbstractArray{Float32, N}, b, stride, pad;
+                  action=0, α=1f0) where N =
+        HyperbolicLayer(W, b, stride, pad;action=actin, α=α)
 
-    kernel, n_in, n_hidden = size(W)[3:5]
-
-    # Set ouput/hidden dimensions
-    if action == 0
-        n_out = n_in
-    elseif action == 1
-        n_out = Int(n_in/8)
-        nx = Int(nx*2)
-        ny = Int(ny*2)
-        nz = Int(nz*2)
-    elseif action == -1
-        n_out = Int(n_in*8)
-        nx = Int(nx/2)
-        ny = Int(ny/2)
-        nz = Int(nz/2)
-    end
-
-    W = Parameter(W)
-    b = Parameter(b)
-
-    cdims = DenseConvDims((nx, ny, nz, n_out, batchsize), (kernel, kernel, kernel, n_out, n_hidden);
-        stride=(stride, stride, stride), padding=(pad, pad, pad))
-
-    return HyperbolicLayer(W, b, α, cdims, action)
+##### Utils
+function DCDims(X::AbstractArray{Float32, N}, W::AbstractArray{Float32, N}; stride=1, padding=1) where N
+    sw = size(W)
+    sx = (size(X)[1:N-2]..., sw[N-1], size(X)[end])
+    return DenseConvDims(sx, sw; stride=Tuple(stride for i=1:N-2), padding=Tuple(padding for i=1:N-2))
 end
+
+#################################################
 
 # Forward pass
-function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer)
+function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer{s, p, a}) where {s, p, a}
 
     # Change dimensions
-    if HL.action == 0
+    if a == 0
         X_prev = identity(X_prev_in)
         X_curr = identity(X_curr_in)
-    elseif HL.action == 1
+    elseif a == 1
         X_prev = wavelet_unsqueeze(X_prev_in)
         X_curr = wavelet_unsqueeze(X_curr_in)
-    elseif HL.action == -1
+    elseif a == -1
         X_prev = wavelet_squeeze(X_prev_in)
         X_curr = wavelet_squeeze(X_curr_in)
     else
@@ -192,13 +125,14 @@ function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer)
     end
 
     # Symmetric convolution w/ relu activation
+    cdims = DCDims(X_curr, HL.W.data; stride=s, padding=p)
     if length(size(X_curr)) == 4
-        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
+        X_conv = conv(X_curr, HL.W.data, cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
     else
-        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, 1, :, 1)
+        X_conv = conv(X_curr, HL.W.data, cdims) .+ reshape(HL.b.data, 1, 1, 1, :, 1)
     end
     X_relu = ReLU(X_conv)
-    X_convT = -∇conv_data(X_relu, HL.W.data, HL.cdims)
+    X_convT = -∇conv_data(X_relu, HL.W.data, cdims)
 
     # Update
     X_new = 2f0*X_curr - X_prev + HL.α*X_convT
@@ -207,28 +141,28 @@ function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer)
 end
 
 # Inverse pass
-function inverse(X_curr, X_new, HL::HyperbolicLayer; save=false)
-
+function inverse(X_curr, X_new, HL::HyperbolicLayer{s, p, a}; save=false) where {s, p, a}
+    cdims = DCDims(X_curr, HL.W.data; stride=s, padding=p)
     # Symmetric convolution w/ relu activation
     if length(size(X_curr)) == 4
-        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
+        X_conv = conv(X_curr, HL.W.data, cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
     else
-        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, 1, :, 1)
+        X_conv = conv(X_curr, HL.W.data, cdims) .+ reshape(HL.b.data, 1, 1, 1, :, 1)
     end
     X_relu = ReLU(X_conv)
-    X_convT = -∇conv_data(X_relu, HL.W.data, HL.cdims)
+    X_convT = -∇conv_data(X_relu, HL.W.data, cdims)
 
     # Update
     X_prev = 2*X_curr - X_new + HL.α*X_convT
 
     # Change dimensions
-    if HL.action == 0
+    if a == 0
         X_prev_in = identity(X_prev)
         X_curr_in = identity(X_curr)
-    elseif HL.action == -1
+    elseif a == -1
         X_prev_in = wavelet_unsqueeze(X_prev)
         X_curr_in = wavelet_unsqueeze(X_curr)
-    elseif HL.action == 1
+    elseif a == 1
         X_prev_in = wavelet_squeeze(X_prev)
         X_curr_in = wavelet_squeeze(X_curr)
     else
@@ -243,19 +177,20 @@ function inverse(X_curr, X_new, HL::HyperbolicLayer; save=false)
 end
 
 # Backward pass
-function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer; set_grad::Bool=true)
+function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer{s, p, a}; set_grad::Bool=true) where {s, p, a}
 
     # Recompute forward states
     X_prev_in, X_curr_in, X_conv, X_relu = inverse(X_curr, X_new, HL; save=true)
 
     # Backpropagate data residual and compute gradients
+    ccdims = DCDims(X_curr_in, HL.W.data; stride=s, padding=p)
     ΔX_convT = copy(ΔX_new)
-    ΔX_relu = -HL.α*conv(ΔX_convT, HL.W.data, HL.cdims)
-    ΔW = -HL.α*∇conv_filter(ΔX_convT, X_relu, HL.cdims)
+    ΔX_relu = -HL.α*conv(ΔX_convT, HL.W.data, cdims)
+    ΔW = -HL.α*∇conv_filter(ΔX_convT, X_relu, cdims)
 
     ΔX_conv = ReLUgrad(ΔX_relu, X_conv)
-    ΔX_curr += ∇conv_data(ΔX_conv, HL.W.data, HL.cdims)
-    ΔW += ∇conv_filter(X_curr, ΔX_conv, HL.cdims)
+    ΔX_curr += ∇conv_data(ΔX_conv, HL.W.data, cdims)
+    ΔW += ∇conv_filter(X_curr, ΔX_conv, cdims)
     if length(size(X_curr)) == 4
         Δb = sum(ΔX_conv; dims=[1,2,4])[1,1,:,1]
     else
@@ -273,13 +208,13 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer; set_gra
     end
 
     # Change dimensions
-    if HL.action == 0
+    if a == 0
         ΔX_prev_in = identity(ΔX_prev)
         ΔX_curr_in = identity(ΔX_curr)
-    elseif HL.action == -1
+    elseif a == -1
         ΔX_prev_in = wavelet_unsqueeze(ΔX_prev)
         ΔX_curr_in = wavelet_unsqueeze(ΔX_curr)
-    elseif HL.action == 1
+    elseif a == 1
         ΔX_prev_in = wavelet_squeeze(ΔX_prev)
         ΔX_curr_in = wavelet_squeeze(ΔX_curr)
     else
@@ -293,20 +228,20 @@ end
 ## Jacobian utilities
 
 # 2D
-function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::HyperbolicLayer)
+function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::HyperbolicLayer{s, p, a}) where {s, p, a}
 
     # Change dimensions
-    if HL.action == 0
+    if a == 0
         X_prev = identity(X_prev_in)
         X_curr = identity(X_curr_in)
         ΔX_prev = identity(ΔX_prev_in)
         ΔX_curr = identity(ΔX_curr_in)
-    elseif HL.action == 1
+    elseif a == 1
         X_prev = wavelet_unsqueeze(X_prev_in)
         X_curr = wavelet_unsqueeze(X_curr_in)
         ΔX_prev = wavelet_unsqueeze(ΔX_prev_in)
         ΔX_curr = wavelet_unsqueeze(ΔX_curr_in)
-    elseif HL.action == -1
+    elseif a == -1
         X_prev = wavelet_squeeze(X_prev_in)
         X_curr = wavelet_squeeze(X_curr_in)
         ΔX_prev = wavelet_squeeze(ΔX_prev_in)
@@ -315,17 +250,18 @@ function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::Hype
         throw("Specified operation not defined.")
     end
 
+    cdims = DCDims(X_curr, HL.W.data; stride=s, padding=p)
     # Symmetric convolution w/ relu activation
     if length(size(X_curr)) == 4
-        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
+        X_conv = conv(X_curr, HL.W.data, cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
     else
-        X_conv = conv(X_curr, HL.W.data, HL.cdims) .+ reshape(HL.b.data, 1, 1, 1, :, 1)
+        X_conv = conv(X_curr, HL.W.data, cdims) .+ reshape(HL.b.data, 1, 1, 1, :, 1)
     end
-    ΔX_conv = conv(ΔX_curr, HL.W.data, HL.cdims) .+ conv(X_curr, Δθ[1].data, HL.cdims) .+ reshape(Δθ[2].data, 1, 1, :, 1)
+    ΔX_conv = conv(ΔX_curr, HL.W.data, cdims) .+ conv(X_curr, Δθ[1].data, cdims) .+ reshape(Δθ[2].data, 1, 1, :, 1)
     X_relu = ReLU(X_conv)
     ΔX_relu = ReLUgrad(ΔX_conv, X_conv)
-    X_convT = -∇conv_data(X_relu, HL.W.data, HL.cdims)
-    ΔX_convT = -∇conv_data(ΔX_relu, HL.W.data, HL.cdims)-∇conv_data(X_relu, Δθ[1].data, HL.cdims)
+    X_convT = -∇conv_data(X_relu, HL.W.data, cdims)
+    ΔX_convT = -∇conv_data(ΔX_relu, HL.W.data, cdims)-∇conv_data(X_relu, Δθ[1].data, cdims)
 
     # Update
     X_new = 2f0*X_curr - X_prev + HL.α*X_convT

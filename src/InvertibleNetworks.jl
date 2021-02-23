@@ -4,13 +4,19 @@
 
 module InvertibleNetworks
 
+# Dependencies
+using LinearAlgebra, Random
+using Statistics, Wavelets
+using JOLI
+using NNlib, Flux, Zygote, ChainRulesCore
+
+# Overloads and reexports
 import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!
 import Base.+, Base.*, Base.-, Base./
 import LinearAlgebra.dot, LinearAlgebra.norm, LinearAlgebra.adjoint
 import Flux.glorot_uniform
 import CUDA: CuArray
 
-using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote, JOLI
 
 export clear_grad!, glorot_uniform
 
@@ -18,9 +24,9 @@ export clear_grad!, glorot_uniform
 # Getters for DenseConvDims fields
 # (need to redefine here as they are not public methods in NNlib)
 input_size(c::DenseConvDims) = c.I
-kernel_size(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = K
-channels_in(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_in
-channels_out(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_out
+kernel_size(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = K
+channels_in(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_in
+channels_out(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_out
 
 # Utils
 include("utils/parameter.jl")

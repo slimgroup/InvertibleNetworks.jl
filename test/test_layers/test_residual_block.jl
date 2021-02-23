@@ -38,7 +38,7 @@ db1 = b1 - b01; db1 *= norm(b01)/norm(db1)
 db2 = b2 - b02; db2 *= norm(b02)/norm(db2)
 
 # Residual blocks
-RB = ResidualBlock(W1, W2, W3, b1, b2, nx, ny, batchsize)   # true weights
+RB = ResidualBlock(W1, W2, W3, b1, b2)   # true weights
 
 # Observed data
 Y = RB.forward(X)
@@ -76,7 +76,7 @@ end
 
 
 # Gradient test for weights
-RB0 = ResidualBlock(W01, W02, W03, b1, b2, nx, ny, batchsize)   # initial weights
+RB0 = ResidualBlock(W01, W02, W03, b1, b2)   # initial weights
 f0, ΔX, ΔW1, ΔW2, ΔW3 = loss(RB0, X0, Y)[1:5]
 h = 0.1f0
 maxiter = 5
@@ -100,7 +100,7 @@ end
 
 
 # Gradient test for bias
-RB0 = ResidualBlock(W1, W2, W3, b01, b02, nx, ny, batchsize)
+RB0 = ResidualBlock(W1, W2, W3, b01, b02)
 f0, ΔX, ΔW1, ΔW2, ΔW3, Δb1, Δb2 = loss(RB0, X0, Y)
 h = 0.1f0
 maxiter = 5
@@ -132,7 +132,7 @@ W2 = glorot_uniform(k2, k2, n_hidden, n_hidden)
 W3 = glorot_uniform(k1, k1, 2*n_in, n_hidden)
 b1 = glorot_uniform(n_hidden)
 b2 = glorot_uniform(n_hidden)
-RB = ResidualBlock(W1, W2, W3, b1, b2, nx, ny, batchsize; fan=true)
+RB = ResidualBlock(W1, W2, W3, b1, b2; fan=true)
 θ = deepcopy(get_params(RB))
 X = randn(Float32, nx, ny, n_in, batchsize)
 

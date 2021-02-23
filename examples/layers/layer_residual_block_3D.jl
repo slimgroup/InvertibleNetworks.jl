@@ -19,8 +19,8 @@ k2 = 3; p2 = 1; s2 = 1
 X = glorot_uniform(nx, ny, nz, n_in, batchsize)
 
 # Residual blocks
-RB = ResidualBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
-RB0 = ResidualBlock(nx, ny, nz, n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+RB = ResidualBlock3D(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+RB0 = ResidualBlock3D(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
 
 # Observed data
 Y = RB.forward(X)
