@@ -68,3 +68,14 @@ The following publications use [InvertibleNetworks.jl]:
 ## Acknowledgments
 
 This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl), [Flux.jl](https://github.com/FluxML/Flux.jl) and [Wavelets.jl](https://github.com/JuliaDSP/Wavelets.jl)
+
+[Flux]:https://fluxml.ai
+[Julia]:https://julialang.org
+[Zygote]:https://github.com/FluxML/Zygote.jl
+[ChainRules]:https://github.com/JuliaDiff/ChainRules.jl
+[InvertibleNetworks.jl]:https://github.com/slimgroup/InvertibleNetworks.jl
+[“Preconditioned training of normalizing flows for variational inference in inverse problems”]:https://slim.gatech.edu/content/preconditioned-training-normalizing-flows-variational-inference-inverse-problems
+[FastApproximateInference.jl]:https://github.com/slimgroup/Software.siahkoohi2021AABIpto
+["Generalized Minkowski sets for the regularization of inverse problems"]:https://slim.gatech.edu/content/generalized-minkowski-sets-regularization-inverse-problems-1
+[SetIntersectionProjection.jl]:https://github.com/slimgroup/SetIntersectionProjection.jl
+["Parameterizing uncertainty by deep invertible networks, an application to reservoir characterization"]:https://slim.gatech.edu/content/parameterizing-uncertainty-deep-invertible-networks-application-reservoir-characterization
