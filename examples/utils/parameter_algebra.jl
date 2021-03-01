@@ -17,8 +17,8 @@ X2 = randn(Float32, nx, ny, n_channel, batchsize)
 # Networks
 logdet=true
 permute="full"
-N1 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=logdet); N1.forward(X1)
-N2 = CouplingLayerHINT(nx, ny, n_channel, n_hidden, batchsize; permute=permute, logdet=logdet); N2.forward(X2)
+N1 = CouplingLayerHINT(n_channel, n_hidden; permute=permute, logdet=logdet); N1.forward(X1)
+N2 = CouplingLayerHINT(n_channel, n_hidden; permute=permute, logdet=logdet); N2.forward(X2)
 
 # Collect parameters
 θ1 = get_params(N1)

@@ -19,7 +19,7 @@ batchsize = 2
 
 function inv_test(nx, ny, n_channel, batchsize, rev, logdet, permute)
     print("\nConditional HINT invertibility test with permute=$(permute), logdet=$(logdet), reverse=$(rev)\n")
-    CH = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=logdet, permute=permute)
+    CH = ConditionalLayerHINT(n_channel, n_hidden; logdet=logdet, permute=permute)
     rev && (CH = reverse(CH))
 
     # Input image and data
@@ -72,7 +72,7 @@ end
 function grad_test_X(nx, ny, n_channel, batchsize, rev, logdet, permute)
     print("\nConditional HINT gradient test for input with permute=$(permute), logdet=$(logdet), reverse=$(rev)\n")
     logdet ? lossf = loss_logdet : lossf = loss
-    CH = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=logdet, permute=permute)
+    CH = ConditionalLayerHINT(n_channel, n_hidden; logdet=logdet, permute=permute)
     rev && (CH = reverse(CH))
 
     # Input image
@@ -105,7 +105,7 @@ end
 function grad_test_par(nx, ny, n_channel, batchsize, rev, logdet, permute)
     print("\nConditional HINT gradient test for weights with permute=$(permute), logdet=$(logdet), reverse=$(rev)\n")
     logdet ? lossf = loss_logdet : lossf = loss
-    CH0 = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=logdet, permute=permute)
+    CH0 = ConditionalLayerHINT(n_channel, n_hidden; logdet=logdet, permute=permute)
     rev && (CH0 = reverse(CH0))
     CHini = deepcopy(CH0)
 
@@ -154,9 +154,9 @@ function jacobian_test_par(nx, ny, n_channel, batchsize, logdet, permute)
     print("\nConditional HINT jacobian test with permute=$(permute), logdet=$(logdet)\n")
 
     # Initialization
-    CH = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=logdet, permute=permute)
+    CH = ConditionalLayerHINT(n_channel, n_hidden; logdet=logdet, permute=permute)
     θ = deepcopy(get_params(CH))
-    CH0 = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize; logdet=logdet, permute=permute)
+    CH0 = ConditionalLayerHINT(n_channel, n_hidden; logdet=logdet, permute=permute)
     θ0 = deepcopy(get_params(CH0))
     X = randn(Float32, nx, ny, n_channel, batchsize)
     Y = randn(Float32, nx, ny, n_channel, batchsize)

@@ -19,7 +19,7 @@ X0 = glorot_uniform(nx, ny, nz, k, batchsize)
 
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
-RB = ResidualBlock(nx, ny, nz, n_in, n_hidden, batchsize)
+RB = ResidualBlock3D(n_in, n_hidden)
 
 # Invertible i-RIM coupling layer
 L = CouplingLayerIRIM(C, RB)

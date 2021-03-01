@@ -27,7 +27,7 @@ dXa = Xa - Xa0
 dXb = Xb - Xb0
 
 # 1x1 convolution and residual blocks
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+RB = ResidualBlock(n_in, n_hidden; fan=true)
 L = CouplingLayerBasic(RB; logdet=true)
 
 ###################################################################################################
@@ -102,7 +102,7 @@ function loss(L, Xa, Xb, Ya, Yb)
 end
 
 # Invertible layers
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+RB0 = ResidualBlock(n_in, n_hidden; fan=true)
 L = CouplingLayerBasic(RB; logdet=true)
 L01 = CouplingLayerBasic(RB; logdet=true)
 L02 = CouplingLayerBasic(RB0; logdet=true)
@@ -173,7 +173,7 @@ function loss(L, Xa, Xb, Ya, Yb)
 end
 
 # Invertible layers
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+RB0 = ResidualBlock(n_in, n_hidden; fan=true)
 L = reverse(CouplingLayerBasic(RB; logdet=true))
 L01 = reverse(CouplingLayerBasic(RB; logdet=true))
 L02 = reverse(CouplingLayerBasic(RB0; logdet=true))
@@ -181,7 +181,7 @@ L02 = reverse(CouplingLayerBasic(RB0; logdet=true))
 
 # Gradient test w.r.t. input X0
 Ya, Yb = L.forward(Xa, Xb)[1:2]
-f0, ΔXa, ΔXb  = loss(L, Xa0, Xb0, Ya, Yb)[1:3]
+f0, ΔXa, ΔXb = loss(L, Xa0, Xb0, Ya, Yb)[1:3]
 h = 0.1f0
 maxiter = 6
 err5 = zeros(Float32, maxiter)
@@ -235,10 +235,10 @@ end
 # Gradient test
 
 # Initialization
-RB0 = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+RB0 = ResidualBlock(n_in, n_hidden; fan=true)
 L0 = CouplingLayerBasic(RB0; logdet=true, activation=Sigmoid2Layer())
 θ0 = deepcopy(get_params(L0))
-RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+RB = ResidualBlock(n_in, n_hidden; fan=true)
 L = CouplingLayerBasic(RB; logdet=true, activation=Sigmoid2Layer())
 θ = deepcopy(get_params(L))
 X1 = randn(Float32, nx, ny, n_in, batchsize)

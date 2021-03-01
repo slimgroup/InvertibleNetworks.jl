@@ -15,9 +15,9 @@ X = rand(Float32, nx, ny, nc, batchsize)
 
 # Many layers/networks
 logdet = true
-N1 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N1 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N2 = ActNorm(nc; logdet=logdet)
-N3 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N3 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 
 # Composition (1)
 N = Composition(N1, N2, N3)

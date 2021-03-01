@@ -32,7 +32,7 @@ if type == "Flux"
     )
     RB = FluxBlock(model)
 else
-    RB = ResidualBlock(nx, ny, n_in, n_hidden, batchsize; fan=true)
+    RB = ResidualBlock(n_in, n_hidden; fan=true)
 end
 
 # Invertible splitting layer
