@@ -21,7 +21,7 @@ function test_inv(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
     X1 = randn(Float32, nx, ny, n_in, batchsize)
 
     # Layer
-    H1 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, n_hidden=n_hidden)
+    H1 = HyperbolicLayer(n_in, k, s, p; action=action, α=.2f0, n_hidden=n_hidden)
 
     Y0, Y1 = H1.forward(X0, X1)
     X0_, X1_ = H1.inverse(Y0, Y1)
@@ -48,7 +48,7 @@ function loss(H, X_prev_in, X_curr_in, Y_curr, Y_new)
 end
 
 function test_grad_X(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
-    H1 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, n_hidden=n_hidden)
+    H1 = HyperbolicLayer(n_in, k, s, p; action=action, α=.2f0, n_hidden=n_hidden)
     # Initial guess and residual
     X00 = randn(Float32, nx, ny, n_in, batchsize)
     X01 = randn(Float32, nx, ny, n_in, batchsize)
@@ -79,7 +79,7 @@ end
 
 function test_grad_par(nx, ny, n_in, batchsize, k, s, p, n_hidden, action)
     # Gradient test for W and b
-    H0 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=-1, α=.2f0, n_hidden=n_hidden)
+    H0 = HyperbolicLayer(n_in, k, s, p; action=-1, α=.2f0, n_hidden=n_hidden)
     Hini = deepcopy(H0)
 
     dW = randn(Float32, size(H0.W.data))
@@ -128,9 +128,9 @@ for action in [1, -1, 0]
 
     # Gradient test
     # Initialization
-    HL = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, n_hidden=8)
+    HL = HyperbolicLayer(n_in, k, s, p; action=action, α=.2f0, n_hidden=8)
     θ = deepcopy(get_params(HL))
-    HL0 = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; action=action, α=.2f0, n_hidden=8)
+    HL0 = HyperbolicLayer(n_in, k, s, p; action=action, α=.2f0, n_hidden=8)
     θ0 = deepcopy(get_params(HL0))
     X1 = randn(Float32, nx, ny, n_in, batchsize)
     X2 = randn(Float32, nx, ny, n_in, batchsize)

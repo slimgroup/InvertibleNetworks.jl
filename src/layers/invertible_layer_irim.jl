@@ -2,16 +2,18 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export CouplingLayerIRIM
+export CouplingLayerIRIM, CouplingLayerIRIM3D
 
 """
     IL = CouplingLayerIRIM(C::Conv1x1, RB::ResidualBlock)
 
 or
 
-    IL = CouplingLayerIRIM(nx, ny, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet=false) (2D)
+    IL = CouplingLayerIRIM(n_in, n_hidden; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet=false, ndims=2) (2D)
 
-    IL = CouplingLayerIRIM(nx, ny, nz, n_in, n_hidden, batchsize; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet=false) (3D)
+    IL = CouplingLayerIRIM(n_in, n_hidden; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet=false, ndims=3) (3D)
+
+    IL = CouplingLayerIRIM3D(n_in, n_hidden; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, logdet=false) (3D)
 
 
  Create an i-RIM invertible coupling layer based on 1x1 convolutions and a residual block. 
@@ -63,26 +65,17 @@ end
 @Flux.functor CouplingLayerIRIM
 
 # 2D Constructor from input dimensions
-function CouplingLayerIRIM(nx::Int64, ny::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; 
-    k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
+function CouplingLayerIRIM(n_in::Int64, n_hidden::Int64; 
+                           k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
-    RB = ResidualBlock(nx, ny, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
+    RB = ResidualBlock(n_in÷2, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
 
     return CouplingLayerIRIM(C, RB)
 end
 
-# 3D Constructor from input dimensions
-function CouplingLayerIRIM(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, n_hidden::Int64, batchsize::Int64; 
-    k1=4, k2=3, p1=0, p2=1, s1=4, s2=1)
-
-    # 1x1 Convolution and residual block for invertible layer
-    C = Conv1x1(n_in)
-    RB = ResidualBlock(nx, ny, nz, Int(n_in/2), n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2)
-
-    return CouplingLayerIRIM(C, RB)
-end
+CouplingLayerIRIM3D(args...;kw...) = CouplingLayerIRIM(args...; kw..., ndims=3)
 
 # 2D Forward pass: Input X, Output Y
 function forward(X::AbstractArray{Float32, N}, L::CouplingLayerIRIM) where N
@@ -91,7 +84,7 @@ function forward(X::AbstractArray{Float32, N}, L::CouplingLayerIRIM) where N
     k = Int(L.C.k/2)
     
     X_ = L.C.forward(X)
-    X1_, X2_ =tensor_split(X_)
+    X1_, X2_ = tensor_split(X_)
 
     Y1_ = X1_
     Y2_ = X2_ + L.RB.forward(Y1_)
@@ -109,12 +102,12 @@ function inverse(Y::AbstractArray{Float32, N}, L::CouplingLayerIRIM; save=false)
     k = Int(L.C.k/2)
 
     Y_ = L.C.forward(Y)
-    Y1_, Y2_ =tensor_split(Y_)
+    Y1_, Y2_ = tensor_split(Y_)
     
     X1_ = Y1_
     X2_ = Y2_ - L.RB.forward(Y1_)
     
-    X_ = cat(X1_, X2_, dims=3)
+    X_ = tensor_cat(X1_, X2_)
     X = L.C.inverse(X_)
     
     if save == false

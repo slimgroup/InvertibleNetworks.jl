@@ -16,7 +16,7 @@ X = glorot_uniform(nx, ny, n_channel, batchsize)
 Y = glorot_uniform(nx, ny, n_channel, batchsize)
 
 # Conditional HINT layer
-CH = ConditionalLayerHINT(nx, ny, n_channel, n_hidden, batchsize)
+CH = ConditionalLayerHINT(n_channel, n_hidden)
 
 # Forward/inverse
 Zx, Zy, logdet = CH.forward(X, Y)

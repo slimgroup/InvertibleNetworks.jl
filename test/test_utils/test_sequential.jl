@@ -17,9 +17,9 @@ X = rand(Float32, nx, ny, nc, batchsize)
 
 # Layers and initialization
 logdet = true
-N1 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N1 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N2 = ActNorm(nc; logdet=logdet)
-N3 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N3 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N = Composition(N1, N2, N3)
 
 
@@ -78,14 +78,14 @@ function loss(N, X, Y)
 end
 
 # Initializing nets
-N1 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N1 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N2 = ActNorm(nc; logdet=logdet)
-N3 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N3 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N0 = Composition(N1, N2, N3); N0.forward(rand(Float32, nx, ny, nc, batchsize))
 θ0 = deepcopy(get_params(N0))
-N1 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N1 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N2 = ActNorm(nc; logdet=logdet)
-N3 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N3 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N = Composition(N1, N2, N3); N.forward(rand(Float32, nx, ny, nc, batchsize))
 θ = deepcopy(get_params(N))
 
@@ -143,14 +143,14 @@ end
 # Gradient test
 
 # Initializing nets
-N1 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N1 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N2 = ActNorm(nc; logdet=logdet)
-N3 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N3 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N0 = Composition(N1, N2, N3); N0.forward(rand(Float32, nx, ny, nc, batchsize))
 θ0 = deepcopy(get_params(N0))
-N1 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N1 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N2 = ActNorm(nc; logdet=logdet)
-N3 = CouplingLayerHINT(nx, ny, nc, n_hidden, batchsize; permute="full", logdet=logdet)
+N3 = CouplingLayerHINT(nc, n_hidden; permute="full", logdet=logdet)
 N = Composition(N1, N2, N3); N.forward(rand(Float32, nx, ny, nc, batchsize))
 θ = deepcopy(get_params(N))
 X = randn(Float32, nx, ny, nc, batchsize)

@@ -12,7 +12,10 @@ Random.seed!(66)
 ####################################################################################################
 
 # Load original data X (size of n1 x n2 x nc x ntrain)
-X_orig = load("../../data/seismic_samples_32_by_32_num_10k.jld")["X"]
+datadir = dirname(pathof(InvertibleNetworks))*"/../data/"
+filename = "seismic_samples_64_by_64_num_10k.jld"
+~isfile("$(datadir)$(filename)") && run(`curl -L https://www.dropbox.com/s/mh5dv0yprestot4/seismic_samples_64_by_64_num_10k.jld\?dl\=0 --create-dirs -o $(datadir)$(filename)`)
+X_orig = load("$(datadir)$(filename)")["X"]
 n1, n2, nc, nsamples = size(X_orig)
 AN = ActNorm(nsamples)
 X_orig = AN.forward(X_orig) # zero mean and unit std
@@ -41,7 +44,7 @@ end
 n_hidden = 32
 batchsize = 4
 depth = 8
-CH = NetworkConditionalHINT(nx, ny, n_in, batchsize, n_hidden, depth)
+CH = NetworkConditionalHINT(n_in, n_hidden, depth)
 Params = get_params(CH)
 
 # Data modeling function

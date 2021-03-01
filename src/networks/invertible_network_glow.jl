@@ -3,10 +3,12 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: February 2020
 
-export NetworkGlow
+export NetworkGlow, NetworkGlow3D
 
 """
-    G = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
+    G = NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
+
+    G = NetworkGlow3D(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
 
  Create an invertible network based on the Glow architecture. Each flow step in the inner loop 
  consists of an activation normalization layer, followed by an invertible coupling layer with
@@ -14,9 +16,9 @@ export NetworkGlow
  to the inner loop, and a splitting operation afterwards.
 
  *Input*: 
- 
- - `nx`, `ny`, `n_in`, `batchsize`: spatial dimensions, number of channels and batchsize of input tensor
- 
+
+ - 'n_in': number of input channels
+
  - `n_hidden`: number of hidden units in residual blocks
 
  - `L`: number of scales (outer loop)
@@ -29,6 +31,8 @@ export NetworkGlow
  - `p1`, `p2`: padding for the first and third convolution (`p1`) and the second convolution (`p2`)
 
  - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
+
+ - `ndims` : numer of dimensions
 
  *Output*:
  
@@ -60,7 +64,7 @@ end
 @Flux.functor NetworkGlow
 
 # Constructor
-function NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
+function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2)
 
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
@@ -70,13 +74,15 @@ function NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K; k1=3, k2=1, p1=1, 
         n_in *= 4 # squeeze
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = CouplingLayerGlow(Int(nx/2^i), Int(ny/2^i), n_in, n_hidden, batchsize; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
+            CL[i, j] = CouplingLayerGlow(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, ndims=ndims)
         end
         (i < L) && (n_in = Int64(n_in/2)) # split
     end
 
     return NetworkGlow(AN, CL, Z_dims, L, K)
 end
+
+NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
 
 # Concatenate states Zi and final output
 function cat_states(Z_save, X)

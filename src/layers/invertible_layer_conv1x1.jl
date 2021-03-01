@@ -230,7 +230,7 @@ function inverse(Y::AbstractArray{Float32, N}, C::Conv1x1; logdet=nothing) where
         Xi = Yi*(I - 2f0*v3*v3'/(v3'*v3))'*(I - 2f0*v2*v2'/(v2'*v2))'*(I - 2f0*v1*v1'/(v1'*v1))'
         view(X, inds...) .= reshape(Xi, size(view(X, inds...))...)
     end
-   logdet == true ? (return X, 0f0) : (return X)   # logdet always 0
+    logdet == true ? (return X, 0f0) : (return X)   # logdet always 0
 end
 
 # Inverse pass and update weights

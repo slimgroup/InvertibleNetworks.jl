@@ -17,7 +17,7 @@ K = 2
 # Invertibility
 
 # Network and input
-G = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K)
+G = NetworkGlow(n_in, n_hidden, L, K)
 X = rand(Float32, nx, ny, n_in, batchsize)
 
 Y = G.forward(X)[1]
@@ -55,7 +55,7 @@ function loss(G, X)
 end
 
 # Gradient test w.r.t. input
-G = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K)
+G = NetworkGlow(n_in, n_hidden, L, K)
 X = rand(Float32, nx, ny, n_in, batchsize)
 X0 = rand(Float32, nx, ny, n_in, batchsize)
 dX = X - X0
@@ -80,8 +80,8 @@ end
 
 # Gradient test w.r.t. parameters
 X = rand(Float32, nx, ny, n_in, batchsize)
-G = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K)
-G0 = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K)
+G = NetworkGlow(n_in, n_hidden, L, K)
+G0 = NetworkGlow(n_in, n_hidden, L, K)
 Gini = deepcopy(G0)
 
 # Test one parameter from residual block and 1x1 conv
@@ -116,9 +116,9 @@ end
 # Gradient test
 
 # Initialization
-G = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K); G.forward(randn(Float32, nx, ny, n_in, batchsize))
+G = NetworkGlow(n_in, n_hidden, L, K); G.forward(randn(Float32, nx, ny, n_in, batchsize))
 θ = deepcopy(get_params(G))
-G0 = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K); G0.forward(randn(Float32, nx, ny, n_in, batchsize))
+G0 = NetworkGlow(n_in, n_hidden, L, K); G0.forward(randn(Float32, nx, ny, n_in, batchsize))
 θ0 = deepcopy(get_params(G0))
 X = randn(Float32, nx, ny, n_in, batchsize)
 

@@ -2,12 +2,12 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: February 2020
 
-export NetworkHyperbolic
+export NetworkHyperbolic, NetworkHyperbolic3D
 
 """
-    H = NetworkHyperbolic(nx, ny, n_in, batchsize, architecture; k=3, s=1, p=1, logdet=true, α=1f0)
-
-    H = NetworkHyperbolic(nx, ny, nz, n_in, batchsize, architecture; k=3, s=1, p=1, logdet=true, α=1f0)
+    H = NetworkHyperbolic(n_in, architecture; k=3, s=1, p=1, logdet=true, α=1f0)
+    H = NetworkHyperbolic(n_in, architecture; k=3, s=1, p=1, logdet=true, α=1f0, ndims=2)
+    H = NetworkHyperbolic3D(n_in, architecture; k=3, s=1, p=1, logdet=true, α=1f0)
 
  Create an invertible network based on hyperbolic layers. The network architecture is specified by a tuple
  of the form ((action_1, n_hidden_1), (action_2, n_hidden_2), ... ). Each inner tuple corresonds to an additional layer. 
@@ -17,7 +17,7 @@ export NetworkHyperbolic
  
  *Input*: 
  
- - `nx`, `ny`, `nz`, `n_in`, `batchsize`: spatial dimensions, number of channels and batchsize of input tensor. `nz` is optional.
+ - `n_in`: number of channels of input tensor.
  
  - `n_hidden`: number of hidden units in residual blocks
 
@@ -28,6 +28,8 @@ export NetworkHyperbolic
  - `logdet`: Bool to indicate whether to return the logdet
 
  - `α`: Step size in hyperbolic network. Defaults to `1`
+
+ - `ndims`: Number of dimension
 
  *Output*:
  
@@ -57,8 +59,8 @@ end
 @Flux.functor NetworkHyperbolic
 
 # Constructor 2D
-function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, architecture::NTuple; 
-    k=3, s=1, p=1, logdet=true, α=1f0)#, affine_layer=false)
+function NetworkHyperbolic(n_in::Int64, architecture::NTuple; 
+                           k=3, s=1, p=1, logdet=true, α=1f0, ndims=2)#, affine_layer=false)
 
     depth = length(architecture)
     HL = Array{HyperbolicLayer}(undef, depth)
@@ -66,53 +68,20 @@ function NetworkHyperbolic(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64, 
     for j=1:depth
         
         # Hyperbolic layer at level j
-        HL[j] = HyperbolicLayer(nx, ny, n_in, batchsize, k, s, p; 
-            action=architecture[j][1], n_hidden=architecture[j][2], α=α)
+        HL[j] = HyperbolicLayer(n_in, k, s, p; action=architecture[j][1], n_hidden=architecture[j][2], α=α, ndims=ndims)
 
         # adjust dimensions
         if architecture[j][1] == 1
-            nx = Int(nx*2)
-            ny = Int(ny*2)
-            n_in = Int(n_in/4)
+            n_in = Int(n_in/2^ndims)
         elseif architecture[j][1] == -1
-            nx = Int(nx/2)
-            ny = Int(ny/2)
-            n_in = Int(n_in*4)
+            n_in = Int(n_in*2^ndims)
         end
     end
 
     return NetworkHyperbolic(HL, logdet)
 end
 
-# Constructor 3D
-function NetworkHyperbolic(nx::Int64, ny::Int64, nz::Int64, n_in::Int64, batchsize::Int64, architecture::NTuple; 
-    k=3, s=1, p=1, logdet=true, α=1f0)
-
-    depth = length(architecture)
-    HL = Array{HyperbolicLayer}(undef, depth)
-
-    for j=1:depth
-        
-        # Hyperbolic layer at level j
-        HL[j] = HyperbolicLayer(nx, ny, nz, n_in, batchsize, k, s, p; 
-            action=architecture[j][1], n_hidden=architecture[j][2], α=α)
-
-        # adjust dimensions
-        if architecture[j][1] == 1
-            nx = Int(nx*2)
-            ny = Int(ny*2)
-            nz = Int(nz*2)
-            n_in = Int(n_in/8)
-        elseif architecture[j][1] == -1
-            nx = Int(nx/2)
-            ny = Int(ny/2)
-            nz = Int(nz/2)
-            n_in = Int(n_in*8)
-        end
-    end
-
-    return NetworkHyperbolic(HL, logdet)
-end
+NetworkHyperbolic3D(args...; kw...) = NetworkHyperbolic(args...; kw..., ndims=3)
 
 # Forward pass
 function forward(X_prev, X_curr, H::NetworkHyperbolic)

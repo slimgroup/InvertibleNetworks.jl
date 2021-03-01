@@ -25,7 +25,7 @@ Params = Array{Parameter}(undef, 0)
 # Create layers
 for j=1:depth
     AN[j] = ActNorm(n_in; logdet=true)
-    L[j] = CouplingLayerHINT(nx, ny, n_in, n_hidden, batchsize; logdet=true, permute="lower", k1=1, k2=1, p1=0, p2=0)
+    L[j] = CouplingLayerHINT(n_in, n_hidden; logdet=true, permute="lower", k1=1, k2=1, p1=0, p2=0)
 
     # Collect parameters
     global Params = cat(Params, get_params(AN[j]); dims=1)

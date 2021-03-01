@@ -2,17 +2,19 @@
 # Author: Gabrio Rizzuti, grizzuti3@gatech.edu
 # Date: October 2020
 
-export NetworkMultiScaleHINT
+export NetworkMultiScaleHINT, NetworkMultiScaleHINT3D
 
 """
-    H = NetworkMultiScaleHINT(nx, ny, n_in, batchsize, n_hidden, L, K; split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+    H = NetworkMultiScaleHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2)
+
+    H = NetworkMultiScaleHINT3D(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
  Create a multiscale HINT network for data-driven generative modeling based
  on the change of variables formula.
 
  *Input*: 
  
- - `nx`, `ny`, `n_in`, `batchsize`: spatial dimensions, number of channels and batchsize of input tensor `X`
+ - 'n_in': number of input channels
  
  - `n_hidden`: number of hidden units in residual blocks
 
@@ -28,6 +30,8 @@ export NetworkMultiScaleHINT
  - `p1`, `p2`: respective padding sizes for residual block layers
  
  - `s1`, `s2`: respective strides for residual block layers
+
+ - `ndims` : number of dimensions
 
  *Output*:
  
@@ -62,9 +66,8 @@ end
 @Flux.functor NetworkMultiScaleHINT
 
 # Constructor
-function NetworkMultiScaleHINT(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int64,
-                               n_hidden::Int64, L::Int64, K::Int64;
-                               split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+function NetworkMultiScaleHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
+                               split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2)
 
     AN = Array{ActNorm}(undef, L, K)
     CL = Array{CouplingLayerHINT}(undef, L, K)
@@ -80,14 +83,16 @@ function NetworkMultiScaleHINT(nx::Int64, ny::Int64, n_in::Int64, batchsize::Int
     for i=1:L
         for j=1:K
             AN[i, j] = ActNorm(n_in*4; logdet=true)
-            CL[i, j] = CouplingLayerHINT(Int(nx/2^i), Int(ny/2^i), n_in*4, n_hidden, batchsize;
-                                            permute="full", k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true)
+            CL[i, j] = CouplingLayerHINT(n_in*4, n_hidden; permute="full", k1=k1, k2=k2, p1=p1, p2=p2,
+                                         s1=s1, s2=s2, logdet=true, ndims=ndims)
         end
         n_in *= channel_factor
     end
 
     return NetworkMultiScaleHINT(AN, CL, X_dims, L, K, split_scales)
 end
+
+NetworkMultiScaleHINT3D(args...; kw...) = NetworkMultiScaleHINT(args...; kw..., ndims=3)
 
 # Concatenate states Zi and final output
 function cat_states(X_save::AbstractArray{Array, 1}, X::AbstractArray{Float32, 4})

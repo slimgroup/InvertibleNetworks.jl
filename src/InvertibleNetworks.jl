@@ -4,13 +4,19 @@
 
 module InvertibleNetworks
 
+# Dependencies
+using LinearAlgebra, Random
+using Statistics, Wavelets
+using JOLI
+using NNlib, Flux, Zygote, ChainRulesCore
+
+# Overloads and reexports
 import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!
 import Base.+, Base.*, Base.-, Base./
 import LinearAlgebra.dot, LinearAlgebra.norm, LinearAlgebra.adjoint
 import Flux.glorot_uniform
 import CUDA: CuArray
 
-using LinearAlgebra, Random, NNlib, Flux, Statistics, Wavelets, Zygote, JOLI
 
 export clear_grad!, glorot_uniform
 
@@ -18,9 +24,17 @@ export clear_grad!, glorot_uniform
 # Getters for DenseConvDims fields
 # (need to redefine here as they are not public methods in NNlib)
 input_size(c::DenseConvDims) = c.I
-kernel_size(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = K
-channels_in(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_in
-channels_out(c::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_out
+kernel_size(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = K
+channels_in(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_in
+channels_out(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_out
+
+function DCDims(X::AbstractArray{Float32, N}, W::AbstractArray{Float32, N}; stride=1, padding=1, nc=nothing) where N
+    sw = size(W)
+    isnothing(nc) && (nc = sw[N-1])
+    sx = (size(X)[1:N-2]..., nc, size(X)[end])
+    return DenseConvDims(sx, sw; stride=Tuple(stride for i=1:N-2), padding=Tuple(padding for i=1:N-2))
+end
+
 
 # Utils
 include("utils/parameter.jl")
@@ -30,6 +44,8 @@ include("utils/activation_functions.jl")
 include("utils/test_distributions.jl")
 include("utils/neuralnet.jl")
 include("utils/invertible_network_sequential.jl")
+# AD rules
+include("utils/chainrules.jl")
 
 # Single network layers (invertible and non-invertible)
 include("conditional_layers/conditional_layer_residual_block.jl")
@@ -44,9 +60,6 @@ include("layers/invertible_layer_irim.jl")
 include("layers/invertible_layer_glow.jl")
 include("layers/invertible_layer_hyperbolic.jl")
 include("layers/invertible_layer_hint.jl")
-include("layers/invertible_layer_slim_additive.jl")
-include("layers/invertible_layer_slim_affine.jl")
-include("layers/invertible_layer_slim_learned.jl")
 
 # Invertible network architectures
 include("networks/invertible_network_hint_multiscale.jl")
@@ -56,7 +69,6 @@ include("networks/invertible_network_hyperbolic.jl")    # Hyperbolic: Lensink et
 
 # Conditional layers and nets
 include("conditional_layers/conditional_layer_hint.jl")
-include("conditional_layers/conditional_layer_slim.jl")
 include("networks/invertible_network_conditional_hint.jl")
 include("networks/invertible_network_conditional_hint_multiscale.jl")
 

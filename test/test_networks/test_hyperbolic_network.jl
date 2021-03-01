@@ -11,7 +11,7 @@ X_curr = randn(Float32, nx, ny, n_in, batchsize)
 # Network
 architecture = ((0, 6), (1, 12), (0, 24), (-1, 12), (0, 6))
 α0 = .2f0
-H = NetworkHyperbolic(nx, ny, n_in, batchsize, architecture; α=α0)
+H = NetworkHyperbolic(n_in, architecture; α=α0)
 
 ###################################################################################################
 # Test invertibility
@@ -70,8 +70,8 @@ end
 @show rate_2 = sum(err2[1:end-1]./err2[2:end])/(maxiter - 1)
 
 # Gradient test w.r.t. weights of hyperbolic network
-H = NetworkHyperbolic(nx, ny, n_in, batchsize, architecture; α=α0)
-H0 = NetworkHyperbolic(nx, ny, n_in, batchsize, architecture; α=α0)
+H = NetworkHyperbolic(n_in, architecture; α=α0)
+H0 = NetworkHyperbolic(n_in, architecture; α=α0)
 H.forward(X_prev, X_curr)
 H0.forward(X_prev, X_curr)   # evaluate to initialize actnorm layer
 
@@ -107,9 +107,11 @@ end
 # Gradient test
 
 # Initialization
-H = NetworkHyperbolic(nx, ny, n_in, batchsize, architecture; α=α0); H.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+H = NetworkHyperbolic(n_in, architecture; α=α0);
+H.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ = deepcopy(get_params(H))
-H0 = NetworkHyperbolic(nx, ny, n_in, batchsize, architecture; α=α0); H0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+H0 = NetworkHyperbolic(n_in, architecture; α=α0);
+H0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ0 = deepcopy(get_params(H0))
 X_prev = randn(Float32, nx, ny, n_in, batchsize)
 X_curr = randn(Float32, nx, ny, n_in, batchsize)

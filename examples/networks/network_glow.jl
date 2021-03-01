@@ -3,8 +3,6 @@
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Flux
-using CuArrays
-#CuArrays.allowscalar(false)
 
 import Flux.Optimise.update!
 
@@ -21,7 +19,7 @@ K = 2   # number of flow steps per scale
 X = rand(Float32, nx, ny, n_in, batchsize) #|> gpu
 
 # Glow network
-G = NetworkGlow(nx, ny, n_in, batchsize, n_hidden, L, K) #|>gpu
+G = NetworkGlow(n_in, n_hidden, L, K) #|>gpu
 
 # Objective function
 function loss(X)

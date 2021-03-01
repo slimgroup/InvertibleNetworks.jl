@@ -19,7 +19,7 @@ X_prev = zeros(Float32, nx, ny, nz, n_in, batchsize)
 X_curr = randn(Float32, nx, ny, nz, n_in, batchsize)
 
 # Layer
-HL = HyperbolicLayer(nx, ny, nz, n_in, batchsize, k, s, p; action=-1, α=1f-1, n_hidden=6)
+HL = HyperbolicLayer3D(n_in, k, s, p; action=-1, α=1f-1, n_hidden=6)
 
 Y_curr, Y_new = HL.forward(X_prev, X_curr)
 X_prev_, X_curr_ = HL.inverse(Y_curr, Y_new)

@@ -1,0 +1,16 @@
+name: Cancel
+
+on: [push]
+
+jobs:
+  cancel:
+    name: 'Cancel Previous Runs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: styfle/cancel-workflow-action@0.4.0
+        with:
+          # Ids to cancel op/judi
+          # https://api.github.com/repos/slimgroup/JUDI.jl/actions/workflows
+          workflow_id: 517058, 5956652
+          access_token: ${{ github.token }}
