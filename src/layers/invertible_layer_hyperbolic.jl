@@ -53,10 +53,13 @@ Create an invertible hyperbolic coupling layer.
 
  See also: [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct HyperbolicLayer{S, P, A} <: NeuralNetLayer
+struct HyperbolicLayer <: NeuralNetLayer
     W::Parameter
     b::Parameter
     α::Float32
+    stride::Int
+    pad::Int
+    action
 end
 
 @Flux.functor HyperbolicLayer
@@ -75,7 +78,7 @@ function HyperbolicLayer(n_in::Int64, kernel::Int64, stride::Int64,
     W = Parameter(glorot_uniform(k..., n_out, n_hidden))
     b = Parameter(zeros(Float32, n_hidden))
 
-    return HyperbolicLayer{stride, pad, action}(W, b, α)
+    return HyperbolicLayer(W, b, α,stride, pad, action)
 end
 
 HyperbolicLayer3D(args...; kw...) =  HyperbolicLayer(args...; kw..., ndims=3)
@@ -91,7 +94,7 @@ function HyperbolicLayer(W::AbstractArray{Float32, N}, b::AbstractArray{Float32,
     W = Parameter(W)
     b = Parameter(b)
 
-    return HyperbolicLayer{stride, pad, action}(W, b, α)
+    return HyperbolicLayer(W, b, α, stride, pad, action)
 end
 
 HyperbolicLayer3D(W::AbstractArray{Float32, N}, b, stride, pad;
@@ -101,16 +104,16 @@ HyperbolicLayer3D(W::AbstractArray{Float32, N}, b, stride, pad;
 #################################################
 
 # Forward pass
-function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer{s, p, a}) where {s, p, a}
+function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer)
 
     # Change dimensions
-    if a == 0
+    if HL.action == 0
         X_prev = identity(X_prev_in)
         X_curr = identity(X_curr_in)
-    elseif a == 1
+    elseif HL.action == 1
         X_prev = wavelet_unsqueeze(X_prev_in)
         X_curr = wavelet_unsqueeze(X_curr_in)
-    elseif a == -1
+    elseif HL.action == -1
         X_prev = wavelet_squeeze(X_prev_in)
         X_curr = wavelet_squeeze(X_curr_in)
     else
@@ -118,7 +121,7 @@ function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer{s, p, a}) where {s, p
     end
 
     # Symmetric convolution w/ relu activation
-    cdims = DCDims(X_curr, HL.W.data; stride=s, padding=p)
+    cdims = DCDims(X_curr, HL.W.data; stride=HL.stride, padding=HL.pad)
     if length(size(X_curr)) == 4
         X_conv = conv(X_curr, HL.W.data, cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
     else
@@ -134,8 +137,8 @@ function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer{s, p, a}) where {s, p
 end
 
 # Inverse pass
-function inverse(X_curr, X_new, HL::HyperbolicLayer{s, p, a}; save=false) where {s, p, a}
-    cdims = DCDims(X_curr, HL.W.data; stride=s, padding=p)
+function inverse(X_curr, X_new, HL::HyperbolicLayer; save=false)
+    cdims = DCDims(X_curr, HL.W.data; stride=HL.stride, padding=HL.pad)
     # Symmetric convolution w/ relu activation
     if length(size(X_curr)) == 4
         X_conv = conv(X_curr, HL.W.data, cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
@@ -149,13 +152,13 @@ function inverse(X_curr, X_new, HL::HyperbolicLayer{s, p, a}; save=false) where 
     X_prev = 2*X_curr - X_new + HL.α*X_convT
 
     # Change dimensions
-    if a == 0
+    if HL.action == 0
         X_prev_in = identity(X_prev)
         X_curr_in = identity(X_curr)
-    elseif a == -1
+    elseif HL.action == -1
         X_prev_in = wavelet_unsqueeze(X_prev)
         X_curr_in = wavelet_unsqueeze(X_curr)
-    elseif a == 1
+    elseif HL.action == 1
         X_prev_in = wavelet_squeeze(X_prev)
         X_curr_in = wavelet_squeeze(X_curr)
     else
@@ -170,13 +173,13 @@ function inverse(X_curr, X_new, HL::HyperbolicLayer{s, p, a}; save=false) where 
 end
 
 # Backward pass
-function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer{s, p, a}; set_grad::Bool=true) where {s, p, a}
+function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer; set_grad::Bool=true)
 
     # Recompute forward states
     X_prev_in, X_curr_in, X_conv, X_relu = inverse(X_curr, X_new, HL; save=true)
 
     # Backpropagate data residual and compute gradients
-    cdims = DCDims(X_curr, HL.W.data; stride=s, padding=p)
+    cdims = DCDims(X_curr, HL.W.data; stride=HL.stride, padding=HL.pad)
     ΔX_convT = copy(ΔX_new)
     ΔX_relu = -HL.α*conv(ΔX_convT, HL.W.data, cdims)
     ΔW = -HL.α*∇conv_filter(ΔX_convT, X_relu, cdims)
@@ -201,13 +204,13 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer{s, p, a}
     end
 
     # Change dimensions
-    if a == 0
+    if HL.action == 0
         ΔX_prev_in = identity(ΔX_prev)
         ΔX_curr_in = identity(ΔX_curr)
-    elseif a == -1
+    elseif HL.action == -1
         ΔX_prev_in = wavelet_unsqueeze(ΔX_prev)
         ΔX_curr_in = wavelet_unsqueeze(ΔX_curr)
-    elseif a == 1
+    elseif HL.action == 1
         ΔX_prev_in = wavelet_squeeze(ΔX_prev)
         ΔX_curr_in = wavelet_squeeze(ΔX_curr)
     else
@@ -221,20 +224,20 @@ end
 ## Jacobian utilities
 
 # 2D
-function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::HyperbolicLayer{s, p, a}) where {s, p, a}
+function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::HyperbolicLayer)
 
     # Change dimensions
-    if a == 0
+    if HL.action == 0
         X_prev = identity(X_prev_in)
         X_curr = identity(X_curr_in)
         ΔX_prev = identity(ΔX_prev_in)
         ΔX_curr = identity(ΔX_curr_in)
-    elseif a == 1
+    elseif HL.action == 1
         X_prev = wavelet_unsqueeze(X_prev_in)
         X_curr = wavelet_unsqueeze(X_curr_in)
         ΔX_prev = wavelet_unsqueeze(ΔX_prev_in)
         ΔX_curr = wavelet_unsqueeze(ΔX_curr_in)
-    elseif a == -1
+    elseif HL.action == -1
         X_prev = wavelet_squeeze(X_prev_in)
         X_curr = wavelet_squeeze(X_curr_in)
         ΔX_prev = wavelet_squeeze(ΔX_prev_in)
@@ -243,7 +246,7 @@ function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::Hype
         throw("Specified operation not defined.")
     end
 
-    cdims = DCDims(X_curr, HL.W.data; stride=s, padding=p)
+    cdims = DCDims(X_curr, HL.W.data; stride=HL.stride, padding=HL.pad)
     # Symmetric convolution w/ relu activation
     if length(size(X_curr)) == 4
         X_conv = conv(X_curr, HL.W.data, cdims) .+ reshape(HL.b.data, 1, 1, :, 1)
