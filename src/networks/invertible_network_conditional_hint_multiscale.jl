@@ -226,9 +226,6 @@ function backward_inv(ΔX, ΔY, X, Y, CH::NetworkMultiScaleConditionalHINT)
 	X = wavelet_squeeze(X)
         Y = wavelet_squeeze(Y)    
     	for j=1:CH.K
-            #ΔX_, X_ = CH.AN_X[i, j].backward_inv(ΔX, X)
-            #ΔY_, Y_ = CH.AN_Y[i, j].backward_inv(ΔY, Y)
-            #ΔX, ΔY, X, Y = CH.CL[i, j].backward_inv(ΔX_, ΔY_, X_, Y_)
             ΔX_, X_ = backward_inv(ΔX, X, CH.AN_X[i, j])
             ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[i, j])
             ΔX, ΔY, X, Y = backward_inv(ΔX_, ΔY_, X_, Y_, CH.CL[i, j])
@@ -293,7 +290,7 @@ function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiSca
         ΔY = wavelet_squeeze(ΔY)
         for j=1:CH.K
 	    if logdet
-  	        ΔX_, X_ = CH.AN_X[i, j].jacobian(ΔX, Δθj[1:2], X)
+                ΔX_, X_ = CH.AN_X[i, j].jacobian(ΔX, Δθj[1:2], X)
                 ΔY_, Y_ = CH.AN_Y[i, j].jacobian(ΔY, Δθj[3:4], Y)
                 ΔX, ΔY, X, Y = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθj[5:end], X_, Y_)
 	    else 
