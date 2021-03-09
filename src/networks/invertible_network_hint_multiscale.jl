@@ -231,3 +231,4 @@ function get_params(H::NetworkMultiScaleHINT)
     end
     return p
 end
+
