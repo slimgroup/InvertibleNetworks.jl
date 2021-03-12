@@ -14,11 +14,16 @@ batchsize = 2
 L = 2
 K = 2
 
-# Multi-scale and single scale network
-CH0 = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
-CH1 = NetworkConditionalHINT(n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
+# single scale network
+CH0 = NetworkConditionalHINT(n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
+CH1 = NetworkConditionalHINT(n_in, n_hidden, L*K; logdet=false, k1=3, k2=1, p1=1, p2=0)
 
-nets = [CH0, CH1, reverse(CH1)]
+# Multi-scale network 
+CH0_multi = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
+CH1_multi = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; logdet=false, split_scales=false, k1=3, k2=1, p1=1, p2=0)
+
+nets       = [CH0, CH1, reverse(CH0), reverse(CH1)]
+nets_multi = [CH0_multi, CH1_multi, reverse(CH0_multi), reverse(CH1_multi)] 
 
 function test_inv(CH, nx, ny, n_in)
     print("\nInvertibility test HINT network\n")
@@ -28,13 +33,13 @@ function test_inv(CH, nx, ny, n_in)
     Y = X + .1f0*randn(Float32, nx, ny, n_in, test_size)
 
     # Forward-backward
-    Zx, Zy, logdet = CH.forward(X, Y)
+    Zx, Zy = CH.forward(X, Y)[1:2]
     X_, Y_ = CH.backward(0f0.*Zx, 0f0.*Zy, Zx, Zy)[3:4]
     @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
     @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
 
     # Forward-inverse
-    Zx, Zy, logdet = CH.forward(X, Y)
+    Zx, Zy = CH.forward(X, Y)[1:2]
     X_, Y_ = CH.inverse(Zx, Zy)
     @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
     @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
@@ -47,8 +52,14 @@ end
 
 # Loss
 function loss(CH, X, Y)
-    Zx, Zy, logdet = CH.forward(X, Y)
-    f = -log_likelihood(tensor_cat(Zx, Zy)) - logdet
+    if CH.logdet 
+        Zx, Zy, logdet = CH.forward(X, Y)
+        f = -log_likelihood(tensor_cat(Zx, Zy)) - logdet
+    else
+        Zx, Zy = CH.forward(X, Y)
+        f = -log_likelihood(tensor_cat(Zx, Zy)) 
+    end    
+
     ΔZ = -∇log_likelihood(tensor_cat(Zx, Zy))
     ΔZx, ΔZy = tensor_split(ΔZ)
     ΔX, ΔY = CH.backward(ΔZx, ΔZy, Zx, Zy)[1:2]
@@ -85,11 +96,14 @@ end
 
 # Loop over networks and reversed counterpart
 for CH in nets
-    # Invertibility
     test_inv(CH, nx, ny, n_in)
     test_grad(CH, nx, ny, n_in)
 end
 
+for CH in nets_multi
+    CH.is_reversed ? test_inv(CH, nx÷(2^CH.L), ny ÷ (2^CH.L), n_in*(4^CH.L)) : test_inv(CH, nx, ny, n_in)
+    CH.is_reversed ? test_grad(CH, nx÷(2^CH.L), ny ÷ (2^CH.L), n_in*(4^CH.L)) : test_grad(CH, nx, ny, n_in)
+end
 
 ###################################################################################################
 # Jacobian-related tests: NetworkConditionalHINT
