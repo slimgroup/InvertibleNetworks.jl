@@ -185,11 +185,17 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
                 ΔZx, Zx = CH.AN_X[i, j].backward(ΔZx_, Zx_)
                 ΔZy, Zy = CH.AN_Y[i, j].backward(ΔZy_, Zy_)
             else
-                ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdet_cl = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
-                ΔZx, Δθx, Zx, ∇logdet_x = CH.AN_X[i, j].backward(ΔZx_, Zx_; set_grad=set_grad)
-                ΔZy, Δθy, Zy, ∇logdet_y = CH.AN_Y[i, j].backward(ΔZy_, Zy_; set_grad=set_grad)
+                if CH.logdet
+                    ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdetcl = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
+                    ΔZx, Δθx, Zx, ∇logdetx = CH.AN_X[i, j].backward(ΔZx_, Zx_; set_grad=set_grad)
+                    ΔZy, Δθy, Zy, ∇logdety = CH.AN_Y[i, j].backward(ΔZy_, Zy_; set_grad=set_grad)
+                    ∇logdet = cat(∇logdetx, ∇logdety, ∇logdetcl, ∇logdet; dims=1)
+                else
+                    ΔZx_, ΔZy_, Δθcl, Zx_, Zy_ = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
+                    ΔZx, Δθx, Zx = CH.AN_X[i, j].backward(ΔZx_, Zx_; set_grad=set_grad)
+                    ΔZy, Δθy, Zy = CH.AN_Y[i, j].backward(ΔZy_, Zy_; set_grad=set_grad)
+                end
                 Δθ = cat(Δθx, Δθy, Δθcl, Δθ; dims=1)
-                ∇logdet = cat(∇logdet_x, ∇logdet_y, ∇logdet_cl, ∇logdet; dims=1)
             end
         end
         ΔZx = wavelet_unsqueeze(ΔZx)
@@ -197,16 +203,21 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
         Zx = wavelet_unsqueeze(Zx)
         Zy = wavelet_unsqueeze(Zy)
     end
-    set_grad ? (return ΔZx, ΔZy, Zx, Zy) : (return ΔZx, ΔZy, Δθ, Zx, Zy, ∇logdet)
+    if set_grad
+        print("returned 4")
+        return ΔZx, ΔZy, Zx, Zy
+    else
+        CH.logdet ? (return ΔZx, ΔZy, Δθ, Zx, Zy, ∇logdet) : (return ΔZx, ΔZy, Δθ, Zx, Zy)
+    end
 end
 
 # Backward reverse pass and compute gradients
 function backward_inv(ΔX, ΔY, X, Y, CH::NetworkMultiScaleConditionalHINT)
-     for i=1:CH.L
- 	ΔX = wavelet_squeeze(ΔX)
+    for i=1:CH.L
+ 	    ΔX = wavelet_squeeze(ΔX)
         ΔY = wavelet_squeeze(ΔY)    
-	X = wavelet_squeeze(X)
-        Y = wavelet_squeeze(Y)    
+	    X  = wavelet_squeeze(X)
+        Y  = wavelet_squeeze(Y)    
     	for j=1:CH.K
             ΔX_, X_ = backward_inv(ΔX, X, CH.AN_X[i, j])
             ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[i, j])
@@ -222,8 +233,8 @@ function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT)
     for i=1:CH.L
         Y = wavelet_squeeze(Y)
         for j=1:CH.K
-            Y_, logdet2 = CH.AN_Y[i, j].forward(Y; logdet=false)
-            Y = CH.CL[i, j].forward_Y(Y_)
+            Y_ = CH.AN_Y[i, j].forward(Y; logdet=false)
+            Y  = CH.CL[i, j].forward_Y(Y_)
         end
         if CH.split_scales && i < CH.L    # don't split after last iteration
             Y, Zy = tensor_split(Y)
@@ -312,7 +323,6 @@ adjointJacobian(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abstra
 
 # Clear gradients
 function clear_grad!(CH::NetworkMultiScaleConditionalHINT)
-    depth = length(CH.CL)
     L, K = size(CH.CL)
     for i = 1:L
         for j = 1:K
@@ -340,12 +350,15 @@ end
 
 # Set is_reversed flag in full network tree
 function tag_as_reversed!(CH::NetworkMultiScaleConditionalHINT, tag::Bool)
-    depth = length(CH.CL)
+    L, K = size(CH.CL)
     CH.is_reversed = tag
-    for j=1:depth
-        tag_as_reversed!(CH.AN_X[j], tag)
-        tag_as_reversed!(CH.AN_Y[j], tag)
-        tag_as_reversed!(CH.CL[j], tag)
+    for i = 1:L
+        for j = 1:K
+            tag_as_reversed!(CH.AN_X[i, j], tag)
+            tag_as_reversed!(CH.AN_Y[i, j], tag)
+            tag_as_reversed!(CH.CL[i, j], tag)
+        end
     end
+
     return CH
 end
