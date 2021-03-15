@@ -222,7 +222,6 @@ function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkMultiScaleConditionalHINT; set_
         Zy = wavelet_unsqueeze(Zy)
     end
     if set_grad
-        print("returned 4")
         return ΔZx, ΔZy, Zx, Zy
     else
         CH.logdet ? (return ΔZx, ΔZy, Δθ, Zx, Zy, ∇logdet) : (return ΔZx, ΔZy, Δθ, Zx, Zy)
