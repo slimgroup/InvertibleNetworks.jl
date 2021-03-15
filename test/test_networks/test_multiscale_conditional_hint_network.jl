@@ -14,11 +14,11 @@ batchsize = 2
 L = 2
 K = 2
 
-# single scale network
-CH0  = NetworkConditionalHINT(n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
-CH1  = NetworkConditionalHINT(n_in, n_hidden, L*K; logdet=false, k1=3, k2=1, p1=1, p2=0)
+# Multi-scale network with and without logdet
+CH0_multi = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
+CH1_multi = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; logdet=false, split_scales=false, k1=3, k2=1, p1=1, p2=0)
 
-nets = [CH0, CH1, reverse(CH0), reverse(CH1)]
+nets_multi = [CH0_multi, CH1_multi, reverse(CH0_multi), reverse(CH1_multi)] 
 
 function test_inv(CH, nx, ny, n_in)
     print("\nInvertibility test HINT network\n")
@@ -53,11 +53,10 @@ function loss(CH, X, Y)
     else
         Zx, Zy = CH.forward(X, Y)
         f = -log_likelihood(tensor_cat(Zx, Zy)) 
-    end    
-
-    ΔZ = -∇log_likelihood(tensor_cat(Zx, Zy))
+    end 
+    ΔZ       = -∇log_likelihood(tensor_cat(Zx, Zy))
     ΔZx, ΔZy = tensor_split(ΔZ)
-    ΔX, ΔY = CH.backward(ΔZx, ΔZy, Zx, Zy)[1:2]
+    ΔX, ΔY   = CH.backward(ΔZx, ΔZy, Zx, Zy)[1:2]
     return f, ΔX, ΔY
 end
 
@@ -90,10 +89,12 @@ function test_grad(CH, nx, ny, n_in)
 end
 
 # Loop over networks and reversed counterpart
-for CH in nets
-    test_inv(CH, nx, ny, n_in)
-    test_grad(CH, nx, ny, n_in)
+for CH in nets_multi
+	#add logic to change input dimensions since wavelet transforms change them.
+    CH.is_reversed ? test_inv(CH, nx÷(2^CH.L), ny ÷ (2^CH.L), n_in*(4^CH.L)) : test_inv(CH, nx, ny, n_in)
+    CH.is_reversed ? test_grad(CH, nx÷(2^CH.L), ny ÷ (2^CH.L), n_in*(4^CH.L)) : test_grad(CH, nx, ny, n_in)
 end
+
 
 ###################################################################################################
 # Jacobian-related tests: NetworkConditionalHINT
