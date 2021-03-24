@@ -64,19 +64,20 @@ mutable struct NetworkMultiScaleConditionalHINT <: InvertibleNetwork
     split_scales::Bool
     logdet::Bool
     is_reversed::Bool
+    squeeze_type::String
 end
 
 @Flux.functor NetworkMultiScaleConditionalHINT
 
 # Constructor
 function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
-                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2)
+                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2, squeeze_type="normal")
 
     AN_X = Array{ActNorm}(undef, L, K)
     AN_Y = Array{ActNorm}(undef, L, K)
     CL = Array{ConditionalLayerHINT}(undef, L, K)
     if split_scales
-        XY_dims = Array{Tuple}(undef, L-1)
+        XY_dims = fill!(Array{Tuple}(undef, L-1),(1,1))
         channel_factor = 2
     else
         XY_dims = nothing
@@ -93,30 +94,26 @@ function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64
         n_in *= channel_factor
     end
 
-    return NetworkMultiScaleConditionalHINT(AN_X, AN_Y, CL, XY_dims, L, K, split_scales, logdet, false)
+    return NetworkMultiScaleConditionalHINT(AN_X, AN_Y, CL, XY_dims, L, K, split_scales, logdet, false, squeeze_type)
 end
 
 NetworkMultiScaleConditionalHINT3D(args...;kw...) = NetworkMultiScaleConditionalHINT(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet
-<<<<<<< HEAD
-function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
-    CH.split_scales && (XY_save = array_of_array(X, CH.L-1, 2))
-    logdet = 0
-=======
-function forward(X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing)
+function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
-    CH.split_scales && (XY_save = Array{Array}(undef, CH.L-1, 2))
+    CH.split_scales && (XY_save = array_of_array(X, CH.L-1, 2))
     logdet_ = 0f0
->>>>>>> make CHmulti reversible and proper logdet
+
     for i=1:CH.L
-        X = wavelet_squeeze(X)
-        Y = wavelet_squeeze(Y)
+        X = general_squeeze(X; squeeze_type=CH.squeeze_type)
+        Y = general_squeeze(Y; squeeze_type=CH.squeeze_type)
+
         for j=1:CH.K
-	    logdet ? (X_, logdet1) = CH.AN_X[i, j].forward(X) : X_ = CH.AN_X[i, j].forward(X)
-            logdet ? (Y_, logdet2) = CH.AN_Y[i, j].forward(Y) : Y_ = CH.AN_Y[i, j].forward(Y)
-	    logdet ? (X, Y, logdet3) = CH.CL[i, j].forward(X_, Y_) : (X, Y) = CH.CL[i, j].forward(X_, Y_)
+            logdet ? (X_, logdet1)   = CH.AN_X[i, j].forward(X) : X_ = CH.AN_X[i, j].forward(X)
+            logdet ? (Y_, logdet2)   = CH.AN_Y[i, j].forward(Y) : Y_ = CH.AN_Y[i, j].forward(Y)
+            logdet ? (X, Y, logdet3) = CH.CL[i, j].forward(X_, Y_) : (X, Y) = CH.CL[i, j].forward(X_, Y_)
             logdet && (logdet_ += (logdet1 + logdet2 + logdet3)) 
         end
         if CH.split_scales && i < CH.L    # don't split after last iteration
@@ -126,6 +123,7 @@ function forward(X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing)
             CH.XY_dims[i] = size(Zx)
         end
     end
+
     CH.split_scales && ((X, Y) = cat_states(XY_save, X, Y))
     
     logdet ? (return X, Y, logdet_) : (return X, Y)
@@ -148,8 +146,8 @@ function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMu
             logdet ? (Zx, logdet3) = CH.AN_X[i, j].inverse(Zx_; logdet=true) : Zx = CH.AN_X[i, j].inverse(Zx_; logdet=false)
             logdet && (logdet_ += (logdet1 + logdet2 + logdet3))
         end
-        Zx = wavelet_unsqueeze(Zx)
-        Zy = wavelet_unsqueeze(Zy)
+        Zx = general_unsqueeze(Zx; squeeze_type=CH.squeeze_type)
+        Zy = general_unsqueeze(Zy; squeeze_type=CH.squeeze_type)
     end
     logdet ? (return Zx, Zy, logdet_) : (return Zx, Zy)
 end
@@ -194,10 +192,10 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
                 Δθ = cat(Δθx, Δθy, Δθcl, Δθ; dims=1)
             end
         end
-        ΔZx = wavelet_unsqueeze(ΔZx)
-        ΔZy = wavelet_unsqueeze(ΔZy)
-        Zx = wavelet_unsqueeze(Zx)
-        Zy = wavelet_unsqueeze(Zy)
+        ΔZx = general_unsqueeze(ΔZx; squeeze_type=CH.squeeze_type)
+        ΔZy = general_unsqueeze(ΔZy; squeeze_type=CH.squeeze_type)
+        Zx  = general_unsqueeze(Zx;  squeeze_type=CH.squeeze_type)
+        Zy  = general_unsqueeze(Zy;  squeeze_type=CH.squeeze_type)
     end
     if set_grad
         return ΔZx, ΔZy, Zx, Zy
@@ -209,11 +207,11 @@ end
 # Backward reverse pass and compute gradients
 function backward_inv(ΔX, ΔY, X, Y, CH::NetworkMultiScaleConditionalHINT)
     for i=1:CH.L
- 	    ΔX = wavelet_squeeze(ΔX)
-        ΔY = wavelet_squeeze(ΔY)    
-	    X  = wavelet_squeeze(X)
-        Y  = wavelet_squeeze(Y)    
-    	for j=1:CH.K
+        ΔX = general_squeeze(ΔX; squeeze_type=CH.squeeze_type)
+        ΔY = general_squeeze(ΔY; squeeze_type=CH.squeeze_type)
+        X  = general_squeeze(X;  squeeze_type=CH.squeeze_type)
+        Y  = general_squeeze(Y;  squeeze_type=CH.squeeze_type)
+        for j=1:CH.K
             ΔX_, X_ = backward_inv(ΔX, X, CH.AN_X[i, j])
             ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[i, j])
             ΔX, ΔY, X, Y = backward_inv(ΔX_, ΔY_, X_, Y_, CH.CL[i, j])
@@ -226,7 +224,7 @@ end
 function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
     CH.split_scales && (Y_save = array_of_array(Y, CH.L-1))
     for i=1:CH.L
-        Y = wavelet_squeeze(Y)
+        Y = general_squeeze(Y;  squeeze_type=CH.squeeze_type)
         for j=1:CH.K
             Y_ = CH.AN_Y[i, j].forward(Y; logdet=false)
             Y  = CH.CL[i, j].forward_Y(Y_)
@@ -253,7 +251,7 @@ function inverse_Y(Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT
             Zy_ = CH.CL[i, j].inverse_Y(Zy)
             Zy = CH.AN_Y[i, j].inverse(Zy_; logdet=false)
         end
-        Zy = wavelet_unsqueeze(Zy)
+        Zy  = general_unsqueeze(Zy;  squeeze_type=CH.squeeze_type)
     end
     return Zy
 end
@@ -275,16 +273,19 @@ function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Arra
     
     idxblk = 0
     for i=1:CH.L
-        X = wavelet_squeeze(X)
-        ΔX = wavelet_squeeze(ΔX)
-        Y = wavelet_squeeze(Y)
-        ΔY = wavelet_squeeze(ΔY)
+        ΔX = general_squeeze(ΔX; squeeze_type=CH.squeeze_type)
+        ΔY = general_squeeze(ΔY; squeeze_type=CH.squeeze_type)
+        X  = general_squeeze(X;  squeeze_type=CH.squeeze_type)
+        Y  = general_squeeze(Y;  squeeze_type=CH.squeeze_type)
+
         for j=1:CH.K
-	    if logdet
-                ΔX_, X_ = CH.AN_X[i, j].jacobian(ΔX, Δθj[1:2], X)
-                ΔY_, Y_ = CH.AN_Y[i, j].jacobian(ΔY, Δθj[3:4], Y)
-                ΔX, ΔY, X, Y = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθj[5:end], X_, Y_)
-	    else 
+        if logdet
+                npars_ij = 4+length(get_params(CH.CL[i, j]))
+                Δθij = Δθ[idxblk+1:idxblk+npars_ij]
+                ΔX_, X_ = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
+                ΔY_, Y_ = CH.AN_Y[i, j].jacobian(ΔY, Δθij[3:4], Y)
+                ΔX, ΔY, X, Y = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθij[5:end], X_, Y_)
+        else 
                 npars_ij = 4+length(get_params(CH.CL[i, j]))
                 Δθij = Δθ[idxblk+1:idxblk+npars_ij]
                 ΔX_, X_, logdet1, GNΔθ1 = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
@@ -293,7 +294,7 @@ function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Arra
                 logdet_ += (logdet1 + logdet2 + logdet3)
                 GNΔθ = cat(GNΔθ, GNΔθ1, GNΔθ2, GNΔθ3; dims=1)
                 idxblk += npars_ij
-       	    end
+            end
         end
         if CH.split_scales && i < CH.L    # don't split after last iteration
             X, Zx = tensor_split(X)
@@ -359,3 +360,5 @@ function tag_as_reversed!(CH::NetworkMultiScaleConditionalHINT, tag::Bool)
 
     return CH
 end
+
+
