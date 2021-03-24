@@ -110,7 +110,7 @@ function split_states(X_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{Flo
     X_save = Array{Array}(undef, L-1)
     count = 1
     for j=1:L-1
-        X_save[j] = reshape(X_full[count: count + prod(XY_dims[j])-1], X_dims[j])
+        X_save[j] = reshape(X_full[count: count + prod(X_dims[j])-1], X_dims[j])
         count += prod(X_dims[j])
     end
     X = reshape(X_full[count: count + prod(X_dims[end])-1], Int.(X_dims[end].*(.5, .5, 4, 1)))
