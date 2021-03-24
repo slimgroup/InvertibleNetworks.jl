@@ -1,8 +1,37 @@
+
 # Dimensionality operations for 4D Tensors
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat
+export general_squeeze, general_unsqueeze, squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat
+
+####################################################################################################
+# General Squeeze and unsqueeze for user selection
+function general_squeeze(X::AbstractArray{T, N}; squeeze_type="normal", pattern="column") where {T, N}
+    if squeeze_type == "normal"
+        Y = squeeze(X; pattern=pattern)
+    elseif squeeze_type == "wavelet"
+        Y = wavelet_squeeze(X)
+    elseif squeeze_type == "Haar"
+        Y = Haar_squeeze(X)
+    else
+        throw("Specified squeeze not defined.")
+    end
+    return Y
+end
+
+function general_unsqueeze(X::AbstractArray{T, N}; squeeze_type="normal", pattern="column") where {T, N}
+    if squeeze_type == "normal"
+        Y = unsqueeze(X; pattern=pattern)
+    elseif squeeze_type == "wavelet"
+        Y = wavelet_unsqueeze(X)
+    elseif squeeze_type == "Haar"
+        Y = invHaar_unsqueeze(X)
+    else
+        throw("Specified unsqueeze not defined.")
+    end
+    return Y
+end
 
 ####################################################################################################
 # Squeeze and unsqueeze
