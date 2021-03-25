@@ -58,7 +58,7 @@ mutable struct NetworkMultiScaleConditionalHINT <: InvertibleNetwork
     AN_X::AbstractArray{ActNorm, 2}
     AN_Y::AbstractArray{ActNorm, 2}
     CL::AbstractArray{ConditionalLayerHINT, 2}
-    XY_dims::Union{Array{Tuple, 1}, Nothing}
+    XY_dims::Union{Array{Array, 1}, Nothing}
     L::Int64
     K::Int64
     split_scales::Bool
@@ -77,7 +77,7 @@ function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64
     AN_Y = Array{ActNorm}(undef, L, K)
     CL = Array{ConditionalLayerHINT}(undef, L, K)
     if split_scales
-        XY_dims = fill!(Array{Tuple}(undef, L-1),(1,1))
+        XY_dims = fill!(Array{Array}(undef, L-1),[1,1]) #fill in with dummy values so that |> gpu accepts it
         channel_factor = 2
     else
         XY_dims = nothing
@@ -100,33 +100,32 @@ end
 NetworkMultiScaleConditionalHINT3D(args...;kw...) = NetworkMultiScaleConditionalHINT(args...; kw..., ndims=3)
 
 # Concatenate states Zi and final output
-function cat_states(XY_save::AbstractArray{Array, 2}, X::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4})
-    X_full = []
-    Y_full = []
+function cat_states(XY_save::Array{AbstractArray, 2}, X::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4})
+    X_full = cuzeros(X,0)
+    Y_full = cuzeros(X,0)
 
     for j=1:size(XY_save, 1)
         X_full = cat(X_full, vec(XY_save[j, 1]); dims=1)
         Y_full = cat(Y_full, vec(XY_save[j, 2]); dims=1)
     end
-    X_full = cat(X_full, vec(X); dims=1) #NOTE THIS MAKES THINGS INTO A NORMAL non-cuda ARRAY. 
+    X_full = cat(X_full, vec(X); dims=1) 
     Y_full = cat(Y_full, vec(Y); dims=1)
 
-
-    return Float32.(X_full), Float32.(Y_full)  # convert to Array{Float32, 1}
+    return X_full, Y_full 
 end
 
 # Split 1D vector in latent space back to states Zi
-function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{Float32, 1}, Y_full::AbstractArray{Float32, 1})
+function split_states(XY_dims::AbstractArray{Array, 1}, X_full::AbstractArray{Float32, 1}, Y_full::AbstractArray{Float32, 1})
     L = length(XY_dims) + 1
-    XY_save = Array{Array}(undef, L-1, 2)
+    XY_save = Array{AbstractArray}(undef, L-1, 2)
     count = 1
     for j=1:L-1
-        XY_save[j, 1] = reshape(X_full[count: count + prod(XY_dims[j])-1], XY_dims[j])
-        XY_save[j, 2] = reshape(Y_full[count: count + prod(XY_dims[j])-1], XY_dims[j])
+        XY_save[j, 1] = reshape(X_full[count: count + prod(XY_dims[j])-1], tuple(XY_dims[j]...))
+        XY_save[j, 2] = reshape(Y_full[count: count + prod(XY_dims[j])-1], tuple(XY_dims[j]...))
         count += prod(XY_dims[j])
     end
-    X = reshape(X_full[count: count + prod(XY_dims[end])-1], Int.(XY_dims[end].*(.5, .5, 4, 1)))
-    Y = reshape(Y_full[count: count + prod(XY_dims[end])-1], Int.(XY_dims[end].*(.5, .5, 4, 1)))
+    X = reshape(X_full[count: count + prod(XY_dims[end])-1], tuple(Int.(XY_dims[end].*(.5, .5, 4, 1))...))
+    Y = reshape(Y_full[count: count + prod(XY_dims[end])-1], tuple(Int.(XY_dims[end].*(.5, .5, 4, 1))...))
     return XY_save, X, Y
 end
 
@@ -134,7 +133,8 @@ end
 function forward(X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing)
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
-    CH.split_scales && (XY_save = Array{Array}(undef, CH.L-1, 2))
+    CH.split_scales && (XY_save = Array{AbstractArray}(undef, CH.L-1, 2))
+
     logdet_ = 0f0
 
     for i=1:CH.L
@@ -151,7 +151,7 @@ function forward(X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing)
             X, Zx = tensor_split(X)
             Y, Zy = tensor_split(Y)
             XY_save[i, :] = [Zx, Zy]
-            CH.XY_dims[i] = size(Zx)
+            CH.XY_dims[i] = collect(size(Zx))
         end
     end
 
@@ -263,7 +263,7 @@ function forward_Y(Y, CH::NetworkMultiScaleConditionalHINT)
         if CH.split_scales && i < CH.L    # don't split after last iteration
             Y, Zy = tensor_split(Y)
             Y_save[i] = Zy
-            CH.XY_dims[i] = size(Zy)
+            CH.XY_dims[i] = collect(size(Zy))
         end
     end
     CH.split_scales && (Y = cat_states(Y_save, Y))
@@ -331,7 +331,7 @@ function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiSca
             ΔY, ΔZy = tensor_split(ΔY)
             XY_save[i, :] = [Zx, Zy]
             ΔXY_save[i, :] = [ΔZx, ΔZy]
-            CH.XY_dims[i] = size(Zx)
+            CH.XY_dims[i] = collect(size(Zx))
         end
     end
     if CH.split_scales
