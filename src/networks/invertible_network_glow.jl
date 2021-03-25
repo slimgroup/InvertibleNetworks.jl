@@ -56,7 +56,7 @@ export NetworkGlow, NetworkGlow3D
 struct NetworkGlow <: InvertibleNetwork
     AN::AbstractArray{ActNorm, 2}
     CL::AbstractArray{CouplingLayerGlow, 2}
-    Z_dims::AbstractArray{Tuple, 1}
+    Z_dims::AbstractArray{Array, 1}
     L::Int64
     K::Int64
 end
@@ -68,7 +68,7 @@ function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, n
 
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
-    Z_dims = Array{Tuple}(undef, L-1)   # save dimensions for inverse/backward pass
+    Z_dims = Array{Array}(undef, L-1)   # save dimensions for inverse/backward pass
 
     for i=1:L
         n_in *= 4 # squeeze
@@ -83,7 +83,6 @@ function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, n
 end
 
 NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
-
 
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}

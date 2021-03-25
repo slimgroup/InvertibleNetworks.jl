@@ -33,6 +33,7 @@ networks = ["test_networks/test_unrolled_loop.jl",
             "test_networks/test_glow.jl",
             "test_networks/test_hyperbolic_network.jl",
             "test_networks/test_multiscale_hint_network.jl",
+            "test_networks/test_multiscale_conditional_hint_network.jl",
             "test_networks/test_conditional_hint_network.jl"]
 
 
