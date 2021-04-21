@@ -225,6 +225,7 @@ end
 # Forward pass and compute logdet
 function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
     CH.split_scales && (Y_save = array_of_array(Y, CH.L-1))
+
     for i=1:CH.L
         Y = general_squeeze(Y;  squeeze_type=CH.squeeze_type)
         for j=1:CH.K
