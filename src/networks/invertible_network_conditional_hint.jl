@@ -78,7 +78,7 @@ end
 NetworkConditionalHINT3D(args...;kw...) = NetworkConditionalHINT(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet
-function forward(X, Y, CH::NetworkConditionalHINT; logdet=nothing)
+function forward(X, Y, CH::NetworkConditionalHINT; logdet=nothing, x_lane=false)
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     depth = length(CH.CL)
@@ -86,23 +86,23 @@ function forward(X, Y, CH::NetworkConditionalHINT; logdet=nothing)
     for j=1:depth
         logdet ? (X_, logdet1) = CH.AN_X[j].forward(X) : X_ = CH.AN_X[j].forward(X)
         logdet ? (Y_, logdet2) = CH.AN_Y[j].forward(Y) : Y_ = CH.AN_Y[j].forward(Y)
-        logdet ? (X, Y, logdet3) = CH.CL[j].forward(X_, Y_) : (X, Y) = CH.CL[j].forward(X_, Y_)
-        logdet && (logdet_ += (logdet1 + logdet2 + logdet3))
+        logdet ? (X, Y, logdet3) = CH.CL[j].forward(X_, Y_; x_lane=x_lane) : (X, Y) = CH.CL[j].forward(X_, Y_)
+        logdet && (logdet_ += (logdet1 + !x_lane*logdet2 + logdet3))
     end
     logdet ? (return X, Y, logdet_) : (return X, Y)
 end
 
 # Inverse pass and compute gradients
-function inverse(Zx, Zy, CH::NetworkConditionalHINT; logdet=nothing)
+function inverse(Zx, Zy, CH::NetworkConditionalHINT; logdet=nothing, x_lane=false)
     isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
 
     depth = length(CH.CL)
     logdet_ = 0f0
     for j=depth:-1:1
-        logdet ? (Zx_, Zy_, logdet1) = CH.CL[j].inverse(Zx, Zy; logdet=true) : (Zx_, Zy_) = CH.CL[j].inverse(Zx, Zy; logdet=false)
+        logdet ? (Zx_, Zy_, logdet1) = CH.CL[j].inverse(Zx, Zy; logdet=true, x_lane=x_lane) : (Zx_, Zy_) = CH.CL[j].inverse(Zx, Zy; logdet=false)
         logdet ? (Zy, logdet2) = CH.AN_Y[j].inverse(Zy_; logdet=true) : Zy = CH.AN_Y[j].inverse(Zy_; logdet=false)
         logdet ? (Zx, logdet3) = CH.AN_X[j].inverse(Zx_; logdet=true) : Zx = CH.AN_X[j].inverse(Zx_; logdet=false)
-        logdet && (logdet_ += (logdet1 + logdet2 + logdet3))
+        logdet && (logdet_ += (logdet1 + !x_lane*logdet2 + logdet3))
     end
     logdet ? (return Zx, Zy, logdet_) : (return Zx, Zy)
 end

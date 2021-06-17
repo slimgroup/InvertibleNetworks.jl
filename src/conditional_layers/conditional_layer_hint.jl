@@ -82,7 +82,7 @@ end
 # 3D Constructor from input dimensions
 ConditionalLayerHINT3D(args...; kw...) = ConditionalLayerHINT(args...; kw..., ndims=3)
 
-function forward(X, Y, CH::ConditionalLayerHINT; logdet=nothing)
+function forward(X, Y, CH::ConditionalLayerHINT; logdet=nothing, x_lane=false)
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     # Y-lane
@@ -96,10 +96,10 @@ function forward(X, Y, CH::ConditionalLayerHINT; logdet=nothing)
     # X-lane: conditional layer
     logdet ? (Zx, logdet3) = CH.CL_YX.forward(Yp, X)[2:3] : Zx = CH.CL_YX.forward(Yp, X)[2]
 
-    logdet ? (return Zx, Zy, logdet1 + logdet2 + logdet3) : (return Zx, Zy)
+    logdet ? (return Zx, Zy, logdet1 + !x_lane*logdet2 + logdet3) : (return Zx, Zy)
 end
 
-function inverse(Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing)
+function inverse(Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing, x_lane=false)
     isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
 
     # Y-lane
@@ -114,7 +114,7 @@ function inverse(Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing)
     logdet ? (Xp, logdet3) = CH.CL_X.inverse(X; logdet=true) : Xp = CH.CL_X.inverse(X; logdet=false)
     ~isnothing(CH.C_X) ? (X = CH.C_X.inverse(Xp)) : (X = copy(Xp))
 
-    logdet ? (return X, Y, logdet1 + logdet2 + logdet3) : (return X, Y)
+    logdet ? (return X, Y, !x_lane*logdet1 + logdet2 + logdet3) : (return X, Y)
 end
 
 function backward(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing, set_grad::Bool=true)
