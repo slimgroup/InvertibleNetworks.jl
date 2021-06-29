@@ -2,11 +2,11 @@ Memory efficient inverible layers, networks and activation function for Machine 
 
 # InvertibleNetworks.jl documentation
 
-This documentation is work in progress and is beeing actively populated.
+This documentation is work in progress and is being actively populated.
 
 ## About
 
-[InvertibleNetworks.jl](https://github.com/slimgroup/InvertibleNetworks.jl) Is a package of invertible layers and networks for machine learning. The invertibility allow to backpropagate through the layers and networks without the need for storing the forward sate that is recomputed on the fly inverse propagating through it. This package is the first of its kind in julia.
+[InvertibleNetworks.jl](https://github.com/slimgroup/InvertibleNetworks.jl) is a package of invertible layers and networks for machine learning. The invertibility allow to backpropagate through the layers and networks without the need for storing the forward state that is recomputed on the fly, inverse propagating through it. This package is the first of its kind in Julia.
 
 This package is developped and maintained by Felix J. Herrmann's [SlimGroup](https://slim.gatech.edu/) at Georgia Institute of Technology. In particular the main contributors of this package are:
 
@@ -17,7 +17,7 @@ This package is developped and maintained by Felix J. Herrmann's [SlimGroup](htt
 
 ## Installation
 
-To install this package you can either directly install it from its url
+To install this package you can either directly install it from its url:
 
 
 ```julia
