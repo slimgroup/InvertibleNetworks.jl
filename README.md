@@ -115,7 +115,7 @@ This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl),
 
 ## Authors
 
- - Philipp Witte, Microsoft Corporation (pwitte@microsoft.com)
+ - Philipp Witte, Georgia Institute of Technolgy (now Microsoft)
 
  - Gabrio Rizzuti, Utrecht University
 
