@@ -224,7 +224,7 @@ end
 function HaarLift(x::AbstractArray{T,N}, dim) where {T, N}
     dim > N - 2 && return (x,)
     #Haar lifting
-    inds = [i==dim ? (1:2:size(x, dim)) : (:) for i=1:N];
+    inds = [i==dim ? (1:2:size(x, dim)) : 1:size(x, i) for i=1:N];
     # Splitting
     H = x[inds...]
     inds[dim] = 2:2:size(x, dim)
@@ -261,7 +261,7 @@ function invHaarLift(L::AbstractArray{T,N}, H::AbstractArray{T,N},dim) where {T,
 
     #allocate output:
     x = cat(cuzeros(L,size(L)...), cuzeros(H,size(H)...), dims=dim)
-    inds = [i==dim ? (1:2:size(x, dim)) : (:) for i=1:N];
+    inds = [i==dim ? (1:2:size(x, dim)) : 1:size(x, i) for i=1:N];
     x[inds...] .= H
     inds[dim] = 2:2:size(x, dim)
     x[inds...] .= L
@@ -359,14 +359,14 @@ end
 function tensor_split(X::AbstractArray{T,N}; split_index=nothing) where {T, N}
     d = max(1, N-1)
     if isnothing(split_index)
-        k = Int(round(size(X, d)/2))
+        k = size(X, d) ÷ 2
     else
         k = split_index
     end
 
-    indsl = [i==d ? (1:k) : (:) for i=1:N]
-    indsr = [i==d ? (k+1:size(X, d)) : (:) for i=1:N]
-
+    indsl = Tuple(i==d ? (1:k) : 1:size(X, i) for i=1:N)
+    indsr = Tuple(i==d ? (k+1:size(X, d)) : 1:size(X, i) for i=1:N)
+    
     return X[indsl...], X[indsr...]
 end
 
