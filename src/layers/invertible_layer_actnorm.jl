@@ -97,7 +97,7 @@ function inverse(Y::AbstractArray{Float32, N}, AN::ActNorm; logdet=nothing) wher
 end
 
 # 2-3D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function backward(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, AN::ActNorm; set_grad::Bool = true) where N
+function backward(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, AN::ActNorm; set_grad::Bool = true, x_lane::Bool=false) where N
     inds = [i!=(N-1) ? 1 : (:) for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
     nn = size(ΔY)[1:N-2]
@@ -106,7 +106,7 @@ function backward(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, 
     ΔX = ΔY .* reshape(AN.s.data, inds...)
     Δs = sum(ΔY .* X, dims=dims)[inds...]
     if AN.logdet
-        set_grad ? (Δs -= logdet_backward(nn..., AN.s)) : (Δs_ = logdet_backward(nn..., AN.s))
+        set_grad ? (Δs -= !x_lane*logdet_backward(nn..., AN.s)) : (Δs_ = !x_lane*logdet_backward(nn..., AN.s))
     end
     Δb = sum(ΔY, dims=dims)[inds...]
     if set_grad
@@ -124,7 +124,7 @@ end
 
 ## Reverse-layer functions
 # 2-3D Backward pass (inverse): Input (ΔX, X), Output (ΔX, X)
-function backward_inv(ΔX::AbstractArray{Float32, N}, X::AbstractArray{Float32, N}, AN::ActNorm; set_grad::Bool = true) where N
+function backward_inv(ΔX::AbstractArray{Float32, N}, X::AbstractArray{Float32, N}, AN::ActNorm; set_grad::Bool = true, x_lane::Bool=false) where N
     inds = [i!=(N-1) ? 1 : (:) for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
     nn = size(ΔX)[1:N-2]
@@ -133,7 +133,7 @@ function backward_inv(ΔX::AbstractArray{Float32, N}, X::AbstractArray{Float32, 
     ΔY = ΔX ./ reshape(AN.s.data, inds...)
     Δs = -sum(ΔX .* X ./ reshape(AN.s.data, inds...), dims=dims)[inds...]
     if AN.logdet
-        set_grad ? (Δs += logdet_backward(nn..., AN.s)) : (∇logdet = -logdet_backward(nn..., AN.s))
+        set_grad ? (Δs += !x_lane*logdet_backward(nn..., AN.s)) : (∇logdet = !x_lane*(-logdet_backward(nn..., AN.s)))
     end
     Δb = -sum(ΔX ./ reshape(AN.s.data, inds...), dims=dims)[inds...]
     if set_grad

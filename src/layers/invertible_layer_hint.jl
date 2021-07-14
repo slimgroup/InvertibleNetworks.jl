@@ -201,7 +201,7 @@ function inverse(Y::AbstractArray{Float32, N} , H::CouplingLayerHINT; scale=1, p
 end
 
 # Input are two tensors ΔY, Y
-function backward(ΔY, Y::AbstractArray{Float32, N}, H::CouplingLayerHINT; scale=1, permute=nothing, set_grad::Bool=true) where N
+function backward(ΔY, Y::AbstractArray{Float32, N}, H::CouplingLayerHINT; scale=1, permute=nothing, set_grad::Bool=true, x_lane::Bool=false) where N
     isnothing(permute) ? permute = H.permute : permute = permute
 
     # Initializing output parameter array
@@ -231,16 +231,16 @@ function backward(ΔY, Y::AbstractArray{Float32, N}, H::CouplingLayerHINT; scale
     # HINT coupling
     if recursive
         if set_grad
-            ΔXa, Xa = backward(ΔYa, Ya, H; scale=scale+1, permute="none")
-            ΔXa_temp, ΔXb_temp, X_temp = H.CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb)[[1,2,4]]
-            ΔXb, Xb = backward(ΔXb_temp, X_temp, H; scale=scale+1, permute="none")
+            ΔXa, Xa = backward(ΔYa, Ya, H; scale=scale+1, permute="none", x_lane=x_lane)
+            ΔXa_temp, ΔXb_temp, X_temp = H.CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb; x_lane=x_lane)[[1,2,4]]
+            ΔXb, Xb = backward(ΔXb_temp, X_temp, H; scale=scale+1, permute="none", x_lane=x_lane)
         else
             if H.logdet
                 ΔXa, Δθa, Xa, ∇logdet_a = backward(ΔYa, Ya, H; scale=scale+1, permute="none", set_grad=set_grad)
                 ΔXa_temp, ΔXb_temp, Δθ_scale, _, X_temp, ∇logdet_scale = H.CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb; set_grad=set_grad)
                 ΔXb, Δθb, Xb, ∇logdet_b = backward(ΔXb_temp, X_temp, H; scale=scale+1, permute="none", set_grad=set_grad)
-                ∇logdet[1:5] .= ∇logdet_scale
-                ∇logdet[6:5+length(∇logdet_a)] .= ∇logdet_a+∇logdet_b
+                ∇logdet[1:5] .= !x_lane*∇logdet_scale
+                ∇logdet[6:5+length(∇logdet_a)] .= !x_lane*∇logdet_a+!x_lane*∇logdet_b
             else
                 ΔXa, Δθa, Xa = backward(ΔYa, Ya, H; scale=scale+1, permute="none", set_grad=set_grad)
                 ΔXa_temp, ΔXb_temp, Δθ_scale, _, X_temp = H.CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb; set_grad=set_grad)
@@ -254,11 +254,11 @@ function backward(ΔY, Y::AbstractArray{Float32, N}, H::CouplingLayerHINT; scale
         Xa = copy(Ya)
         ΔXa = copy(ΔYa)
         if set_grad
-            ΔXa_, ΔXb, Xb = H.CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb)[[1,2,4]]
+            ΔXa_, ΔXb, Xb = H.CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb; x_lane=x_lane)[[1,2,4]]
         else
             if H.logdet
                 ΔXa_, ΔXb, Δθ_scale, _, Xb, ∇logdet_scale = H.CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb; set_grad=set_grad)
-                ∇logdet[1:5] .= ∇logdet_scale
+                ∇logdet[1:5] .= !x_lane*∇logdet_scale
             else
                 ΔXa_, ΔXb, Δθ_scale, _, Xb = H.CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb; set_grad=set_grad)
             end
@@ -299,7 +299,7 @@ function backward(ΔY, Y::AbstractArray{Float32, N}, H::CouplingLayerHINT; scale
 end
 
 # Input are two tensors ΔX, X
-function backward_inv(ΔX, X::AbstractArray{Float32, N}, H::CouplingLayerHINT; scale=1, permute=nothing) where N
+function backward_inv(ΔX, X::AbstractArray{Float32, N}, H::CouplingLayerHINT; scale=1, permute=nothing, x_lane::Bool=false) where N
     isnothing(permute) ? permute = H.permute : permute = permute
 
     # Permutation
@@ -315,13 +315,13 @@ function backward_inv(ΔX, X::AbstractArray{Float32, N}, H::CouplingLayerHINT; s
 
     # Coupling layer backprop
     if recursive
-        ΔY_temp, Y_temp = backward_inv(ΔXb, Xb, H; scale=scale+1, permute="none")
-        ΔYa_temp, ΔYb, Yb = backward_inv(0f0.*ΔXa, ΔY_temp, Xa, Y_temp, H.CL[scale])[[1,2,4]]
-        ΔYa, Ya = backward_inv(ΔXa+ΔYa_temp, Xa, H; scale=scale+1, permute="none")
+        ΔY_temp, Y_temp = backward_inv(ΔXb, Xb, H; scale=scale+1, permute="none", x_lane=x_lane)
+        ΔYa_temp, ΔYb, Yb = backward_inv(0f0.*ΔXa, ΔY_temp, Xa, Y_temp, H.CL[scale]; x_lane=x_lane)[[1,2,4]]
+        ΔYa, Ya = backward_inv(ΔXa+ΔYa_temp, Xa, H; scale=scale+1, permute="none", x_lane=x_lane)
     else
         ΔYa = copy(ΔXa)
         Ya = copy(Xa)
-        ΔYa_temp, ΔYb, Yb = backward_inv(0f0.*ΔYa, ΔXb, Xa, Xb, H.CL[scale])[[1,2,4]]
+        ΔYa_temp, ΔYb, Yb = backward_inv(0f0.*ΔYa, ΔXb, Xa, Xb, H.CL[scale]; x_lane=x_lane)[[1,2,4]]
         ΔYa += ΔYa_temp
     end
     ΔY = tensor_cat(ΔYa, ΔYb)

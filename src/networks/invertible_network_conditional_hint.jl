@@ -108,7 +108,7 @@ function inverse(Zx, Zy, CH::NetworkConditionalHINT; logdet=nothing, x_lane=fals
 end
 
 # Backward pass and compute gradients
-function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT; set_grad::Bool=true)
+function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT; set_grad::Bool=true, x_lane::Bool=false)
     depth = length(CH.CL)
     if ~set_grad
         Δθ = Array{Parameter, 1}(undef, 0)
@@ -116,14 +116,14 @@ function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT; set_grad::Bool
     end
     for j=depth:-1:1
         if set_grad
-            ΔZx_, ΔZy_, Zx_, Zy_ = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy)
+            ΔZx_, ΔZy_, Zx_, Zy_ = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy; x_lane=x_lane)
             ΔZx, Zx = CH.AN_X[j].backward(ΔZx_, Zx_)
-            ΔZy, Zy = CH.AN_Y[j].backward(ΔZy_, Zy_)
+            ΔZy, Zy = CH.AN_Y[j].backward(ΔZy_, Zy_; x_lane=x_lane)
         else
             if CH.logdet
-                ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdetcl = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
+                ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdetcl = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad, x_lane=x_lane)
                 ΔZx, Δθx, Zx, ∇logdetx = CH.AN_X[j].backward(ΔZx_, Zx_; set_grad=set_grad)
-                ΔZy, Δθy, Zy, ∇logdety = CH.AN_Y[j].backward(ΔZy_, Zy_; set_grad=set_grad)
+                ΔZy, Δθy, Zy, ∇logdety = CH.AN_Y[j].backward(ΔZy_, Zy_; set_grad=set_grad, x_lane=x_lane)
                 ∇logdet = cat(∇logdetx, ∇logdety, ∇logdetcl, ∇logdet; dims=1)
             else
                 ΔZx_, ΔZy_, Δθcl, Zx_, Zy_ = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
@@ -141,12 +141,12 @@ function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT; set_grad::Bool
 end
 
 # Backward reverse pass and compute gradients
-function backward_inv(ΔX, ΔY, X, Y, CH::NetworkConditionalHINT)
+function backward_inv(ΔX, ΔY, X, Y, CH::NetworkConditionalHINT; x_lane::Bool=false)
     depth = length(CH.CL)
     for j=1:depth
         ΔX_, X_ = backward_inv(ΔX, X, CH.AN_X[j])
-        ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[j])
-        ΔX, ΔY, X, Y = backward_inv(ΔX_, ΔY_, X_, Y_, CH.CL[j])
+        ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[j]; x_lane=x_lane)
+        ΔX, ΔY, X, Y = backward_inv(ΔX_, ΔY_, X_, Y_, CH.CL[j]; x_lane=x_lane)
     end
     return ΔX, ΔY, X, Y
 end
