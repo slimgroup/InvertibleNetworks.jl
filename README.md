@@ -18,7 +18,7 @@ Building blocks for invertible neural networks in the [Julia] programming langua
 
 ```
 ] registry add https://github.com/slimgroup/SLIMregistryJL.git
-] dev InvertibleNetworks.jl
+] add InvertibleNetworks.jl
 ```
 
 ## Papers
