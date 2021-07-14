@@ -122,6 +122,14 @@ function /(p1::Float32, p2::Parameter)
     return Parameter(p1/p2.data)
 end
 
+function *(p1::Parameter, p2::Bool)
+    return Parameter(p1.data*p2)
+end
+
+function *(p1::Bool, p2::Parameter)
+    return p2*p1
+end
+
 # Shape manipulation
 
 function par2vec(x::Parameter)
