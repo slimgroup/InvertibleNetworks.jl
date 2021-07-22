@@ -5,8 +5,9 @@
 export ComposedInvertibleNetwork, Composition
 import Base.length, Base.∘
 
+AllNetTypes = Union{NeuralNetLayer,InvertibleNetwork,ReverseLayer,ReverseNetwork}
 struct ComposedInvertibleNetwork <: InvertibleNetwork
-    layers::Array{T, 1} where {T <: Union{NeuralNetLayer, InvertibleNetwork}}
+    layers::Array{T, 1} where {T <: AllNetTypes}
     logdet_array::Array{Bool, 1}
     logdet::Bool
     npars::Array{Int64, 1}
@@ -21,7 +22,7 @@ function Composition(layer...)
 
     # Initializing output
     depth = length(layer)
-    net_array = Array{Union{NeuralNetLayer, InvertibleNetwork}, 1}(undef, depth)
+    net_array = Array{AllNetTypes, 1}(undef, depth)
     logdet_array = Array{Bool, 1}(undef, depth)
     logdet = false
     npars = Array{Int64, 1}(undef, depth)
@@ -55,15 +56,15 @@ function ∘(net1::ComposedInvertibleNetwork, net2::ComposedInvertibleNetwork)
     return Composition(cat(net1.layers[end:-1:1], net2.layers[end:-1:1]; dims=1)...)
 end
 
-function ∘(net1::Union{NeuralNetLayer, InvertibleNetwork}, net2::Union{NeuralNetLayer, InvertibleNetwork})
+function ∘(net1::AllNetTypes, net2::AllNetTypes)
     return Composition(cat(net1, net2; dims=1)...)
 end
 
-function ∘(net1::Union{NeuralNetLayer, InvertibleNetwork}, net2::ComposedInvertibleNetwork)
+function ∘(net1::AllNetTypes, net2::ComposedInvertibleNetwork)
     return Composition(cat(net1, net2.layers[end:-1:1]; dims=1)...)
 end
 
-function ∘(net1::ComposedInvertibleNetwork, net2::Union{NeuralNetLayer, InvertibleNetwork})
+function ∘(net1::ComposedInvertibleNetwork, net2::AllNetTypes)
     return Composition(cat(net1.layers[end:-1:1], net2; dims=1)...)
 end
 
