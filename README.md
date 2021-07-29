@@ -25,6 +25,15 @@ Building blocks for invertible neural networks in the [Julia] programming langua
 
 The following publications use [InvertibleNetworks.jl]:
 
+- **[“Learning by example: fast reliability-aware seismic imaging with normalizing flows”]**
+    - paper: [https://arxiv.org/abs/2104.06255](https://arxiv.org/abs/2104.06255)
+    - [presentation](https://slim.gatech.edu/Publications/Public/Conferences/KAUST/2021/siahkoohi2021EarthMLfar/siahkoohi2021EarthMLfar.pdf)
+    - code: [ReliabilityAwareImaging.jl]
+
+- **[“Enabling uncertainty quantification for seismic data pre-processing using normalizing flows (NF)—an interpolation example”]**
+    - [paper](https://slim.gatech.edu/Publications/Public/Conferences/SEG/2021/kumar2021SEGeuq/kumar2021SEGeuq.pdf)
+    - code: [WavefieldRecoveryUQ.jl]
+
 - **[“Preconditioned training of normalizing flows for variational inference in inverse problems”]**
     - paper: [https://arxiv.org/abs/2101.03709](https://arxiv.org/abs/2101.03709)
     - [presentation](https://slim.gatech.edu/Publications/Public/Conferences/AABI/2021/siahkoohi2021AABIpto/siahkoohi2021AABIpto_pres.pdf)
@@ -129,7 +138,11 @@ This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl),
 [Zygote]:https://github.com/FluxML/Zygote.jl
 [ChainRules]:https://github.com/JuliaDiff/ChainRules.jl
 [InvertibleNetworks.jl]:https://github.com/slimgroup/InvertibleNetworks.jl
+[“Learning by example: fast reliability-aware seismic imaging with normalizing flows”]:https://slim.gatech.edu/content/learning-example-fast-reliability-aware-seismic-imaging-normalizing-flows
+[“Enabling uncertainty quantification for seismic data pre-processing using normalizing flows (NF)—an interpolation example”]:https://slim.gatech.edu/content/ultra-low-memory-seismic-inversion-randomized-trace-estimation-0
 [“Preconditioned training of normalizing flows for variational inference in inverse problems”]:https://slim.gatech.edu/content/preconditioned-training-normalizing-flows-variational-inference-inverse-problems
+[ReliabilityAwareImaging.jl]:https://github.com/slimgroup/Software.SEG2021/tree/main/ReliabilityAwareImaging.jl
+[WavefieldRecoveryUQ.jl]:https://github.com/slimgroup/Software.SEG2021/tree/main/WavefieldRecoveryUQ.jl
 [FastApproximateInference.jl]:https://github.com/slimgroup/Software.siahkoohi2021AABIpto
 ["Generalized Minkowski sets for the regularization of inverse problems"]:https://slim.gatech.edu/content/generalized-minkowski-sets-regularization-inverse-problems-1
 [SetIntersectionProjection.jl]:https://github.com/slimgroup/SetIntersectionProjection.jl
