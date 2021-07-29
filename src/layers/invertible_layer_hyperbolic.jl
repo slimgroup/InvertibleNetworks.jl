@@ -84,7 +84,7 @@ end
 HyperbolicLayer3D(args...; kw...) =  HyperbolicLayer(args...; kw..., ndims=3)
 
 # Constructor for given weights 2D
-function HyperbolicLayer(W::AbstractArray{Float32, N}, b::AbstractArray{Float32, 1}, 
+function HyperbolicLayer(W::AbstractArray{Float32, N}, b::AbstractArray{Float32, 1},
                          stride::Int64, pad::Int64; action=0, α=1f0) where N
 
     kernel, n_in, n_hidden = size(W)[N-3:N]
@@ -111,11 +111,11 @@ function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer)
         X_prev = identity(X_prev_in)
         X_curr = identity(X_curr_in)
     elseif HL.action == 1
-        X_prev = wavelet_unsqueeze(X_prev_in)
-        X_curr = wavelet_unsqueeze(X_curr_in)
+        X_prev = invHaar_unsqueeze(X_prev_in)
+        X_curr = invHaar_unsqueeze(X_curr_in)
     elseif HL.action == -1
-        X_prev = wavelet_squeeze(X_prev_in)
-        X_curr = wavelet_squeeze(X_curr_in)
+        X_prev = Haar_squeeze(X_prev_in)
+        X_curr = Haar_squeeze(X_curr_in)
     else
         throw("Specified operation not defined.")
     end
@@ -156,11 +156,11 @@ function inverse(X_curr, X_new, HL::HyperbolicLayer; save=false)
         X_prev_in = identity(X_prev)
         X_curr_in = identity(X_curr)
     elseif HL.action == -1
-        X_prev_in = wavelet_unsqueeze(X_prev)
-        X_curr_in = wavelet_unsqueeze(X_curr)
+        X_prev_in = invHaar_unsqueeze(X_prev)
+        X_curr_in = invHaar_unsqueeze(X_curr)
     elseif HL.action == 1
-        X_prev_in = wavelet_squeeze(X_prev)
-        X_curr_in = wavelet_squeeze(X_curr)
+        X_prev_in = Haar_squeeze(X_prev)
+        X_curr_in = Haar_squeeze(X_curr)
     else
         throw("Specified operation not defined.")
     end
@@ -208,11 +208,11 @@ function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer; set_gra
         ΔX_prev_in = identity(ΔX_prev)
         ΔX_curr_in = identity(ΔX_curr)
     elseif HL.action == -1
-        ΔX_prev_in = wavelet_unsqueeze(ΔX_prev)
-        ΔX_curr_in = wavelet_unsqueeze(ΔX_curr)
+        ΔX_prev_in = invHaar_unsqueeze(ΔX_prev)
+        ΔX_curr_in = invHaar_unsqueeze(ΔX_curr)
     elseif HL.action == 1
-        ΔX_prev_in = wavelet_squeeze(ΔX_prev)
-        ΔX_curr_in = wavelet_squeeze(ΔX_curr)
+        ΔX_prev_in = Haar_squeeze(ΔX_prev)
+        ΔX_curr_in = Haar_squeeze(ΔX_curr)
     else
         throw("Specified operation not defined.")
     end
@@ -233,15 +233,15 @@ function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::Hype
         ΔX_prev = identity(ΔX_prev_in)
         ΔX_curr = identity(ΔX_curr_in)
     elseif HL.action == 1
-        X_prev = wavelet_unsqueeze(X_prev_in)
-        X_curr = wavelet_unsqueeze(X_curr_in)
-        ΔX_prev = wavelet_unsqueeze(ΔX_prev_in)
-        ΔX_curr = wavelet_unsqueeze(ΔX_curr_in)
+        X_prev = invHaar_unsqueeze(X_prev_in)
+        X_curr = invHaar_unsqueeze(X_curr_in)
+        ΔX_prev = invHaar_unsqueeze(ΔX_prev_in)
+        ΔX_curr = invHaar_unsqueeze(ΔX_curr_in)
     elseif HL.action == -1
-        X_prev = wavelet_squeeze(X_prev_in)
-        X_curr = wavelet_squeeze(X_curr_in)
-        ΔX_prev = wavelet_squeeze(ΔX_prev_in)
-        ΔX_curr = wavelet_squeeze(ΔX_curr_in)
+        X_prev = Haar_squeeze(X_prev_in)
+        X_curr = Haar_squeeze(X_curr_in)
+        ΔX_prev = Haar_squeeze(ΔX_prev_in)
+        ΔX_curr = Haar_squeeze(ΔX_curr_in)
     else
         throw("Specified operation not defined.")
     end
