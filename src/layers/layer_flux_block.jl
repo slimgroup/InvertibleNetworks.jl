@@ -66,7 +66,7 @@ function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, 
     
     # Backprop using Zygote
     θ = Flux.params(X, FB.model)
-    back = Zygote.pullback(() -> FB.model(X), θ)[2]
+    back = Flux.Zygote.pullback(() -> FB.model(X), θ)[2]
     grad = back(ΔY)
 
     # Set gradients
