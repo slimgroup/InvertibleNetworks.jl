@@ -1,4 +1,4 @@
-using InvertibleNetworks, LinearAlgebra, Test, Flux, Zygote
+using InvertibleNetworks, LinearAlgebra, Test, Flux
 
 import InvertibleNetworks: reset!
 import ChainRulesCore: rrule
@@ -26,10 +26,10 @@ function fw(X)
     X1, ∂1 = rrule(N1, X)
     X2, ∂2 = rrule(N2, X1)
     X3, ∂3 = rrule(N3, X2)
-    X5, ∂5 = Zygote.pullback(Chain(N4, N5), X3)
+    X5, ∂5 = Flux.Zygote.pullback(Chain(N4, N5), X3)
     X6, ∂6 = rrule(N6, X5)
     X7, ∂7 = rrule(N7, X6)
-    X9, ∂9 = Zygote.pullback(Chain(N8, N9), X7)
+    X9, ∂9 = Flux.Zygote.pullback(Chain(N8, N9), X7)
     X10, ∂10 = rrule(N10, X9)
     d1 = x -> ∂1(x)[2]
     d2 = x -> ∂2(x)[2]
