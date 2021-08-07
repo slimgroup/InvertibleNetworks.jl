@@ -8,7 +8,7 @@ module InvertibleNetworks
 using LinearAlgebra, Random
 using Statistics, Wavelets
 using JOLI
-using NNlib, Flux, Zygote, ChainRulesCore
+using NNlib, Flux, ChainRulesCore
 
 # Overloads and reexports
 import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!

@@ -119,9 +119,11 @@ function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float
     return nothing, ΔX
 end
 
+pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float64,N}; kw...) where N = pullback(net, Float32.(ΔY); kw...)
+
 # Reverse-mode AD rule
-function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X;
-                              state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS)
+function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X::Array{Float32, N};
+                              state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where N
 
     # Forward pass
     net.logdet ? ((Y, logdet) = net.forward(X)) : (Y = net.forward(X); logdet = nothing)
@@ -135,6 +137,7 @@ function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X;
     return Y, ∂Y_T
 end
 
+ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X::Array{Float64, N};kw...) where N = rrule(net, Float32.(X); kw...)
 
 ## Logdet utilities for Zygote pullback
 
