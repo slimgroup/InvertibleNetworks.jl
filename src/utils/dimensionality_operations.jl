@@ -6,8 +6,10 @@
 export general_squeeze, general_unsqueeze, squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat
 
 ####################################################################################################
+# General Squeeze and unsqueeze for user selection by multiple dispatch
 # General Squeeze and unsqueeze for user selection
 function general_squeeze(X::AbstractArray{T, N}; squeeze_type="wavelet", pattern="column") where {T, N}
+
     if squeeze_type == "shuffle"
         Y = squeeze(X; pattern=pattern)
     elseif squeeze_type == "wavelet"
@@ -32,7 +34,6 @@ function general_unsqueeze(X::AbstractArray{T, N}; squeeze_type="wavelet", patte
     end
     return Y
 end
-
 ####################################################################################################
 # Squeeze and unsqueeze
 function patch_inds(N::NTuple{n, Int}, d::Integer) where n
@@ -53,6 +54,8 @@ end
 
 """
     Y = squeeze(X; pattern="column")
+ 
+ Squeeze operation that is only a reshape. 
 
  Reshape input image such that each spatial dimension is reduced by a factor
  of 2, while the number of channels is increased by a factor of 4.
@@ -76,9 +79,7 @@ end
 
  See also: [`unsqueeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
 """
-#function squeeze(X::AbstractArray{T, N}, type::String="shuffle"; pattern="column") where {T, N}
 function squeeze(X::AbstractArray{T, N}; pattern="column") where {T, N}
-
     # Dimensions
     nc_in, batchsize = size(X)[N-1:N]
     if any([mod(nn, 2) == 1 for nn=size(X)[1:N-2]])
@@ -133,7 +134,6 @@ end
 
  See also: [`squeeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
 """
-#function unsqueeze(Y::AbstractArray{T,N}, type::String="shuffle"; pattern="column") where {T, N}
 function unsqueeze(Y::AbstractArray{T,N}; pattern="column") where {T, N}
 
     # Dimensions
@@ -165,19 +165,16 @@ function unsqueeze(Y::AbstractArray{T,N}; pattern="column") where {T, N}
     return X
 end
 
-# function unsqueeze(X::AbstractArray{T,N}, Y::AbstractArray{T,4}, type::String="shuffle"; pattern="column") where {T,N}
-#     return unsqueeze(X,type; pattern=pattern), unsqueeze(Y, type; pattern=pattern)
-# end
-
 function unsqueeze(X::AbstractArray{T,N}, Y::AbstractArray{T,4}; pattern="column") where {T,N}
     return unsqueeze(X; pattern=pattern), unsqueeze(Y; pattern=pattern)
 end
+
 
 ####################################################################################################
 # Squeeze and unsqueeze using the wavelet transform
 
 """
-    Y = wavelet_squeeze(X,type=shuffle; type=WT.db1)
+    Y = wavelet_squeeze(X; type=WT.db1)
 
  Perform a 1-level channelwise 2D wavelet transform of X and squeeze output of each
  transform into 4 channels (per 1 input channel).
@@ -197,7 +194,6 @@ end
 
  See also: [`wavelet_unsqueeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
-#function squeeze(X::AbstractArray{T, N}, type::String="wavelet"; wavelet_type=WT.db1) where {T, N}
 function wavelet_squeeze(X::AbstractArray{T, N}; type=WT.db1) where {T, N}
   
     batchsize = size(X, N)
@@ -211,9 +207,7 @@ function wavelet_squeeze(X::AbstractArray{T, N}; type=WT.db1) where {T, N}
     for i=1:batchsize
         for j=1:size(X, N-1)
             Ycurr = dwt(X[cinds..., j, i], wavelet(type), 1)
-            #Y[cinds..., (j-1)*nd + 1: j*nd, i] = squeeze(reshape(Ycurr, N_in..., 1, 1),"shuffle"; pattern="patch")
             Y[cinds..., (j-1)*nd + 1: j*nd, i] = squeeze(reshape(Ycurr, N_in..., 1, 1); pattern="patch")
-        
         end
     end
     return Y

@@ -3,7 +3,7 @@
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Test, Random
-Random.seed!(11)
+Random.seed!(14)
 
 # Define network
 nx = 16
@@ -60,10 +60,7 @@ function loss(CH, X, Y)
     return f, ΔX, ΔY
 end
 
-
-
 function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_scales)
-    #logdet ? lossf = loss_logdet : lossf = loss
     print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
     CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeeze_type = squeeze_type, logdet=logdet, split_scales=split_scales)
 
@@ -94,50 +91,15 @@ function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_s
     @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 end
 
-function grad_test_par(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_scales)
-    print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
-    #logdet ? lossf = loss_logdet : lossf = loss
-    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeeze_type = squeeze_type, logdet=logdet, split_scales=split_scales)
-
-
-    CHini = deepcopy(CH0)
-
-    # Perturbation
-    X = randn(Float32, nx, ny, n_channel, batchsize)
-    Y = randn(Float32, nx, ny, n_channel, batchsize)
-    dW = randn(Float32, size(CH0.CL_X.CL[1].RB.W1))
-
-    f0, gW, gv = loss(CH0, X, Y)[[1,4,5]]
-
-    maxiter = 5
-    h = 0.1f0
-
-    err3 = zeros(Float32, maxiter)
-    err4 = zeros(Float32, maxiter)
-
-    for j=1:maxiter
-        CH0.CL_X.CL[1].RB.W1.data = CHini.CL_X.CL[1].RB.W1.data + h*dW
-        f = loss(CH0, X, Y)[1]
-        err3[j] = abs(f - f0)
-        err4[j] = abs(f - f0 - h*dot(gW, dW))
-        print(err3[j], "; ", err4[j], "\n")
-        h = h/2f0
-    end
-
-    @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
-    @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
-end
-
-for squeeze_type in ["normal", "wavelet", "Haar"]
+for squeeze_type in ["shuffle", "wavelet", "Haar"]
     for split_scales in [true, false]
         for logdet in [true, false]
             inv_test(nx, ny, n_in, batchsize, logdet, squeeze_type, split_scales)
             grad_test_X(nx, ny, n_in, batchsize, logdet, squeeze_type, split_scales)
-            #grad_test_par(nx, ny, n_in, batchsize, logdet, squeeze_type, split_scales)    
         end
     end
 end
 
 ###################################################################################################
 # Jacobian-related tests: 
-### NEED THESE
+### NEED THESE!!
