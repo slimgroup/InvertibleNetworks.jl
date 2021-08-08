@@ -62,7 +62,6 @@ include("layers/invertible_layer_hyperbolic.jl")
 include("layers/invertible_layer_hint.jl")
 
 # Invertible network architectures
-include("networks/invertible_network_hint.jl")
 include("networks/invertible_network_hint_multiscale.jl")
 include("networks/invertible_network_irim.jl")  # i-RIM: Putzky and Welling (2019)
 include("networks/invertible_network_glow.jl")  # Glow: Dinh et al. (2017), Kingma and Dhariwal (2018)
