@@ -100,7 +100,7 @@ end
 NetworkMultiScaleConditionalHINT3D(args...;kw...) = NetworkMultiScaleConditionalHINT(args...; kw..., ndims=3)
 
 # Concatenate states Zi and final output
-function cat_states(XY_save::Array{AbstractArray, 2}, X::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4})
+function cat_states(XY_save::AbstractArray{Array, 2}, X::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4})
     X_full = cuzeros(X,0)
     Y_full = cuzeros(X,0)
 
@@ -117,7 +117,7 @@ end
 # Split 1D vector in latent space back to states Zi
 function split_states(XY_dims::AbstractArray{Array, 1}, X_full::AbstractArray{Float32, 1}, Y_full::AbstractArray{Float32, 1})
     L = length(XY_dims) + 1
-    XY_save = Array{AbstractArray}(undef, L-1, 2)
+    XY_save = Array{Array}(undef, L-1, 2)
     count = 1
     for j=1:L-1
         XY_save[j, 1] = reshape(X_full[count: count + prod(XY_dims[j])-1], tuple(XY_dims[j]...))
@@ -133,7 +133,7 @@ end
 function forward(X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing)
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
-    CH.split_scales && (XY_save = Array{AbstractArray}(undef, CH.L-1, 2))
+    CH.split_scales && (XY_save = Array{Array}(undef, CH.L-1, 2))
 
     logdet_ = 0f0
 
