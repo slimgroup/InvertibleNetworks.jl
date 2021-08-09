@@ -71,7 +71,7 @@ end
 
 # Constructor
 function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
-                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2, squeeze_type="normal")
+                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2, squeeze_type="shuffle")
 
     AN_X = Array{ActNorm}(undef, L, K)
     AN_Y = Array{ActNorm}(undef, L, K)
