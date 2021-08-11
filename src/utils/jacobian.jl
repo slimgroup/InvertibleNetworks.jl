@@ -16,8 +16,8 @@ struct JacobianInvertibleNetwork <: joAbstractLinearOperator{Float32, Float32}
     fop::Function
     fop_T::Function
     N::Union{NeuralNetLayer, InvertibleNetwork}
-    X::Array{Float32}
-    Y::Union{Nothing, Array{Float32}}
+    X::AbstractArray{Float32}
+    Y::Union{Nothing, AbstractArray{Float32}}
 end
 
 struct JacobianInvertibleNetworkAdjoint <: joAbstractLinearOperator{Float32, Float32}
@@ -27,14 +27,16 @@ struct JacobianInvertibleNetworkAdjoint <: joAbstractLinearOperator{Float32, Flo
     fop::Function
     fop_T::Function
     N::Union{NeuralNetLayer, InvertibleNetwork}
-    X::Array{Float32}
-    Y::Union{Nothing, Array{Float32}}
+    X::AbstractArray{Float32}
+    Y::Union{Nothing, AbstractArray{Float32}}
 end
 
 
 ## Constructor
 
-function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::Array{Float32}; Y::Union{Nothing, Array{Float32}}=nothing, save_Y::Bool=true, io_mode::String="θ↦Y", name::String="Jacobian")
+function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::AbstractArray{Float32};
+                  Y::Union{Nothing, AbstractArray{Float32}}=nothing, save_Y::Bool=true,
+                  io_mode::String="θ↦Y", name::String="Jacobian")
 
     # Computing & storing Y=f(X) if requested
     if save_Y && isnothing(Y)
@@ -48,7 +50,7 @@ function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::Array{Float32}
     ((io_mode == "X×θ↦Y") || (io_mode == "X×θ↦Y")) && (n += m)
 
     # Forward evaluation
-    function fop(ΔX::Union{Nothing, Array{Float32}}, Δθ::Array{Parameter, 1})
+    function fop(ΔX::Union{Nothing, AbstractArray{Float32}}, Δθ::Array{Parameter, 1})
         isnothing(ΔX) && (ΔX = cuzeros(X, size(X)...))
         out = N.jacobian(ΔX, Δθ, X)
         ((io_mode == "θ↦Y") || (io_mode == "X×θ↦Y")) && (return out[1])
@@ -56,7 +58,7 @@ function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::Array{Float32}
     end
 
     # Adjoint evaluation
-    function fop_adj(ΔY::Array{Float32}; Y::Union{Nothing, Array{Float32}}=Y)
+    function fop_adj(ΔY::AbstractArray{Float32}; Y::Union{Nothing, AbstractArray{Float32}}=Y)
         if isnothing(Y)
             Y = N.forward(X)
             isa(Y, Tuple) && (Y = Y[1])
@@ -94,6 +96,6 @@ function *(J::JacobianInvertibleNetwork, input::Tuple{Array{Float32}, Array{Para
     return J.fop(input[1], input[2])
 end
 
-function *(JT::JacobianInvertibleNetworkAdjoint, ΔY::Array{Float32})
+function *(JT::JacobianInvertibleNetworkAdjoint, ΔY::AbstractArray{Float32})
     return JT.fop(ΔY)
 end

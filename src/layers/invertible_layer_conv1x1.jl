@@ -65,7 +65,7 @@ function Conv1x1(v1, v2, v3; logdet=false)
     return Conv1x1(k, v1, v2, v3, logdet)
 end
 
-function partial_derivative_outer(v::Array{Float32, 1})
+function partial_derivative_outer(v::AbstractArray{Float32, 1})
     k = length(v)
     out1 = v * v'
     n = v' * v

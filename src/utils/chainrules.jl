@@ -66,7 +66,7 @@ end
 """
 Update state in the forward pass.
 """
-function forward_update!(state::InvertibleOperationsTape, X::Array{Float32,N}, Y::Array{Float32,N}, logdet::Union{Nothing,Float32}, net::Union{NeuralNetLayer,InvertibleNetwork}) where N
+function forward_update!(state::InvertibleOperationsTape, X::AbstractArray{Float32,N}, Y::AbstractArray{Float32,N}, logdet::Union{Nothing,Float32}, net::Union{NeuralNetLayer,InvertibleNetwork}) where N
 
     if isa_newblock(state, X)
         push!(state.Y, Y)
@@ -87,7 +87,7 @@ end
 """
 Update state in the backward pass
 """
-function backward_update!(state::InvertibleOperationsTape, X::Array{Float32,N}) where N
+function backward_update!(state::InvertibleOperationsTape, X::AbstractArray{Float32,N}) where N
 
     if state.counter_layer == 1 # Check if first layer of current block
         state.Y[state.counter_block] = nothing
@@ -104,7 +104,7 @@ end
 
 ## Chain rules for invertible networks
 # General pullback function
-function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float32,N};
+function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::AbstractArray{Float32,N};
                  state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where N
 
     # Check state coherency
@@ -122,7 +122,7 @@ end
 pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float64,N}; kw...) where N = pullback(net, Float32.(ΔY); kw...)
 
 # Reverse-mode AD rule
-function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X::Array{Float32, N};
+function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X::AbstractArray{Float32, N};
                               state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where N
 
     # Forward pass
