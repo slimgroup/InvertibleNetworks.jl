@@ -128,7 +128,7 @@ function par2vec(x::Parameter)
     return vec(x.data), size(x.data)
 end
 
-function vec2par(x::Array{Float32, 1}, s::NTuple{N, Int64}) where {N}
+function vec2par(x::AbstractArray{Float32, 1}, s::NTuple{N, Int64}) where {N}
     return Parameter(reshape(x, s))
 end
 
@@ -143,7 +143,7 @@ function par2vec(x::Array{Parameter, 1})
     return v, s
 end
 
-function vec2par(x::Array{Float32, 1}, s::Array{Any, 1})
+function vec2par(x::AbstractArray{Float32, 1}, s::Array{Any, 1})
     xpar = Array{Parameter, 1}(undef, length(s))
     idx_i = 0
     for i = 1:length(s)

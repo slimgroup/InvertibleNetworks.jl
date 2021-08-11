@@ -23,7 +23,7 @@ Gradient of the MSE loss with respect to input tensors X and Y.
 
 See also: [`mse`](@ref)
 """
-∇mse(X::Array{Float32, N}, Y::Array{Float32, N}) where N = 1f0/size(X, N)*(X - Y)
+∇mse(X::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}) where N = 1f0/size(X, N)*(X - Y)
 
 
 """
@@ -33,7 +33,7 @@ Hessian of the MSE loss with respect to input tensors X.
 
 See also: [`mse`](@ref)
 """
-function Hmse(X::Array{Float32, N}, Y::Array{Float32, N}) where N
+function Hmse(X::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}) where N
     return InvertibleNetworkLinearOperator{Array{Float32, N},Array{Float32, N}}(
         ΔX -> 1f0/size(X, N)*ΔX,
         ΔX -> 1f0/size(X, N)*ΔX)
