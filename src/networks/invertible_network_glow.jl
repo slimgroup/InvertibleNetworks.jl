@@ -56,7 +56,7 @@ export NetworkGlow, NetworkGlow3D
 struct NetworkGlow <: InvertibleNetwork
     AN::AbstractArray{ActNorm, 2}
     CL::AbstractArray{CouplingLayerGlow, 2}
-    Z_dims::AbstractArray{Tuple, 1}
+    Z_dims::AbstractArray{Array, 1}
     L::Int64
     K::Int64
 end
@@ -68,8 +68,10 @@ function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, n
 
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
-    Z_dims = Array{Tuple}(undef, L-1)   # save dimensions for inverse/backward pass
 
+    # save dimensions for inverse/backward pass and fill in with dummy values so that |> gpu accepts it
+    Z_dims = fill!(Array{Array}(undef, L-1), [1,1])  
+                                                      
     for i=1:L
         n_in *= 4 # squeeze
         for j=1:K
@@ -98,7 +100,7 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
         if i < G.L    # don't split after last iteration
             X, Z = tensor_split(X)
             Z_save[i] = Z
-            G.Z_dims[i] = size(Z)
+            G.Z_dims[i] = collect(size(Z))
         end
     end
     X = cat_states(Z_save, X)
@@ -178,7 +180,7 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, G::Net
             ΔX, ΔZ = tensor_split(ΔX)
             Z_save[i] = Z
             ΔZ_save[i] = ΔZ
-            G.Z_dims[i] = size(Z)
+            G.Z_dims[i] = collect(size(Z))
         end
     end
     X = cat_states(Z_save, X)
