@@ -77,7 +77,7 @@ function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64
     AN_Y = Array{ActNorm}(undef, L, K)
     CL = Array{ConditionalLayerHINT}(undef, L, K)
     if split_scales
-        XY_dims = fill!(Array{Array}(undef, L-1),[1,1]) #fill in with dummy values so that |> gpu accepts it
+        XY_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it
         channel_factor = 2
     else
         XY_dims = nothing
@@ -253,7 +253,7 @@ end
 
 # Forward pass and compute logdet
 function forward_Y(Y, CH::NetworkMultiScaleConditionalHINT)
-    CH.split_scales && (Y_save = Array{AbstractArray}(undef, CH.L-1))
+    CH.split_scales && (Y_save = Array{Array}(undef, CH.L-1))
     for i=1:CH.L
         Y = general_squeeze(Y;  squeeze_type=CH.squeeze_type)
         for j=1:CH.K
@@ -273,7 +273,7 @@ end
 
 # Inverse pass and compute gradients
 function inverse_Y(Zy, CH::NetworkMultiScaleConditionalHINT)
-    CH.split_scales && ((Y_save, Zy) = split_states(CH.XY_dims, Zy))
+    CH.split_scales && ((Y_save, Zy) = split_states(Zy, CH.XY_dims))
     for i=CH.L:-1:1
         if CH.split_scales && i < CH.L
             Zy = tensor_cat(Zy, Y_save[i])
@@ -289,40 +289,28 @@ end
 
 
 ## Jacobian-related utils
-
-function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing)
-    isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
-    
+function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiScaleConditionalHINT)
     if CH.split_scales
         XY_save = Array{Array}(undef, CH.L-1, 2)
         ΔXY_save = Array{Array}(undef, CH.L-1, 2)
     end
-    logdet_ = 0f0
-    logdet && (GNΔθ = Array{Parameter, 1}(undef, 0))
+    logdet = 0f0
+    GNΔθ = Array{Parameter, 1}(undef, 0)
     idxblk = 0
     for i=1:CH.L
+        X  = general_squeeze(X; squeeze_type=CH.squeeze_type)
         ΔX = general_squeeze(ΔX; squeeze_type=CH.squeeze_type)
+        Y  = general_squeeze(Y; squeeze_type=CH.squeeze_type)
         ΔY = general_squeeze(ΔY; squeeze_type=CH.squeeze_type)
-        X  = general_squeeze(X;  squeeze_type=CH.squeeze_type)
-        Y  = general_squeeze(Y;  squeeze_type=CH.squeeze_type)
-
         for j=1:CH.K
-        if logdet
-                npars_ij = 4+length(get_params(CH.CL[i, j]))
-                Δθij = Δθ[idxblk+1:idxblk+npars_ij]
-                ΔX_, X_ = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
-                ΔY_, Y_ = CH.AN_Y[i, j].jacobian(ΔY, Δθij[3:4], Y)
-                ΔX, ΔY, X, Y = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθij[5:end], X_, Y_)
-        else 
-                npars_ij = 4+length(get_params(CH.CL[i, j]))
-                Δθij = Δθ[idxblk+1:idxblk+npars_ij]
-                ΔX_, X_, logdet1, GNΔθ1 = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
-                ΔY_, Y_, logdet2, GNΔθ2 = CH.AN_Y[i, j].jacobian(ΔY, Δθij[3:4], Y)
-                ΔX, ΔY, X, Y, logdet3, GNΔθ3 = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθij[5:end], X_, Y_)
-                logdet_ += (logdet1 + logdet2 + logdet3)
-                GNΔθ = cat(GNΔθ, GNΔθ1, GNΔθ2, GNΔθ3; dims=1)
-                idxblk += npars_ij
-            end
+            npars_ij = 4+length(get_params(CH.CL[i, j]))
+            Δθij = Δθ[idxblk+1:idxblk+npars_ij]
+            ΔX_, X_, logdet1, GNΔθ1 = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
+            ΔY_, Y_, logdet2, GNΔθ2 = CH.AN_Y[i, j].jacobian(ΔY, Δθij[3:4], Y)
+            ΔX, ΔY, X, Y, logdet3, GNΔθ3 = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθij[5:end], X_, Y_)
+            logdet += (logdet1 + logdet2 + logdet3)
+            GNΔθ = cat(GNΔθ, GNΔθ1, GNΔθ2, GNΔθ3; dims=1)
+            idxblk += npars_ij
         end
         if CH.split_scales && i < CH.L    # don't split after last iteration
             X, Zx = tensor_split(X)
@@ -331,15 +319,14 @@ function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiSca
             ΔY, ΔZy = tensor_split(ΔY)
             XY_save[i, :] = [Zx, Zy]
             ΔXY_save[i, :] = [ΔZx, ΔZy]
-            CH.XY_dims[i] = collect(size(Zx))
+            CH.XY_dims[i] = size(Zx)
         end
     end
     if CH.split_scales
         X, Y = cat_states(XY_save, X, Y)
         ΔX, ΔY = cat_states(ΔXY_save, ΔX, ΔY)
     end
-   
-    logdet ? (return ΔX, ΔY, X, Y, logdet_, GNΔθ) : (return ΔX, ΔY, X, Y)
+    return ΔX, ΔY, X, Y, logdet, GNΔθ
 end
 
 adjointJacobian(ΔZx, ΔZy, Zx, Zy, CH::NetworkMultiScaleConditionalHINT) = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false)
