@@ -3,7 +3,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export general_squeeze, general_unsqueeze, squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat
+export general_squeeze, general_unsqueeze, squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat, split_states, cat_states
 
 ####################################################################################################
 # General Squeeze and unsqueeze for user selection by multiple dispatch
@@ -431,3 +431,60 @@ function tensor_cat(X::AbstractArray{T,N}, Y::AbstractArray{T,N}) where {T, N}
 end
 
 tensor_cat(X::Tuple{AbstractArray{T,N}, AbstractArray{T,N}}) where {T, N} = tensor_cat(X[1], X[2])
+
+"""
+    X_save, X = split_states(X, Z)
+
+ Split 1D vector in latent space back to states Zi. For non-conditional (single track) networks.
+
+ *Input*:
+
+ - `Y`, `Z`: ND input tensors, each of dimensions `nx` [x `ny` [x `nz`]] x `n_channel` x `batchsize`
+
+ *Output*:
+
+ - `X`: ND output tensor of dimensions `nx` [x `ny` [x `nz`]] x `n_channel*2` x `batchsize`
+
+ See also: [`cat_states`](@ref)
+"""
+function split_states(X_full::AbstractArray{Float32, 1}, Z_dims::AbstractArray{Array, 1})
+    L = length(Z_dims) + 1
+    X_save = Array{Array}(undef, L-1)
+
+    count = 1
+    for j=1:L-1
+        X_save[j] = reshape(X_full[count: count + prod(Z_dims[j])-1], tuple(Z_dims[j]...))
+        count += prod(Z_dims[j])
+    end
+    X = reshape(X_full[count: count + prod(Z_dims[end])-1], tuple(Int.(Z_dims[end].*(.5, .5, 4, 1))...))
+    return X_save, X
+end
+
+"""
+    X_full = cat_states(X_save, X)
+
+ # Concatenate states in X_save which has already been normalized in previous 
+ # L-1 layers and output from Lth layer X. 
+
+ *Input*:
+
+ - `X_save`: ND tensor
+
+ - `X`: ND tensor that will be appended to final output as vec(). Will not be modified by network anymore
+
+
+ *Output*:
+
+ - `X`: ND output tensor of dimensions `nx` [x `ny` [x `nz`]] x `n_channel*2` x `batchsize`
+
+ See also: [`cat_states`](@ref)
+"""
+
+function cat_states(X_save::AbstractArray{Array, 1}, X::AbstractArray{Float32, 4})
+    X_full = cuzeros(X,0)
+    for j=1:size(X_save, 1)
+        X_full = cat(X_full, vec(X_save[j]); dims=1)
+    end
+    X_full = cat(X_full, vec(X); dims=1)
+    return X_full
+end
