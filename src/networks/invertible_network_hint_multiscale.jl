@@ -94,29 +94,6 @@ end
 
 NetworkMultiScaleHINT3D(args...; kw...) = NetworkMultiScaleHINT(args...; kw..., ndims=3)
 
-# Concatenate states Zi and final output
-function cat_states(X_save::AbstractArray{Array, 1}, X::AbstractArray{Float32, 4})
-    X_full = []
-    for j=1:size(X_save, 1)
-        X_full = cat(X_full, vec(X_save[j]); dims=1)
-    end
-    X_full = cat(X_full, vec(X); dims=1)
-    return Float32.(X_full)  # convert to Array{Float32, 1}
-end
-
-# Split 1D vector in latent space back to states Zi
-function split_states(X_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{Float32, 1})
-    L = length(X_dims) + 1
-    X_save = Array{Array}(undef, L-1)
-    count = 1
-    for j=1:L-1
-        X_save[j] = reshape(X_full[count: count + prod(X_dims[j])-1], X_dims[j])
-        count += prod(X_dims[j])
-    end
-    X = reshape(X_full[count: count + prod(X_dims[end])-1], Int.(X_dims[end].*(.5, .5, 4, 1)))
-    return X_save, X
-end
-
 # Forward pass and compute logdet
 function forward(X, H::NetworkMultiScaleHINT)
     H.split_scales && (X_save = Array{Array}(undef, H.L-1))
