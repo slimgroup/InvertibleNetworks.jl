@@ -3,8 +3,12 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
+<<<<<<< HEAD
 export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat
 export cat_states, split_states
+=======
+export general_squeeze, general_unsqueeze, squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat, split_states, cat_states
+>>>>>>> move state split and cat to dimensionality_operations.jl
 
 ####################################################################################################
 # General Squeeze and unsqueeze for user selection by multiple dispatch
