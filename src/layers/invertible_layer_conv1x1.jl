@@ -190,7 +190,7 @@ function forward(X::AbstractArray{Float32, N}, C::Conv1x1; logdet=nothing) where
     for i=1:size(X, N)
         inds[end] = i
         Xi = reshape(view(X, inds...), :, n_in)
-        Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1))*(I - 2f0*v2*v2'/(v2'*v2))*(I - 2f0*v3*v3'/(v3'*v3))
+        Yi = Xi*(I - 2f0*v1*v1'/(v1'*v1 + iszero(v1)*eps(1f0)))*(I - 2f0*v2*v2'/(v2'*v2 + iszero(v2)*eps(1f0)))*(I - 2f0*v3*v3'/(v3'*v3 + iszero(v3)*eps(1f0)))
         view(Y, inds...) .= reshape(Yi, size(view(Y, inds...))...)
     end
     logdet == true ? (return Y, 0f0) : (return Y)   # logdet always 0
