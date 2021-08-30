@@ -32,7 +32,9 @@ export NetworkGlow, NetworkGlow3D
 
  - `s1`, `s2`: stride for the first and third convolution (`s1`) and the second convolution (`s2`)
 
- - `ndims` : numer of dimensions
+ - `ndims` : number of dimensions
+
+ - `squeeze_type` : squeeze type that happens at each multiscale level
 
  *Output*:
  
@@ -59,19 +61,18 @@ struct NetworkGlow <: InvertibleNetwork
     Z_dims::AbstractArray{Array, 1}
     L::Int64
     K::Int64
+    squeeze_type::String
 end
 
 @Flux.functor NetworkGlow
 
 # Constructor
-function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2)
+function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeeze_type="shuffle")
 
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
+    Z_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it   # save dimensions for inverse/backward pass
 
-    # save dimensions for inverse/backward pass and fill in with dummy values so that |> gpu accepts it
-    Z_dims = fill!(Array{Array}(undef, L-1), [1,1])  
-                                                      
     for i=1:L
         n_in *= 4 # squeeze
         for j=1:K
@@ -81,17 +82,30 @@ function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, n
         (i < L) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkGlow(AN, CL, Z_dims, L, K)
+    return NetworkGlow(AN, CL, Z_dims, L, K, squeeze_type)
 end
 
 NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
+
+# Split 1D vector in latent space back to states Zi
+function split_states(Y, Z_dims)
+    L = length(Z_dims) + 1
+    Z_save = Array{Array}(undef, L-1)
+    count = 1
+    for j=1:L-1
+        Z_save[j] = reshape(Y[count: count + prod(Z_dims[j])-1], tuple(Z_dims[j]...))
+        count += prod(Z_dims[j])
+    end
+    X = reshape(Y[count: count + prod(Z_dims[end])-1], tuple(Int.(Z_dims[end].*(.5, .5, 4, 1))...))
+    return Z_save, X
+end
 
 # Forward pass and compute logdet
 function forward(X, G::NetworkGlow)
     Z_save = Array{Array}(undef, G.L-1)
     logdet = 0f0
     for i=1:G.L
-        X = squeeze(X; pattern="checkerboard")
+        X = general_squeeze(X; squeeze_type=G.squeeze_type, pattern="checkerboard")
         for j=1:G.K            
             X, logdet1 = G.AN[i, j].forward(X)
             X, logdet2 = G.CL[i, j].forward(X)
@@ -118,7 +132,8 @@ function inverse(X, G::NetworkGlow)
             X = G.CL[i, j].inverse(X)
             X = G.AN[i, j].inverse(X)
         end
-        X = unsqueeze(X; pattern="checkerboard")
+        X = general_unsqueeze(X; squeeze_type=G.squeeze_type, pattern="checkerboard")
+        
     end
     return X
 end
@@ -149,8 +164,8 @@ function backward(ΔX, X, G::NetworkGlow; set_grad::Bool=true)
             end
             blkidx -= 10
         end
-        X = unsqueeze(X; pattern="checkerboard")
-        ΔX = unsqueeze(ΔX; pattern="checkerboard")
+        X = general_unsqueeze(X; squeeze_type=G.squeeze_type, pattern="checkerboard")
+        ΔX = general_unsqueeze(ΔX; squeeze_type=G.squeeze_type, pattern="checkerboard")
     end
     set_grad ? (return ΔX, X) : (return ΔX, Δθ, X, ∇logdet)
 end
@@ -165,8 +180,9 @@ function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, G::NetworkGlow)
     GNΔθ = Array{Parameter, 1}(undef, 10*G.L*G.K)
     blkidx = 0
     for i=1:G.L
-        X = squeeze(X; pattern="checkerboard")
-        ΔX = squeeze(ΔX; pattern="checkerboard")
+        X = general_squeeze(X; squeeze_type=G.squeeze_type, pattern="checkerboard")
+        ΔX = general_squeeze(ΔX; squeeze_type=G.squeeze_type, pattern="checkerboard")
+        
         for j=1:G.K
             Δθ_ij = Δθ[blkidx+1:blkidx+10]
             ΔX, X, logdet1, GNΔθ1 = G.AN[i, j].jacobian(ΔX, Δθ_ij[1:2], X)
