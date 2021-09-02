@@ -34,7 +34,8 @@ networks = ["test_networks/test_unrolled_loop.jl",
             "test_networks/test_hyperbolic_network.jl",
             "test_networks/test_multiscale_hint_network.jl",
             "test_networks/test_multiscale_conditional_hint_network.jl",
-            "test_networks/test_conditional_hint_network.jl"]
+            "test_networks/test_conditional_hint_network.jl",
+            "test_networks/test_hint_network.jl"]
 
 
 if test_suite == "all" || test_suite == "basics"
