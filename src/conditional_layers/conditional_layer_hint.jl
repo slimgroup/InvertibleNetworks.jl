@@ -133,12 +133,12 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
 
     # X-lane: conditional layer
     if set_grad
-        ΔYp_, ΔX, X = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx)[[1,2,4]]
+        ΔYp_, ΔX, X = CH.CL_YX.backward(ΔYp.*0, ΔZx, Yp, Zx)[[1,2,4]]
     else
         if logdet
-            ΔYp_, ΔX, Δθ_CLYX, _, X, ∇logdet_CLYX = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx; set_grad=set_grad)
+            ΔYp_, ΔX, Δθ_CLYX, _, X, ∇logdet_CLYX = CH.CL_YX.backward(ΔYp.*0, ΔZx, Yp, Zx; set_grad=set_grad)
         else
-            ΔYp_, ΔX, Δθ_CLYX, _, X = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx; set_grad=set_grad)
+            ΔYp_, ΔX, Δθ_CLYX, _, X = CH.CL_YX.backward(ΔYp.*0, ΔZx, Yp, Zx; set_grad=set_grad)
         end
     end
     ΔYp += ΔYp_
@@ -178,8 +178,8 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
             return ΔX, ΔY, Δθ, X, Y
         else
             ∇logdet = cat(∇logdet_CLX, ∇logdet_CLY, ∇logdet_CLYX; dims=1)
-            ~isnothing(CH.C_X) && (∇logdet = cat(∇logdet, 0f0*Δθ_CX; dims=1))
-            ~isnothing(CH.C_Y) && (∇logdet = cat(∇logdet, 0f0*Δθ_CY; dims=1))
+            ~isnothing(CH.C_X) && (∇logdet = cat(∇logdet, 0*Δθ_CX; dims=1))
+            ~isnothing(CH.C_Y) && (∇logdet = cat(∇logdet, 0*Δθ_CY; dims=1))
             return ΔX, ΔY, Δθ, X, Y, ∇logdet
         end
     end
@@ -200,7 +200,7 @@ function backward_inv(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, X::Abs
     ΔX, X = backward_inv(ΔXp, Xp, CH.CL_X)
 
     # X-lane: conditional layer
-    ΔYp_, ΔZx, Zx = backward_inv(ΔYp.*0f0, ΔX, Yp, X, CH.CL_YX)[[1,2,4]]
+    ΔYp_, ΔZx, Zx = backward_inv(ΔYp.*0, ΔX, Yp, X, CH.CL_YX)[[1,2,4]]
     ΔYp += ΔYp_
 
     # Y-lane

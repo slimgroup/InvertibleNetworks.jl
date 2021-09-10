@@ -130,7 +130,7 @@ function forward(X::AbstractArray{T, N}, H::CouplingLayerHINT; scale=1, permute=
             Yb, logdet3 = H.CL[scale].forward(Xa, Y_temp)[[2,3]]
         else
             Yb = H.CL[scale].forward(Xa, Y_temp)[2]
-            logdet3 = 0f0
+            logdet3 = 0
         end
         logdet_full = logdet1 + logdet2 + logdet3
     else
@@ -140,7 +140,7 @@ function forward(X::AbstractArray{T, N}, H::CouplingLayerHINT; scale=1, permute=
             Yb, logdet_full = H.CL[scale].forward(Xa, Xb)[[2,3]]
         else
             Yb = H.CL[scale].forward(Xa, Xb)[2]
-            logdet_full = 0f0
+            logdet_full = 0
         end
     end
 
@@ -172,7 +172,7 @@ function inverse(Y::AbstractArray{T, N} , H::CouplingLayerHINT; scale=1, permute
             Y_temp, logdet2 = H.CL[scale].inverse(Xa, Yb; logdet=true)[[2,3]]
         else
             Y_temp = H.CL[scale].inverse(Xa, Yb)[2]
-            logdet2 = 0f0
+            logdet2 = 0
         end
         Xb, logdet3 = inverse(Y_temp, H; scale=scale+1, permute="none")
         logdet_full = logdet1 + logdet2 + logdet3
@@ -182,7 +182,7 @@ function inverse(Y::AbstractArray{T, N} , H::CouplingLayerHINT; scale=1, permute
             Xb, logdet_full = H.CL[scale].inverse(Ya, Yb)[[2,3]]
         else
             Xb = H.CL[scale].inverse(Ya, Yb)[2]
-            logdet_full = 0f0
+            logdet_full = 0
         end
     end
 
@@ -232,12 +232,12 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, H::CouplingL
     if recursive
         if set_grad
             ΔXa, Xa = backward(ΔYa, Ya, H; scale=scale+1, permute="none")
-            ΔXa_temp, ΔXb_temp, X_temp = H.CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb)[[1,2,4]]
+            ΔXa_temp, ΔXb_temp, X_temp = H.CL[scale].backward(ΔXa.*0, ΔYb, Xa, Yb)[[1,2,4]]
             ΔXb, Xb = backward(ΔXb_temp, X_temp, H; scale=scale+1, permute="none")
         else
             if H.logdet
                 ΔXa, Δθa, Xa, ∇logdet_a = backward(ΔYa, Ya, H; scale=scale+1, permute="none", set_grad=set_grad)
-                ΔXa_temp, ΔXb_temp, Δθ_scale, _, X_temp, ∇logdet_scale = H.CL[scale].backward(ΔXa.*0f0, ΔYb, Xa, Yb; set_grad=set_grad)
+                ΔXa_temp, ΔXb_temp, Δθ_scale, _, X_temp, ∇logdet_scale = H.CL[scale].backward(ΔXa.*0, ΔYb, Xa, Yb; set_grad=set_grad)
                 ΔXb, Δθb, Xb, ∇logdet_b = backward(ΔXb_temp, X_temp, H; scale=scale+1, permute="none", set_grad=set_grad)
                 ∇logdet[1:5] .= ∇logdet_scale
                 ∇logdet[6:5+length(∇logdet_a)] .= ∇logdet_a+∇logdet_b
@@ -254,10 +254,10 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, H::CouplingL
         Xa = copy(Ya)
         ΔXa = copy(ΔYa)
         if set_grad
-            ΔXa_, ΔXb, Xb = H.CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb)[[1,2,4]]
+            ΔXa_, ΔXb, Xb = H.CL[scale].backward(ΔYa.*0, ΔYb, Ya, Yb)[[1,2,4]]
         else
             if H.logdet
-                ΔXa_, ΔXb, Δθ_scale, _, Xb, ∇logdet_scale = H.CL[scale].backward(ΔYa.*0f0, ΔYb, Ya, Yb; set_grad=set_grad)
+                ΔXa_, ΔXb, Δθ_scale, _, Xb, ∇logdet_scale = H.CL[scale].backward(ΔYa.*0, ΔYb, Ya, Yb; set_grad=set_grad)
                 ∇logdet[1:5] .= ∇logdet_scale
             else
                 ΔXa_, ΔXb, Δθ_scale, _, Xb = H.CL[scale].backward(ΔYa.*0, ΔYb, Ya, Yb; set_grad=set_grad)

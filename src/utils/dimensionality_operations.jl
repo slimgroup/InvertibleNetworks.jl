@@ -357,7 +357,7 @@ end
 
  See also: [`tensor_cat`](@ref)
 """
-function tensor_split(X::AbstractArray{T,N}; split_index=nothing) where {T, N}
+function tensor_split(X::AbstractArray{T, N}; split_index=nothing) where {T, N}
     d = max(1, N-1)
     if isnothing(split_index)
         k = Int(round(size(X, d)/2))
@@ -387,7 +387,7 @@ end
 
  See also: [`tensor_split`](@ref)
 """
-function tensor_cat(X::AbstractArray{T,N}, Y::AbstractArray{T,N}) where {T, N}
+function tensor_cat(X::AbstractArray{T, N}, Y::AbstractArray{T, N}) where {T, N}
     d = max(1, N-1)
     if size(X, d) == 0
         return Y

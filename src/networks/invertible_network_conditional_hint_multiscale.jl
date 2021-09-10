@@ -99,7 +99,7 @@ NetworkMultiScaleConditionalHINT3D(args...;kw...) = NetworkMultiScaleConditional
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
     CH.split_scales && (XY_save = array_of_array(X, CH.L-1, 2))
-    logdet = 0f0
+    logdet = 0
     for i=1:CH.L
         X = wavelet_squeeze(X)
         Y = wavelet_squeeze(Y)

@@ -235,7 +235,7 @@ end
 function GaLUgrad(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
     k = Int(size(x, N-1) / 2)
     x1, x2 = tensor_split(x)
-    Δx = 0f0.*x
+    Δx = 0 .*x
     Δx = tensor_cat(Sigmoid(x2) .* Δy, SigmoidGrad(Δy, nothing; x=x2) .* x1)
     return Δx
 end
