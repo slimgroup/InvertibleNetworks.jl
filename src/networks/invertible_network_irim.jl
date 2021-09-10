@@ -92,7 +92,7 @@ end
 NetworkLoop3D(args...; kw...) = NetworkLoop(args...; kw..., ndims=3)
 
 # 2D Forward loop: Input (η, s), Output (η, s)
-function forward(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d, J, UL::NetworkLoop) where {T, N}
+function forward(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop) where {T, N}
 
     # Dimensions
     n_in = size(s, N-1) + 1
@@ -114,7 +114,7 @@ function forward(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d, J, UL::Netw
 end
 
 # 2D Inverse loop: Input (η, s), Output (η, s)
-function inverse(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d, J, UL::NetworkLoop) where {T, N}
+function inverse(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop) where {T, N}
 
     # Dimensions
     n_in = size(s, N-1) + 1
@@ -138,7 +138,7 @@ end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
 function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N}, 
-    η::AbstractArray{T, N}, s::AbstractArray{T, N}, d, J, UL::NetworkLoop; set_grad::Bool=true) where {T, N}
+    η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop; set_grad::Bool=true) where {T, N}
 
     # Dimensions
     n_in = size(s, N-1) + 1
@@ -177,10 +177,10 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
 end
 
 ## Jacobian-related utils
-jacobian(::AbstractArray{T, 5}, ::AbstractArray{T, 5}, d, J, UL::NetworkLoop) where T = throw(ArgumentError("Jacobian for NetworkLoop not yet implemented"))
+jacobian(::AbstractArray{T, 5}, ::AbstractArray{T, 5}, d::AbstractArray, J, UL::NetworkLoop) where T = throw(ArgumentError("Jacobian for NetworkLoop not yet implemented"))
 
 adjointJacobian(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N}, 
-                η::AbstractArray{T, N}, s::AbstractArray{T, N}, d, J, UL::NetworkLoop;
+                η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop;
                 set_grad::Bool=true) where {T, N} =
             backward(Δη, Δs, η, s, d, J, UL; set_grad=false)
 

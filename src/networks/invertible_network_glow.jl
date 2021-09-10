@@ -158,8 +158,8 @@ end
 ## Jacobian-related utils
 
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, G::NetworkGlow) where {T, N}
-    Z_save = array_of_arry(ΔX, G.L-1)
-    ΔZ_save = array_of_arry(ΔX, G.L-1)
+    Z_save = array_of_array(ΔX, G.L-1)
+    ΔZ_save = array_of_array(ΔX, G.L-1)
     logdet = 0
     GNΔθ = Array{Parameter, 1}(undef, 10*G.L*G.K)
     blkidx = 0
