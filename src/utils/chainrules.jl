@@ -66,7 +66,7 @@ end
 """
 Update state in the forward pass.
 """
-function forward_update!(state::InvertibleOperationsTape, X::AbstractArray{Float32,N}, Y::AbstractArray{Float32,N}, logdet::Union{Nothing,Float32}, net::Union{NeuralNetLayer,InvertibleNetwork}) where N
+function forward_update!(state::InvertibleOperationsTape, X::AbstractArray{T,N}, Y::AbstractArray{T,N}, logdet::Union{Nothing,T}, net::Union{NeuralNetLayer,InvertibleNetwork}) where {T, N}
 
     if isa_newblock(state, X)
         push!(state.Y, Y)
@@ -87,7 +87,7 @@ end
 """
 Update state in the backward pass
 """
-function backward_update!(state::InvertibleOperationsTape, X::AbstractArray{Float32,N}) where N
+function backward_update!(state::InvertibleOperationsTape, X::AbstractArray{T,N}) where {T, N}
 
     if state.counter_layer == 1 # Check if first layer of current block
         state.Y[state.counter_block] = nothing
@@ -104,12 +104,15 @@ end
 
 ## Chain rules for invertible networks
 # General pullback function
-function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::AbstractArray{Float32,N};
-                 state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where N
+function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::AbstractArray{T,N};
+                 state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
 
     # Check state coherency
     check_coherence(state, net)
 
+    # Zygote feeds back wrong type ΔY in some cases so convert back if needed
+    T2 = typeof(current(state))
+    ΔY = convert(T2, ΔY)
     # Backward pass
     ΔX, X_ = net.backward(ΔY, current(state))
 
@@ -119,12 +122,11 @@ function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::AbstractArr
     return nothing, ΔX
 end
 
-pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::Array{Float64,N}; kw...) where N = pullback(net, Float32.(ΔY); kw...)
 
 # Reverse-mode AD rule
-function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X::AbstractArray{Float32, N};
-                              state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where N
-
+function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X::AbstractArray{T, N};
+                              state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
+   
     # Forward pass
     net.logdet ? ((Y, logdet) = net.forward(X)) : (Y = net.forward(X); logdet = nothing)
 
@@ -137,7 +139,6 @@ function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X::A
     return Y, ∂Y_T
 end
 
-ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X::Array{Float64, N};kw...) where N = rrule(net, Float32.(X); kw...)
 
 ## Logdet utilities for Zygote pullback
 

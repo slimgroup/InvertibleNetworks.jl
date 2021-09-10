@@ -58,11 +58,11 @@ end
 # Functions
 
 # Forward 
-forward(X::AbstractArray{Float32, 4}, FB::FluxBlock) = FB.model(X)
+forward(X::AbstractArray{T, N}, FB::FluxBlock) where {T, N} = FB.model(X)
 
 
 # Backward 2D
-function backward(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock; set_grad::Bool=true)
+function backward(ΔY::AbstractArray{T, N}, X::AbstractArray{T, N}, FB::FluxBlock; set_grad::Bool=true) where {T, N}
     
     # Backprop using Zygote
     θ = Flux.params(X, FB.model)
@@ -89,11 +89,11 @@ end
 
 ## Jacobian utilities
 
-function jacobian(ΔX::AbstractArray{Float32, 4}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
+function jacobian(::AbstractArray{T, N}, ::Array{Parameter, 1}, ::AbstractArray{T, N}, ::FluxBlock) where {T, N}
     throw(ArgumentError("Jacobian for Flux block not yet implemented"))
 end
 
-function adjointJacobian(ΔY::AbstractArray{Float32, 4}, X::AbstractArray{Float32, 4}, FB::FluxBlock)
+function adjointJacobian(ΔY::AbstractArray{T, N}, X::AbstractArray{T, N}, FB::FluxBlock) where {T, N}
     return backward(ΔY, X, FB; set_grad=false)
 end
 

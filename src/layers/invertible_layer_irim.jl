@@ -78,7 +78,7 @@ end
 CouplingLayerIRIM3D(args...;kw...) = CouplingLayerIRIM(args...; kw..., ndims=3)
 
 # 2D Forward pass: Input X, Output Y
-function forward(X::AbstractArray{Float32, N}, L::CouplingLayerIRIM) where N
+function forward(X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
 
     # Get dimensions
     k = Int(L.C.k/2)
@@ -96,7 +96,7 @@ function forward(X::AbstractArray{Float32, N}, L::CouplingLayerIRIM) where N
 end
 
 # 2D Inverse pass: Input Y, Output X
-function inverse(Y::AbstractArray{Float32, N}, L::CouplingLayerIRIM; save=false) where N
+function inverse(Y::AbstractArray{T, N}, L::CouplingLayerIRIM; save=false) where {T, N}
 
     # Get dimensions
     k = Int(L.C.k/2)
@@ -118,7 +118,7 @@ function inverse(Y::AbstractArray{Float32, N}, L::CouplingLayerIRIM; save=false)
 end
 
 # 2D Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, L::CouplingLayerIRIM; set_grad::Bool=true) where N
+function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM; set_grad::Bool=true) where {T, N}
 
     # Recompute forward state
     k = Int(L.C.k/2)
@@ -151,7 +151,7 @@ end
 ## Jacobian utilities
 
 # 2D
-function jacobian(ΔX::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{Float32, N}, L::CouplingLayerIRIM) where N
+function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
 
     # Get dimensions
     k = Int(L.C.k/2)
@@ -173,7 +173,7 @@ function jacobian(ΔX::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1}, X::
 end
 
 # 2D/3D
-function adjointJacobian(ΔY::AbstractArray{Float32, N}, Y::AbstractArray{Float32, N}, L::CouplingLayerIRIM) where N
+function adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
     return backward(ΔY, Y, L; set_grad=false)
 end
 

@@ -41,7 +41,7 @@ end
 # Foward pass: Input X, Output Y
 # The forward pass for the affine layer is:
 # Y = X .* S .+ B
-function forward(X, AL::AffineLayer)
+function forward(X::AbstractArray{T, N}, AL::AffineLayer) where {T, N}
 
     Y = X .* AL.S.data .+ AL.B.data   # S and B are Parameters, so access their values via the .data field
 
@@ -58,8 +58,8 @@ end
 # The inverse pass for our affine layer is:
 # X = (Y .- B) ./ S
 # To avoid division by zero, we add numerical noise to S in the division.
-function inverse(Y, AL::AffineLayer)
-    X = (Y .- AL.B.data) ./ (AL.S.data .+ eps(1f0))   # avoid division by 0
+function inverse(Y::AbstractArray{T, N}, AL::AffineLayer) where {T, N}
+    X = (Y .- AL.B.data) ./ (AL.S.data .+ eps(T))   # avoid division by 0
     return X
 end
 
@@ -74,7 +74,7 @@ end
 # ΔX = S .* ΔY (corresponds to df/dX * dY)
 # ΔS = X .* ΔY (corresponds to df/dS * dY)
 # ΔB = 1 .* ΔY (corresponds to df/dB * dY)
-function backward(ΔY, Y, AL::AffineLayer)
+function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, AL::AffineLayer) where {T, N}
     nx, ny, n_in, batchsize = size(Y)
 
     # Recompute X from Y

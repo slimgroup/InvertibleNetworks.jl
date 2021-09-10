@@ -94,31 +94,8 @@ end
 
 NetworkMultiScaleHINT3D(args...; kw...) = NetworkMultiScaleHINT(args...; kw..., ndims=3)
 
-# Concatenate states Zi and final output
-function cat_states(X_save::AbstractArray{Array, 1}, X::AbstractArray{Float32, 4})
-    X_full = []
-    for j=1:size(X_save, 1)
-        X_full = cat(X_full, vec(X_save[j]); dims=1)
-    end
-    X_full = cat(X_full, vec(X); dims=1)
-    return Float32.(X_full)  # convert to Array{Float32, 1}
-end
-
-# Split 1D vector in latent space back to states Zi
-function split_states(X_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{Float32, 1})
-    L = length(X_dims) + 1
-    X_save = Array{Array}(undef, L-1)
-    count = 1
-    for j=1:L-1
-        X_save[j] = reshape(X_full[count: count + prod(XY_dims[j])-1], X_dims[j])
-        count += prod(X_dims[j])
-    end
-    X = reshape(X_full[count: count + prod(X_dims[end])-1], Int.(X_dims[end].*(.5, .5, 4, 1)))
-    return X_save, X
-end
-
 # Forward pass and compute logdet
-function forward(X, H::NetworkMultiScaleHINT)
+function forward(X::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N}
     H.split_scales && (X_save = Array{Array}(undef, H.L-1))
     logdet = 0f0
     for i=1:H.L
@@ -139,7 +116,7 @@ function forward(X, H::NetworkMultiScaleHINT)
 end
 
 # Inverse pass and compute gradients
-function inverse(Z, H::NetworkMultiScaleHINT)
+function inverse(Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N}
     H.split_scales && ((X_save, Z) = split_states(H.X_dims, Z))
     for i=H.L:-1:1
         if H.split_scales && i < H.L
@@ -155,7 +132,7 @@ function inverse(Z, H::NetworkMultiScaleHINT)
 end
 
 # Backward pass and compute gradients
-function backward(ΔZ, Z, H::NetworkMultiScaleHINT; set_grad::Bool=true)
+function backward(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT; set_grad::Bool=true) where {T, N}
 
     # Split data and gradients
     if H.split_scales
@@ -193,10 +170,10 @@ end
 
 ## Jacobian-related utils
 
-function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, H::NetworkMultiScaleHINT)
+function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, H::NetworkMultiScaleHINT) where {T, N}
     if H.split_scales
-        X_save = Array{Array}(undef, H.L-1, 2)
-        ΔX_save = Array{Array}(undef, H.L-1, 2)
+        X_save = array_of_arry(ΔX, H.L-1, 2)
+        ΔX_save = array_of_arry(ΔX, H.L-1, 2)
     end
     logdet = 0f0
     GNΔθ = Array{Parameter, 1}(undef, 0)
@@ -228,7 +205,7 @@ function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, H::NetworkMultiScaleHINT)
     return ΔX, X, logdet, GNΔθ
 end
 
-adjointJacobian(ΔZ, Z, H::NetworkMultiScaleHINT) = backward(ΔZ, Z, H; set_grad=false)
+adjointJacobian(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N} = backward(ΔZ, Z, H; set_grad=false)
 
 
 ## Other utils

@@ -84,15 +84,15 @@ end
 NetworkHyperbolic3D(args...; kw...) = NetworkHyperbolic(args...; kw..., ndims=3)
 
 # Forward pass
-function forward(X_prev, X_curr, H::NetworkHyperbolic)
+function forward(X_prev::AbstractArray{T, N}, X_curr::AbstractArray{T, N}, H::NetworkHyperbolic) where {T, N}
     for j=1:length(H.HL)
         X_prev, X_curr = H.HL[j].forward(X_prev, X_curr)
     end
-    return X_prev, X_curr, 1f0  # logdet is always 1
+    return X_prev, X_curr, T(1)  # logdet is always 1
 end
 
 # Inverse pass
-function inverse(Y_curr, Y_new, H::NetworkHyperbolic)
+function inverse(Y_curr::AbstractArray{T, N}, Y_new::AbstractArray{T, N}, H::NetworkHyperbolic) where {T, N}
     for j=length(H.HL):-1:1
         Y_curr, Y_new = H.HL[j].inverse(Y_curr, Y_new)
     end
@@ -100,7 +100,7 @@ function inverse(Y_curr, Y_new, H::NetworkHyperbolic)
 end
 
 # Backward pass
-function backward(ΔY_curr, ΔY_new, Y_curr, Y_new, H::NetworkHyperbolic; set_grad::Bool=true)
+function backward(ΔY_curr::AbstractArray{T, N}, ΔY_new::AbstractArray{T, N}, Y_curr::AbstractArray{T, N}, Y_new::AbstractArray{T, N}, H::NetworkHyperbolic; set_grad::Bool=true) where {T, N}
     ~set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
     for j=length(H.HL):-1:1
         if set_grad
@@ -114,7 +114,7 @@ function backward(ΔY_curr, ΔY_new, Y_curr, Y_new, H::NetworkHyperbolic; set_gr
 end
 
 # Jacobian-related utils
-function jacobian(ΔX_prev, ΔX_curr, Δθ::Array{Parameter, 1}, X_prev, X_curr, H::NetworkHyperbolic)
+function jacobian(ΔX_prev::AbstractArray{T, N}, ΔX_curr::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X_prev::AbstractArray{T, N}, X_curr::AbstractArray{T, N}, H::NetworkHyperbolic) where {T, N}
     npars_hl = Int64(length(Δθ)/length(H.HL))
     for j=1:length(H.HL)
         Δθj = Δθ[1+(j-1)*npars_hl:j*npars_hl]
@@ -123,7 +123,7 @@ function jacobian(ΔX_prev, ΔX_curr, Δθ::Array{Parameter, 1}, X_prev, X_curr,
     return ΔX_prev, ΔX_curr, X_prev, X_curr
 end
 
-adjointJacobian(ΔY_curr, ΔY_new, Y_curr, Y_new, H::NetworkHyperbolic) = backward(ΔY_curr, ΔY_new, Y_curr, Y_new, H; set_grad=false)
+adjointJacobian(ΔY_curr::AbstractArray{T, N}, ΔY_new::AbstractArray{T, N}, Y_curr::AbstractArray{T, N}, Y_new::AbstractArray{T, N}, H::NetworkHyperbolic) where {T, N} = backward(ΔY_curr, ΔY_new, Y_curr, Y_new, H; set_grad=false)
 
 ## Other utils
 
