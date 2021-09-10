@@ -416,15 +416,15 @@ end
 # Split 1D vector in latent space back to states Zi
 function split_states(Y::AbstractVector{T}, Z_dims) where {T, N}
     L = length(Z_dims) + 1
-    inds = [0, cumsum([prod(Z_dims[j]) for j=1:L-1])...]
-    Z_save = [reshape(Y[inds[j]+1:inds[j+1]], xy_dims(Z_dims[j], Val(j==L))) for j=1:L-1]
-    X = reshape(Y[inds[L-1]+1:inds[L]-1], xy_dims(Z_dims[L-1], Val(true)))
+    inds = cumsum([1, [prod(Z_dims[j]) for j=1:L-1]...])
+    Z_save = [reshape(Y[inds[j]:inds[j+1]-1], xy_dims(Z_dims[j], Val(j==L))) for j=1:L-1]
+    X = reshape(Y[inds[L]:end], xy_dims(Z_dims[end], Val(true)))
     return Z_save, X
 end
 
 # Split 1D vector in latent space back to states Zi
 function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{T, 1}, Y_full::AbstractArray{T, 1}) where T
     X, c1 = split_states(X_full, XY_dims)
-    Y, c2 = split_states(X_full, XY_dims)
+    Y, c2 = split_states(Y_full, XY_dims)
     return hcat(c1, c2), X, Y
 end

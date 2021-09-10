@@ -147,7 +147,7 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
     maxiter = length(UL.L)
 
     N0 = cuzeros(Δη, nn..., n_in-2, batchsize)
-    typeof(Δs) == Float32 && (Δs = 0 .* s)  # make Δs zero tensor
+    typeof(Δs) == T && (Δs = 0 .* s)  # make Δs zero tensor
 
     # Initialize net parameters
     set_grad && (Δθ = Array{Parameter, 1}(undef, 0))

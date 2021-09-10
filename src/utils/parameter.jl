@@ -133,7 +133,7 @@ end
 
 function par2vec(x::Array{Parameter, 1})
     v = cat([vec(x[i].data) for i=1:length(x)]..., dims=1)
-    s = cat([size(x[i].dat) for i=1:length(x)]..., dims=1)
+    s = cat([size(x[i].data) for i=1:length(x)]..., dims=1)
     return v, s
 end
 
