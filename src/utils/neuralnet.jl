@@ -163,4 +163,4 @@ function set_params!(RN::ReverseNetwork, θ::Array{Parameter, 1})
 end
 
 # Make invertible nets callable objects
-(N::Union{NeuralNetLayer,InvertibleNetwork})(X::AbstractArray{Float32,N} where N) = N.forward(X)
+(N::Union{NeuralNetLayer,InvertibleNetwork})(X::AbstractArray{T,N} where {T, N}) = N.forward(X)

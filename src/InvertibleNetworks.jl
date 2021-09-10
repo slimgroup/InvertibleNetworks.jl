@@ -76,6 +76,6 @@ include("networks/invertible_network_conditional_hint_multiscale.jl")
 include("utils/jacobian.jl")
 
 # gpu
-include("utils/cuda.jl")
+include("utils/compute_utils.jl")
 
 end
