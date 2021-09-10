@@ -54,8 +54,8 @@ end
 
  See also: [`ReLUgrad`](@ref)
 """
-function ReLU(x)
-    return max.(0f0, x)
+function ReLU(x::AbstractArray{T, N}) where {T, N}
+    return max.(0, x)
 end
 
 """
@@ -75,8 +75,8 @@ end
 
  See also: [`ReLU`](@ref)
 """
-function ReLUgrad(Δy, x)
-    return Δy.*(sign.(x) .+ 1)/2
+function ReLUgrad(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
+    return  Δy .* (sign.(x) .+ 1) ./ 2
 end
 
 ###############################################################################
@@ -89,8 +89,8 @@ end
 
  See also: [`LeakyReLUinv`](@ref), [`LeakyReLUgrad`](@ref)
 """
-function LeakyReLU(x; slope=0.01f0)
-    return max.(0f0, x) + slope*min.(0f0, x)
+function LeakyReLU(x::AbstractArray{T, N}; slope=T(0.01)) where {T, N}
+    return max.(0, x) + slope*min.(0, x)
 end
 
 """
@@ -100,8 +100,8 @@ end
 
  See also: [`LeakyReLU`](@ref), [`LeakyReLUgrad`](@ref)
 """
-function LeakyReLUinv(y; slope=0.01f0)
-    return max.(0f0, y) + (1f0/slope)*min.(0f0, y)
+function LeakyReLUinv(y::AbstractArray{T, N}; slope=T(0.01)) where {T, N}
+    return max.(0, y) + (1/slope)*min.(0, y)
 end
 
 """
@@ -123,10 +123,10 @@ end
 
  See also: [`LeakyReLU`](@ref), [`LeakyReLUinv`](@ref)
 """
-function LeakyReLUgrad(Δy, y; slope=0.01f0)
+function LeakyReLUgrad(Δy::AbstractArray{T, N}, y::AbstractArray{T, N}; slope=T(0.01)) where {T, N}
     x = LeakyReLUinv(y; slope=slope)  # recompute forward state
-    p_mask = (sign.(x) .+ 1f0)/2f0
-    return Δy.*p_mask + slope*Δy.*(1f0 .- p_mask)
+    p_mask = (sign.(x) .+ 1) ./ 2
+    return Δy.*p_mask + slope*Δy.*(1 .- p_mask)
 end
 
 
@@ -141,7 +141,7 @@ end
  See also: [`SigmoidInv`](@ref), [`SigmoidGrad`](@ref)
 """
 
-function Sigmoid(x; low=0f0, high=1f0)
+function Sigmoid(x::AbstractArray{T, N}; low=0f0, high=1f0) where {T, N}
     y = high .* (1f0 ./ (1f0 .+ exp.(-x))) + low .* (1f0 ./ (1f0 .+ exp.(x)))
     return y
 end
@@ -154,11 +154,11 @@ end
 
  See also: [`Sigmoid`](@ref), [`SigmoidGrad`](@ref)
 """
-function SigmoidInv(y; low=0f0, high=1f0)
+function SigmoidInv(y::AbstractArray{T, N}; low=0f0, high=1f0) where {T, N}
     if sum(isapprox.(y, 0f-6)) == 0
         x = log.(y .- low) - log.(high .- y)
     else
-        throw("Input contains zeros.")
+        x = -log.((1 .- y) ./ y)
     end
     return x
 end
@@ -186,7 +186,7 @@ end
 
  See also: [`Sigmoid`](@ref), [`SigmoidInv`](@ref)
 """
-function SigmoidGrad(Δy, y; x=nothing, low=0f0, high=1f0)
+function SigmoidGrad(Δy::AbstractArray{T, N}, y::AbstractArray{T, N}; x=nothing, low=0f0, high=1f0) where {T, N}
     if ~isnothing(y) && isnothing(x)
         x = SigmoidInv(y; low=low, high=high)  # recompute forward state
     end
@@ -196,6 +196,7 @@ function SigmoidGrad(Δy, y; x=nothing, low=0f0, high=1f0)
 
     return Δx
 end
+
 
 ###############################################################################
 # Gated linear unit (GaLU) (not invertible)
@@ -208,7 +209,7 @@ end
 
  See also: [`GaLUgrad`](@ref)
 """
-function GaLU(x::AbstractArray{Float32, N}) where N
+function GaLU(x::AbstractArray{T, N}) where {T, N}
     x1, x2 = tensor_split(x)
     y =  x1 .* Sigmoid(x2)
     return y
@@ -231,7 +232,7 @@ end
 
  See also: [`GaLU`](@ref)
 """
-function GaLUgrad(Δy::AbstractArray{Float32, N}, x::AbstractArray{Float32, N}) where N
+function GaLUgrad(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
     k = Int(size(x, N-1) / 2)
     x1, x2 = tensor_split(x)
     Δx = 0f0.*x
@@ -239,7 +240,7 @@ function GaLUgrad(Δy::AbstractArray{Float32, N}, x::AbstractArray{Float32, N}) 
     return Δx
 end
 
-function GaLUjacobian(Δx::AbstractArray{Float32, N}, x::AbstractArray{Float32, N}) where N
+function GaLUjacobian(Δx::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
     k = Int(size(x, 3) / 2)
     x1, x2 = tensor_split(x)
     Δx1, Δx2 = tensor_split(Δx)
@@ -258,8 +259,8 @@ end
  Soft-clamped exponential function.
  See also: [`ExpClampGrad`](@ref)
 """
-function ExpClamp(x; clamp=2f0)
-    return exp.(clamp * 0.636f0 * atan.(x))
+function ExpClamp(x::AbstractArray{T, N}; clamp=T(2)) where {T, N}
+    return exp.(clamp * T(0.636) * atan.(x))
 end
 
 """
@@ -267,11 +268,11 @@ end
  Inverse of ExpClamp function.
  See also: [`ExpClamp`](@ref), [`ExpClampGrad`](@ref)
 """
-function ExpClampInv(y; clamp=2f0)
-    if sum(isapprox.(y, 0f-6)) == 0
-        x = tan.(log.(y) / clamp / 0.636f0)
+function ExpClampInv(y::AbstractArray{T, N}; clamp=T(2)) where {T, N}
+    if any(y .≈ 0)
+        throw(InputError("Input contains zeros."))
     else
-        throw("Input contains zeros.")
+        x = tan.(log.(y) / clamp / T(0.636))
     end
     return x
 end
@@ -287,10 +288,16 @@ end
  See also: [`ExpClamp`](@ref)
 """
 
-function ExpClampGrad(Δy, y; x=nothing, clamp=2f0)
-    if ~isnothing(y) && isnothing(x)
+function ExpClampGrad(Δy::AbstractArray{T, N}, y::AbstractArray{T, N}; x=nothing, clamp=T(2)) where {T, N}
+    if isnothing(x)
         x = ExpClampInv(y)  # recompute forward state
     end
-    Δx = clamp * 0.636f0 * Δy .* y ./ (1f0 .+ x.^2f0)
+    Δx = clamp * T(0.636) * Δy .* y ./ (1 .+ x.^2)
+    return Δx
+end
+
+
+function ExpClampGrad(Δy::AbstractArray{T, N}, ::Nothing; x=nothing, clamp=T(2)) where {T, N}
+    Δx = clamp * T(0.636) * Δy .* y ./ (1 .+ x.^2)
     return Δx
 end

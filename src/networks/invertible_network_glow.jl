@@ -84,32 +84,10 @@ end
 
 NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
 
-# Concatenate states Zi and final output
-function cat_states(Z_save, X)
-    Y = []
-    for j=1:length(Z_save)
-        Y = cat(Y, vec(Z_save[j]); dims=1)
-    end
-    Y = cat(Y, vec(X); dims=1)
-    return Float32.(Y)  # convert to Array{Float32, 1}
-end
-
-# Split 1D vector in latent space back to states Zi
-function split_states(Y, Z_dims)
-    L = length(Z_dims) + 1
-    Z_save = Array{Array}(undef, L-1)
-    count = 1
-    for j=1:L-1
-        Z_save[j] = reshape(Y[count: count + prod(Z_dims[j])-1], Z_dims[j])
-        count += prod(Z_dims[j])
-    end
-    X = reshape(Y[count: count + prod(Z_dims[end])-1], Int.(Z_dims[end].*(.5, .5, 4, 1)))
-    return Z_save, X
-end
 
 # Forward pass and compute logdet
-function forward(X, G::NetworkGlow)
-    Z_save = Array{Array}(undef, G.L-1)
+function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
+    Z_save = array_of_array(X, G.L-1)
     logdet = 0f0
     for i=1:G.L
         X = squeeze(X; pattern="checkerboard")
@@ -129,7 +107,7 @@ function forward(X, G::NetworkGlow)
 end
 
 # Inverse pass and compute gradients
-function inverse(X, G::NetworkGlow)
+function inverse(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     Z_save, X = split_states(X, G.Z_dims)
     for i=G.L:-1:1
         if i < G.L
@@ -145,7 +123,7 @@ function inverse(X, G::NetworkGlow)
 end
 
 # Backward pass and compute gradients
-function backward(ΔX, X, G::NetworkGlow; set_grad::Bool=true)
+function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGlow; set_grad::Bool=true) where {T, N}
     ΔZ_save, ΔX = split_states(ΔX, G.Z_dims)
     Z_save, X = split_states(X, G.Z_dims)
     if ~set_grad
@@ -179,9 +157,9 @@ end
 
 ## Jacobian-related utils
 
-function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, G::NetworkGlow)
-    Z_save = Array{Array}(undef, G.L-1)
-    ΔZ_save = Array{Array}(undef, G.L-1)
+function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, G::NetworkGlow) where {T, N}
+    Z_save = array_of_arry(ΔX, G.L-1)
+    ΔZ_save = array_of_arry(ΔX, G.L-1)
     logdet = 0f0
     GNΔθ = Array{Parameter, 1}(undef, 10*G.L*G.K)
     blkidx = 0
@@ -209,7 +187,7 @@ function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, G::NetworkGlow)
     return ΔX, X, logdet, GNΔθ
 end
 
-adjointJacobian(ΔX, X, G::NetworkGlow) = backward(ΔX, X, G; set_grad=false)
+adjointJacobian(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGlow) where {T, N} = backward(ΔX, X, G; set_grad=false)
 
 
 ## Other utils

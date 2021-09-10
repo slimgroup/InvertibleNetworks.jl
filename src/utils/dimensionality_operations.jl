@@ -3,6 +3,7 @@
 # Date: January 2020
 
 export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat
+export cat_states, split_states
 
 ####################################################################################################
 # Squeeze and unsqueeze
@@ -398,3 +399,33 @@ function tensor_cat(X::AbstractArray{T,N}, Y::AbstractArray{T,N}) where {T, N}
 end
 
 tensor_cat(X::Tuple{AbstractArray{T,N}, AbstractArray{T,N}}) where {T, N} = tensor_cat(X[1], X[2])
+
+
+@inline xy_dims(dims::Tuple, ::Val{false}) = dims
+@inline xy_dims(dims::Tuple, ::Val{true}) = Int(dims .* (.5, .5, 4, 1))
+
+# Concatenate states Zi and final output
+function cat_states(XY_save::AbstractArray{AbstractArray, 2}, X::AbstractArray{T, 4}, Y::AbstractArray{T, 4}) where T
+    return cat_states(XY_save[:, 1], X),  cat_states(XY_save[:, 2], X)
+end
+
+# Split 1D vector in latent space back to states Zi
+function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{T, 1}, Y_full::AbstractArray{T, 1}) where T
+    X, c1 = split_states(X_full, XY_dims)
+    Y, c2 = split_states(X_full, XY_dims)
+    return hcat(c1, c2), X, Y
+end
+
+# Concatenate states Zi and final output
+function cat_states(Z_save::AbstractArray{AbstractArray, N}, X::AbstractArray{T, N}) where {T, N}
+    return cat([[vec(Z_save[j]) for j=1:length(Z_save)]..., vec(X)]..., dims=1)
+end
+
+# Split 1D vector in latent space back to states Zi
+function split_states(Y::AbstractArray{T, 1}, Z_dims) where {T, N}
+    L = length(Z_dims) + 1
+    inds = [1, cumsum([prod(Z_dims[j]) for j=1:L-1])...]
+    Z_save = [reshape(Y[inds[j]:inds[j+1]], xy_dims(Z_dims[j], Val(j==L))) for j=1:L-1]
+    X = reshape(Y[inds[L]:inds[L+1]], xy_dims(Z_dims[L-1], Val(true)))
+    return Z_save, X
+end

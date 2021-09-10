@@ -78,11 +78,11 @@ end
 NetworkConditionalHINT3D(args...;kw...) = NetworkConditionalHINT(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet
-function forward(X, Y, CH::NetworkConditionalHINT; logdet=nothing)
+function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkConditionalHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     depth = length(CH.CL)
-    logdet_ = 0f0
+    logdet_ = 0
     for j=1:depth
         logdet ? (X_, logdet1) = CH.AN_X[j].forward(X) : X_ = CH.AN_X[j].forward(X)
         logdet ? (Y_, logdet2) = CH.AN_Y[j].forward(Y) : Y_ = CH.AN_Y[j].forward(Y)
@@ -93,11 +93,11 @@ function forward(X, Y, CH::NetworkConditionalHINT; logdet=nothing)
 end
 
 # Inverse pass and compute gradients
-function inverse(Zx, Zy, CH::NetworkConditionalHINT; logdet=nothing)
+function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkConditionalHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
 
     depth = length(CH.CL)
-    logdet_ = 0f0
+    logdet_ = 0
     for j=depth:-1:1
         logdet ? (Zx_, Zy_, logdet1) = CH.CL[j].inverse(Zx, Zy; logdet=true) : (Zx_, Zy_) = CH.CL[j].inverse(Zx, Zy; logdet=false)
         logdet ? (Zy, logdet2) = CH.AN_Y[j].inverse(Zy_; logdet=true) : Zy = CH.AN_Y[j].inverse(Zy_; logdet=false)
@@ -108,7 +108,7 @@ function inverse(Zx, Zy, CH::NetworkConditionalHINT; logdet=nothing)
 end
 
 # Backward pass and compute gradients
-function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT; set_grad::Bool=true)
+function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkConditionalHINT; set_grad::Bool=true) where {T, N}
     depth = length(CH.CL)
     if ~set_grad
         Δθ = Array{Parameter, 1}(undef, 0)
@@ -141,7 +141,7 @@ function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT; set_grad::Bool
 end
 
 # Backward reverse pass and compute gradients
-function backward_inv(ΔX, ΔY, X, Y, CH::NetworkConditionalHINT)
+function backward_inv(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkConditionalHINT) where {T, N}
     depth = length(CH.CL)
     for j=1:depth
         ΔX_, X_ = backward_inv(ΔX, X, CH.AN_X[j])
@@ -152,7 +152,7 @@ function backward_inv(ΔX, ΔY, X, Y, CH::NetworkConditionalHINT)
 end
 
 # Forward pass and compute logdet
-function forward_Y(Y, CH::NetworkConditionalHINT)
+function forward_Y(Y::AbstractArray{T, N}, CH::NetworkConditionalHINT) where {T, N}
     depth = length(CH.CL)
     for j=1:depth
         Y_ = CH.AN_Y[j].forward(Y; logdet=false)
@@ -162,7 +162,7 @@ function forward_Y(Y, CH::NetworkConditionalHINT)
 end
 
 # Inverse pass and compute gradients
-function inverse_Y(Zy, CH::NetworkConditionalHINT)
+function inverse_Y(Zy::AbstractArray{T, N}, CH::NetworkConditionalHINT) where {T, N}
     depth = length(CH.CL)
     for j=depth:-1:1
         Zy_ = CH.CL[j].inverse_Y(Zy)
@@ -173,11 +173,11 @@ end
 
 ## Jacobian-related utils
 
-function jacobian(ΔX, ΔY, Δθ, X, Y, CH::NetworkConditionalHINT; logdet=nothing)
+function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Array{Parameter}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkConditionalHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     depth = length(CH.CL)
-    logdet_ = 0f0
+    logdet_ = 0
     logdet && (GNΔθ = Array{Parameter, 1}(undef, 0))
     n = Int64(length(Δθ)/depth)
     for j=1:depth
@@ -197,7 +197,7 @@ function jacobian(ΔX, ΔY, Δθ, X, Y, CH::NetworkConditionalHINT; logdet=nothi
     logdet ? (return ΔX, ΔY, X, Y, logdet_, GNΔθ) : (return ΔX, ΔY, X, Y)
 end
 
-adjointJacobian(ΔZx, ΔZy, Zx, Zy, CH::NetworkConditionalHINT) = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false)
+adjointJacobian(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkConditionalHINT) where {T, N} = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false)
 
 ## Other utils
 

@@ -96,37 +96,9 @@ end
 
 NetworkMultiScaleConditionalHINT3D(args...;kw...) = NetworkMultiScaleConditionalHINT(args...; kw..., ndims=3)
 
-# Concatenate states Zi and final output
-function cat_states(XY_save::AbstractArray{Array, 2}, X::AbstractArray{Float32, 4}, Y::AbstractArray{Float32, 4})
-    X_full = []
-    Y_full = []
-    for j=1:size(XY_save, 1)
-        X_full = cat(X_full, vec(XY_save[j, 1]); dims=1)
-        Y_full = cat(Y_full, vec(XY_save[j, 2]); dims=1)
-    end
-    X_full = cat(X_full, vec(X); dims=1)
-    Y_full = cat(Y_full, vec(Y); dims=1)
-    return Float32.(X_full), Float32.(Y_full)  # convert to Array{Float32, 1}
-end
-
-# Split 1D vector in latent space back to states Zi
-function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{Float32, 1}, Y_full::AbstractArray{Float32, 1})
-    L = length(XY_dims) + 1
-    XY_save = Array{Array}(undef, L-1, 2)
-    count = 1
-    for j=1:L-1
-        XY_save[j, 1] = reshape(X_full[count: count + prod(XY_dims[j])-1], XY_dims[j])
-        XY_save[j, 2] = reshape(Y_full[count: count + prod(XY_dims[j])-1], XY_dims[j])
-        count += prod(XY_dims[j])
-    end
-    X = reshape(X_full[count: count + prod(XY_dims[end])-1], Int.(XY_dims[end].*(.5, .5, 4, 1)))
-    Y = reshape(Y_full[count: count + prod(XY_dims[end])-1], Int.(XY_dims[end].*(.5, .5, 4, 1)))
-    return XY_save, X, Y
-end
-
 # Forward pass and compute logdet
-function forward(X, Y, CH::NetworkMultiScaleConditionalHINT)
-    CH.split_scales && (XY_save = Array{Array}(undef, CH.L-1, 2))
+function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
+    CH.split_scales && (XY_save = array_of_array(X, CH.L-1, 2))
     logdet = 0f0
     for i=1:CH.L
         X = wavelet_squeeze(X)
@@ -149,7 +121,7 @@ function forward(X, Y, CH::NetworkMultiScaleConditionalHINT)
 end
 
 # Inverse pass and compute gradients
-function inverse(Zx, Zy, CH::NetworkMultiScaleConditionalHINT)
+function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
     CH.split_scales && ((XY_save, Zx, Zy) = split_states(CH.XY_dims, Zx, Zy))
     for i=CH.L:-1:1
         if CH.split_scales && i < CH.L
@@ -168,7 +140,7 @@ function inverse(Zx, Zy, CH::NetworkMultiScaleConditionalHINT)
 end
 
 # Backward pass and compute gradients
-function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkMultiScaleConditionalHINT; set_grad::Bool=true)
+function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; set_grad::Bool=true) where {T, N}
 
     # Split data and gradients
     if CH.split_scales
@@ -210,8 +182,8 @@ function backward(ΔZx, ΔZy, Zx, Zy, CH::NetworkMultiScaleConditionalHINT; set_
 end
 
 # Forward pass and compute logdet
-function forward_Y(Y, CH::NetworkMultiScaleConditionalHINT)
-    CH.split_scales && (Y_save = Array{Array}(undef, CH.L-1))
+function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
+    CH.split_scales && (Y_save = array_of_array(Y, CH.L-1))
     for i=1:CH.L
         Y = wavelet_squeeze(Y)
         for j=1:CH.K
@@ -230,7 +202,7 @@ function forward_Y(Y, CH::NetworkMultiScaleConditionalHINT)
 end
 
 # Inverse pass and compute gradients
-function inverse_Y(Zy, CH::NetworkMultiScaleConditionalHINT)
+function inverse_Y(Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
     CH.split_scales && ((Y_save, Zy) = split_states(CH.XY_dims, Zy))
     for i=CH.L:-1:1
         if CH.split_scales && i < CH.L
@@ -248,12 +220,12 @@ end
 
 ## Jacobian-related utils
 
-function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiScaleConditionalHINT)
+function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiScaleConditionalHINT) where {T, N}
     if CH.split_scales
-        XY_save = Array{Array}(undef, CH.L-1, 2)
-        ΔXY_save = Array{Array}(undef, CH.L-1, 2)
+        XY_save = array_of_array(ΔX,  CH.L-1, 2)
+        ΔXY_save = array_of_array(ΔX,  CH.L-1, 2)
     end
-    logdet = 0f0
+    logdet = 0
     GNΔθ = Array{Parameter, 1}(undef, 0)
     idxblk = 0
     for i=1:CH.L
@@ -288,7 +260,7 @@ function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiSca
     return ΔX, ΔY, X, Y, logdet, GNΔθ
 end
 
-adjointJacobian(ΔZx, ΔZy, Zx, Zy, CH::NetworkMultiScaleConditionalHINT) = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false)
+adjointJacobian(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N} = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false)
 
 
 ## Other utils

@@ -107,7 +107,7 @@ ResidualBlock3D(args...; kw...) = ResidualBlock(args...; kw..., ndims=3)
 # Functions
 
 # Forward
-function forward(X1::AbstractArray{Float32, N}, RB::ResidualBlock; save=false) where {N}
+function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {T, N}
     inds =[i!=(N-1) ? 1 : (:) for i=1:N]
 
     Y1 = conv(X1, RB.W1.data; stride=RB.strides[1], pad=RB.pad[1]) .+ reshape(RB.b1.data, inds...)
@@ -128,8 +128,8 @@ function forward(X1::AbstractArray{Float32, N}, RB::ResidualBlock; save=false) w
 end
 
 # Backward
-function backward(ΔX4::AbstractArray{Float32, N}, X1::AbstractArray{Float32, N},
-                  RB::ResidualBlock; set_grad::Bool=true) where {N}
+function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
+                  RB::ResidualBlock; set_grad::Bool=true) where {T, N}
     inds = [i!=(N-1) ? 1 : (:) for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 
@@ -172,8 +172,8 @@ function backward(ΔX4::AbstractArray{Float32, N}, X1::AbstractArray{Float32, N}
 end
 
 ## Jacobian-related functions
-function jacobian(ΔX1::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1},
-                  X1::AbstractArray{Float32, N}, RB::ResidualBlock) where {N}
+function jacobian(ΔX1::AbstractArray{T, N}, Δθ::Array{Parameter, 1},
+                  X1::AbstractArray{T, N}, RB::ResidualBlock) where {T, N}
     inds = [i!=(N-1) ? 1 : (:) for i=1:N]
     # Cdims
     cdims1 = DenseConvDims(X1, RB.W1.data; stride=RB.strides[1], padding=RB.pad[1])
@@ -205,7 +205,7 @@ function jacobian(ΔX1::AbstractArray{Float32, N}, Δθ::Array{Parameter, 1},
 end
  
 # 2D/3D
-function adjointJacobian(ΔX4::AbstractArray{Float32, N}, X1::AbstractArray{Float32, N}, RB::ResidualBlock) where N
+function adjointJacobian(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N}, RB::ResidualBlock) where {T, N}
     return backward(ΔX4, X1, RB; set_grad=false)
 end
 

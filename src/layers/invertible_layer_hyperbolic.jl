@@ -84,8 +84,8 @@ end
 HyperbolicLayer3D(args...; kw...) =  HyperbolicLayer(args...; kw..., ndims=3)
 
 # Constructor for given weights 2D
-function HyperbolicLayer(W::AbstractArray{Float32, N}, b::AbstractArray{Float32, 1},
-                         stride::Int64, pad::Int64; action=0, α=1f0) where N
+function HyperbolicLayer(W::AbstractArray{T, N}, b::AbstractArray{T, 1},
+                         stride::Int64, pad::Int64; action=0, α=1f0) where {T, N}
 
     kernel, n_in, n_hidden = size(W)[N-3:N]
 
@@ -97,14 +97,14 @@ function HyperbolicLayer(W::AbstractArray{Float32, N}, b::AbstractArray{Float32,
     return HyperbolicLayer(W, b, α, stride, pad, action)
 end
 
-HyperbolicLayer3D(W::AbstractArray{Float32, N}, b, stride, pad;
-                  action=0, α=1f0) where N =
+HyperbolicLayer3D(W::AbstractArray{T, N}, b, stride, pad;
+                  action=0, α=1f0) where {T, N} =
         HyperbolicLayer(W, b, stride, pad;action=actin, α=α)
 
 #################################################
 
 # Forward pass
-function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer)
+function forward(X_prev_in::AbstractArray{T, N}, X_curr_in::AbstractArray{T, N}, HL::HyperbolicLayer) where {T, N}
 
     # Change dimensions
     if HL.action == 0
@@ -137,7 +137,7 @@ function forward(X_prev_in, X_curr_in, HL::HyperbolicLayer)
 end
 
 # Inverse pass
-function inverse(X_curr, X_new, HL::HyperbolicLayer; save=false)
+function inverse(X_curr::AbstractArray{T, N}, X_new::AbstractArray{T, N}, HL::HyperbolicLayer; save=false) where {T, N}
     cdims = DCDims(X_curr, HL.W.data; stride=HL.stride, padding=HL.pad)
     # Symmetric convolution w/ relu activation
     if length(size(X_curr)) == 4
@@ -173,7 +173,7 @@ function inverse(X_curr, X_new, HL::HyperbolicLayer; save=false)
 end
 
 # Backward pass
-function backward(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer; set_grad::Bool=true)
+function backward(ΔX_curr::AbstractArray{T, N}, ΔX_new::AbstractArray{T, N}, X_curr::AbstractArray{T, N}, X_new::AbstractArray{T, N}, HL::HyperbolicLayer; set_grad::Bool=true) where {T, N}
 
     # Recompute forward states
     X_prev_in, X_curr_in, X_conv, X_relu = inverse(X_curr, X_new, HL; save=true)
@@ -224,7 +224,7 @@ end
 ## Jacobian utilities
 
 # 2D
-function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::HyperbolicLayer)
+function jacobian(ΔX_prev_in::AbstractArray{T, N}, ΔX_curr_in::AbstractArray{T, N}, Δθ::Array{Parameter}, X_prev_in::AbstractArray{T, N}, X_curr_in::AbstractArray{T, N}, HL::HyperbolicLayer) where {T, N}
 
     # Change dimensions
     if HL.action == 0
@@ -266,7 +266,7 @@ function jacobian(ΔX_prev_in, ΔX_curr_in, Δθ, X_prev_in, X_curr_in, HL::Hype
     return ΔX_curr, ΔX_new, X_curr, X_new
 end
 
-function adjointJacobian(ΔX_curr, ΔX_new, X_curr, X_new, HL::HyperbolicLayer)
+function adjointJacobian(ΔX_curr::AbstractArray{T, N}, ΔX_new::AbstractArray{T, N}, X_curr::AbstractArray{T, N}, X_new::AbstractArray{T, N}, HL::HyperbolicLayer) where {T, N}
     return backward(ΔX_curr, ΔX_new, X_curr, X_new, HL; set_grad=false)
 end
 
