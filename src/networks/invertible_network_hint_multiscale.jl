@@ -172,8 +172,8 @@ end
 
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, H::NetworkMultiScaleHINT) where {T, N}
     if H.split_scales
-        X_save = array_of_arry(ΔX, H.L-1, 2)
-        ΔX_save = array_of_arry(ΔX, H.L-1, 2)
+        X_save = array_of_array(ΔX, H.L-1, 2)
+        ΔX_save = array_of_array(ΔX, H.L-1, 2)
     end
     logdet = 0
     GNΔθ = Array{Parameter, 1}(undef, 0)

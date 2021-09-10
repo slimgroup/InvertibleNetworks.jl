@@ -1,6 +1,6 @@
 using CUDA
 
-export convert_cu, cuzeros, cuones, array_of_arry, chain_lr
+export convert_cu, cuzeros, cuones, array_of_array, chain_lr
 
 convert_cu(in_a, X) =  X isa CuArray ? cu(in_a) : in_a
 cuzeros(::Array{T, N}, a::Vararg{Int, N2}) where {T, N, N2} = zeros(T, a...)
@@ -10,8 +10,8 @@ cuones(::Array{T, N}, a::Vararg{Int, N2}) where {T, N, N2} = ones(T, a...)
 cuones(::CuArray{T, N}, a::Vararg{Int, N2}) where {T, N, N2} = CUDA.ones(T, a...)
 cuones(x, a::Tuple) = cuones(x, a...)
 
-array_of_arry(::Array, args...) = Array{Array}(undef, args...)
-array_of_arry(::CuArray, args...) = Array{CuArray}(undef, args...)
+array_of_array(::Array, args...) = Array{Array}(undef, args...)
+array_of_array(::CuArray, args...) = Array{CuArray}(undef, args...)
 
 # for 1x1 Conv
 scal!(x::Vector{T}, a) where T = LinearAlgebra.BLAS.scal!(length(x), convert(T, a), x, 1)
