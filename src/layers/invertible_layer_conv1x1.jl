@@ -193,7 +193,7 @@ function forward(X::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N
         Yi = chain_lr(Xi, v1, v2, v3)
         view(Y, inds...) .= reshape(Yi, size(view(Y, inds...))...)
     end
-    logdet == true ? (return Y, 0f0) : (return Y)   # logdet always 0
+    logdet == true ? (return Y, 0) : (return Y)   # logdet always 0
 end
 
 # Forward pass and update weights
@@ -227,10 +227,10 @@ function inverse(Y::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N
     for i=1:size(Y, N)
         inds[end] = i
         Yi = reshape(view(Y, inds...), :, n_in)
-        Xi = chain_lr(Yi, v1, v2, v3)
+        Xi = chain_lr(Yi, v3, v2, v1)
         view(X, inds...) .= reshape(Xi, size(view(X, inds...))...)
     end
-    logdet == true ? (return X, 0f0) : (return X)   # logdet always 0
+    logdet == true ? (return X, 0) : (return X)   # logdet always 0
 end
 
 # Inverse pass and update weights

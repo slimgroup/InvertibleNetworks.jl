@@ -124,7 +124,7 @@ end
 ###################################################################################################
 # Jacobian-related tests
 
-for action in [1, -1, 0]
+@testset "Hyperbolic layer with action $action" for action in [1, -1, 0]
 
     # Gradient test
     # Initialization

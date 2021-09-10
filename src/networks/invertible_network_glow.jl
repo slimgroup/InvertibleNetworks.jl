@@ -88,7 +88,7 @@ NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     Z_save = array_of_array(X, G.L-1)
-    logdet = 0f0
+    logdet = 0
     for i=1:G.L
         X = squeeze(X; pattern="checkerboard")
         for j=1:G.K            
@@ -160,7 +160,7 @@ end
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, G::NetworkGlow) where {T, N}
     Z_save = array_of_arry(ΔX, G.L-1)
     ΔZ_save = array_of_arry(ΔX, G.L-1)
-    logdet = 0f0
+    logdet = 0
     GNΔθ = Array{Parameter, 1}(undef, 10*G.L*G.K)
     blkidx = 0
     for i=1:G.L
