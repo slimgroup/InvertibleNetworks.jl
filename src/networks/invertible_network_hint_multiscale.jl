@@ -97,7 +97,7 @@ NetworkMultiScaleHINT3D(args...; kw...) = NetworkMultiScaleHINT(args...; kw..., 
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N}
     H.split_scales && (X_save = Array{Array}(undef, H.L-1))
-    logdet = 0f0
+    logdet = 0
     for i=1:H.L
         X = wavelet_squeeze(X)
         for j=1:H.K
@@ -175,7 +175,7 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, H::Net
         X_save = array_of_arry(ΔX, H.L-1, 2)
         ΔX_save = array_of_arry(ΔX, H.L-1, 2)
     end
-    logdet = 0f0
+    logdet = 0
     GNΔθ = Array{Parameter, 1}(undef, 0)
     idxblk = 0
     for i=1:H.L

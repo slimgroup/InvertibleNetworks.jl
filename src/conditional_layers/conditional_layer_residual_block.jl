@@ -84,7 +84,7 @@ function ConditionalResidualBlock(nx1, nx2, nx_in, ny1, ny2, ny_in, n_hidden, ba
     return ConditionalResidualBlock(W0, W1, W2, W3, b0, b1, b2, cdims1, cdims2, cdims3)
 end
 
-function forward(X0, D, RB::ConditionalResidualBlock; save=false)
+function forward(X0::AbstractArray{T, N}, D::AbstractArray{T, N}, RB::ConditionalResidualBlock; save=false) where {T, N}
 
     # Dimensions of input image X
     nx1, nx2, nx_in, batchsize = size(X0)
@@ -110,7 +110,7 @@ function forward(X0, D, RB::ConditionalResidualBlock; save=false)
 end
 
 
-function backward(ΔX4, ΔD, X0, D, RB::ConditionalResidualBlock; set_grad::Bool=true)
+function backward(ΔX4::AbstractArray{T, N}, ΔD::AbstractArray{T, N}, X0::AbstractArray{T, N}, D::AbstractArray{T, N}, RB::ConditionalResidualBlock; set_grad::Bool=true) where {T, N}
 
     # Recompute forward states from input X
     Y0, Y1, Y2, Y3, X1, X2, X3 = forward(X0, D, RB; save=true)

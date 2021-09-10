@@ -85,7 +85,7 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, AL::AffineLa
     if set_grad
         return ΔX, X
     else
-        AL.logdet ? (return ΔX, Δθ, X, [Parameter(Δs_), Parameter(0f0.*Δb)]) : (return ΔX, Δθ, X)
+        AL.logdet ? (return ΔX, Δθ, X, [Parameter(Δs_), Parameter(0 *Δb)]) : (return ΔX, Δθ, X)
     end
 end
 
@@ -96,7 +96,7 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter}, X::AbstractA
     Y = X .* AL.s.data .+ AL.b.data
     ΔY = ΔX .* AL.s.data + X .* Δθ[1].data .+ Δθ[2].data
     if AL.logdet
-        return ΔY, Y, logdet_forward(AL.s), [Parameter(logdet_hessian(AL.s).*Δθ[1].data), 0f0*Δθ[2]]
+        return ΔY, Y, logdet_forward(AL.s), [Parameter(logdet_hessian(AL.s).*Δθ[1].data), 0*Δθ[2]]
     else
         return ΔY, Y
     end
