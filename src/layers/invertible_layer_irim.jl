@@ -79,16 +79,12 @@ CouplingLayerIRIM3D(args...;kw...) = CouplingLayerIRIM(args...; kw..., ndims=3)
 
 # 2D Forward pass: Input X, Output Y
 function forward(X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
-
-    # Get dimensions
-    k = Int(L.C.k/2)
-    
     X_ = L.C.forward(X)
     X1_, X2_ = tensor_split(X_)
 
     Y1_ = X1_
     Y2_ = X2_ + L.RB.forward(Y1_)
-    
+
     Y_ = tensor_cat(Y1_, Y2_)
     Y = L.C.inverse(Y_)
     
@@ -97,19 +93,15 @@ end
 
 # 2D Inverse pass: Input Y, Output X
 function inverse(Y::AbstractArray{T, N}, L::CouplingLayerIRIM; save=false) where {T, N}
-
-    # Get dimensions
-    k = Int(L.C.k/2)
-
     Y_ = L.C.forward(Y)
     Y1_, Y2_ = tensor_split(Y_)
-    
+
     X1_ = Y1_
     X2_ = Y2_ - L.RB.forward(Y1_)
-    
+
     X_ = tensor_cat(X1_, X2_)
     X = L.C.inverse(X_)
-    
+
     if save == false
         return X
     else
