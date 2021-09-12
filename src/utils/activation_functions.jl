@@ -158,7 +158,7 @@ function SigmoidInv(y::AbstractArray{T, N}; low=0f0, high=1f0) where {T, N}
     if sum(isapprox.(y, 0f-6)) == 0
         x = log.(y .- low) - log.(high .- y)
     else
-        x = -log.((1 .- y) ./ y)
+        throw(InputError("Input contains zeros."))
     end
     return x
 end
@@ -187,10 +187,21 @@ end
  See also: [`Sigmoid`](@ref), [`SigmoidInv`](@ref)
 """
 function SigmoidGrad(Δy::AbstractArray{T, N}, y::AbstractArray{T, N}; x=nothing, low=0f0, high=1f0) where {T, N}
-    if ~isnothing(y) && isnothing(x)
+    if isnothing(x)
         x = SigmoidInv(y; low=low, high=high)  # recompute forward state
     end
         
+    ΔSig_x = exp.(-x) ./ (1f0 .+ exp.(-x)).^2f0
+    Δx = (high - low) .* Δy .* ΔSig_x 
+
+    return Δx
+end
+
+function SigmoidGrad(Δy::AbstractArray{T, N}, ::Nothing; x=nothing, low=0f0, high=1f0) where {T, N}
+    if isnothing(x)
+       throw(InputError("Input x must be provided with y=nothing, can't inverse recompute"))  # recompute forward state
+    end
+
     ΔSig_x = exp.(-x) ./ (1f0 .+ exp.(-x)).^2f0
     Δx = (high - low) .* Δy .* ΔSig_x 
 
