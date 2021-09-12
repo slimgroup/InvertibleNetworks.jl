@@ -9,6 +9,18 @@ mutable struct Parameter
     grad
 end
 
+convert_data!(::Type{T}, ::Parameter, ::AbstractArray{T, N}) where {T, N} = nothing
+convert_data!(::Type{T}, p::Parameter, data::AbstractArray{T2, N}) where {T, T2, N} = (p.data = convert(AbstractArray{T, N}, data))
+convert_data!(::Type{T}, ::Parameter, ::Nothing) where T = nothing
+
+convert_grad!(::Type{T}, ::Parameter, ::AbstractArray{T, N}) where {T, N} = nothing
+convert_grad!(::Type{T}, p::Parameter, data::AbstractArray{T2, N}) where {T, T2, N} = (p.grad = convert(AbstractArray{T, N}, data))
+convert_grad!(::Type{T}, ::Parameter, ::Nothing) where T = nothing
+
+function convert_param!(::Type{T}, p::Parameter) where T
+    convert_data!(T, p, p.data)
+    convert_grad!(T, p, p.grad)
+end
 
 """
     Class for trainable network parameters.
