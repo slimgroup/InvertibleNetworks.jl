@@ -27,8 +27,8 @@ function LeakyReLUlayer()
     return ActivationFunction(LeakyReLU, LeakyReLUinv, LeakyReLUgrad)
 end
 
-function SigmoidLayer()
-    return ActivationFunction(Sigmoid, SigmoidInv, SigmoidGrad)
+function SigmoidLayer(;low=nothing, high=nothing)
+    return ActivationFunction(x -> Sigmoid(x; low=low, high=high), y -> SigmoidInv(y;low=low, high=high), (Δy, y) -> SigmoidGrad(Δy, y; low=low, high=high))
 end
 
 function Sigmoid2Layer()
@@ -134,27 +134,37 @@ end
 # Sigmoid (invertible if ouput nonzero)
 
 """
-    y = Sigmoid(x)
+    y = Sigmoid(x; low=nothing, high=nothing)
 
- Sigmoid activation function.
+ Sigmoid activation function. Can be shifted and scaled such that output is (low,high].
 
  See also: [`SigmoidInv`](@ref), [`SigmoidGrad`](@ref)
 """
-function Sigmoid(x)
-    y = 1f0 ./ (1f0 .+ exp.(-x))
+function Sigmoid(x; low=nothing, high=nothing)
+    if isnothing(low) && isnothing(high)
+        y = 1f0 ./ (1f0 .+ exp.(-x))
+    else
+        y = high .* Sigmoid(x) + low .* Sigmoid(-x)
+    end
+
     return y
 end
 
-"""
-    x = SigmoidInv(y)
 
- Inverse of Sigmoid function.
+"""
+    x = SigmoidInv(y; low=nothing, high=1f0)
+
+ Inverse of Sigmoid function. Can be shifted and scaled such that output is (low,high]
 
  See also: [`Sigmoid`](@ref), [`SigmoidGrad`](@ref)
 """
-function SigmoidInv(y)
+function SigmoidInv(y; low=nothing, high=nothing)
     if sum(isapprox.(y, 0f-6)) == 0
-        x = -log.((1f0 .- y) ./ y)
+        if isnothing(low) && isnothing(high)
+            x = -log.((1f0 .- y) ./ y)
+        else
+            x = log.(y .- low) - log.(high .- y)
+        end
     else
         throw("Input contains zeros.")
     end
@@ -162,9 +172,9 @@ function SigmoidInv(y)
 end
 
 """
-    Δx = SigmoidGrad(Δy, y; x=nothing)
+    Δx = SigmoidGrad(Δy, y; x=nothing, low=nothing, high=nothing)
 
- Backpropagate data residual through Sigmoid function.
+ Backpropagate data residual through Sigmoid function. Can be shifted and scaled such that output is (low,high]
 
  *Input*:
 
@@ -174,17 +184,30 @@ end
 
  - `x`: original input, if y not available (in this case, set y=nothing)
 
+ - `low`: if provided then scale and shift such that output is (low,high]
+
+ - `high`: if provided then scale and shift such that output is (low,high]
+
  *Output*:
 
  - `Δx`: backpropagated residual
 
  See also: [`Sigmoid`](@ref), [`SigmoidInv`](@ref)
 """
-function SigmoidGrad(Δy, y; x=nothing)
-    if ~isnothing(y) && isnothing(x)
-        x = SigmoidInv(y)  # recompute forward state
+function SigmoidGrad(Δy, y; x=nothing, low=nothing, high=nothing)
+    if isnothing(low) && isnothing(high)
+        if ~isnothing(y) && isnothing(x)
+            x = SigmoidInv(y)  # recompute forward state
+        end
+        Δx = Δy .* exp.(-x) ./ (1f0 .+ exp.(-x)).^2f0
+    else
+        if ~isnothing(y) && isnothing(x)
+            x = SigmoidInv(y; low=low, high=high)  # recompute forward state
+        end
+        Δx = (high .* SigmoidGrad(Δy,y; x=x) .- low .* SigmoidGrad(Δy,y; x=x))
     end
-    Δx = Δy .* exp.(-x) ./ (1f0 .+ exp.(-x)).^2f0
+
+    
     return Δx
 end
 
