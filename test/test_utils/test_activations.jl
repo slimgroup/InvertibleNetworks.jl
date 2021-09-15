@@ -159,7 +159,7 @@ dX = X - X0
 err = norm(X - SigmoidInv(Sigmoid(X; low=low, high=high); low=low, high=high)) / norm(X)
 @test isapprox(err, 0f0, atol=1f-5)
 
-# Gradient test sigmoid
+# Gradient test Shifted and Scaled Sigmoid
 function objective(X, Y)
     Y0 = Sigmoid(X; low=low, high=high)
     ΔY = Y0 - Y
