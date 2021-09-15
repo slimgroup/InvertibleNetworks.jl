@@ -27,7 +27,7 @@ function LeakyReLUlayer()
     return ActivationFunction(LeakyReLU, LeakyReLUinv, LeakyReLUgrad)
 end
 
-function SigmoidLayer(;low=nothing, high=nothing)
+function SigmoidLayer(;low=0f0, high=1f0)
     return ActivationFunction(x -> Sigmoid(x; low=low, high=high), y -> SigmoidInv(y;low=low, high=high), (Δy, y) -> SigmoidGrad(Δy, y; low=low, high=high))
 end
 
@@ -134,37 +134,29 @@ end
 # Sigmoid (invertible if ouput nonzero)
 
 """
-    y = Sigmoid(x; low=nothing, high=nothing)
+    y = Sigmoid(x; low=0, high=1)
 
- Sigmoid activation function. Can be shifted and scaled such that output is (low,high].
+ Sigmoid activation function. Shifted and scaled such that output is [low,high].
 
  See also: [`SigmoidInv`](@ref), [`SigmoidGrad`](@ref)
 """
-function Sigmoid(x; low=nothing, high=nothing)
-    if isnothing(low) && isnothing(high)
-        y = 1f0 ./ (1f0 .+ exp.(-x))
-    else
-        y = high .* Sigmoid(x) + low .* Sigmoid(-x)
-    end
 
+function Sigmoid(x; low=0f0, high=1f0)
+    y = high .* (1f0 ./ (1f0 .+ exp.(-x))) + low .* (1f0 ./ (1f0 .+ exp.(x)))
     return y
 end
 
 
 """
-    x = SigmoidInv(y; low=nothing, high=1f0)
+    x = SigmoidInv(y; low=0, high=1f0)
 
- Inverse of Sigmoid function. Can be shifted and scaled such that output is (low,high]
+ Inverse of Sigmoid function. Shifted and scaled such that output is [low,high]
 
  See also: [`Sigmoid`](@ref), [`SigmoidGrad`](@ref)
 """
-function SigmoidInv(y; low=nothing, high=nothing)
+function SigmoidInv(y; low=0f0, high=1f0)
     if sum(isapprox.(y, 0f-6)) == 0
-        if isnothing(low) && isnothing(high)
-            x = -log.((1f0 .- y) ./ y)
-        else
-            x = log.(y .- low) - log.(high .- y)
-        end
+        x = log.(y .- low) - log.(high .- y)
     else
         throw("Input contains zeros.")
     end
@@ -194,20 +186,14 @@ end
 
  See also: [`Sigmoid`](@ref), [`SigmoidInv`](@ref)
 """
-function SigmoidGrad(Δy, y; x=nothing, low=nothing, high=nothing)
-    if isnothing(low) && isnothing(high)
-        if ~isnothing(y) && isnothing(x)
-            x = SigmoidInv(y)  # recompute forward state
-        end
-        Δx = Δy .* exp.(-x) ./ (1f0 .+ exp.(-x)).^2f0
-    else
-        if ~isnothing(y) && isnothing(x)
-            x = SigmoidInv(y; low=low, high=high)  # recompute forward state
-        end
-        Δx = (high .* SigmoidGrad(Δy,y; x=x) .- low .* SigmoidGrad(Δy,y; x=x))
+function SigmoidGrad(Δy, y; x=nothing, low=0f0, high=1f0)
+    if ~isnothing(y) && isnothing(x)
+        x = SigmoidInv(y; low=low, high=high)  # recompute forward state
     end
+        
+    ΔSig_x = exp.(-x) ./ (1f0 .+ exp.(-x)).^2f0
+    Δx = (high - low) .* Δy .* ΔSig_x 
 
-    
     return Δx
 end
 
