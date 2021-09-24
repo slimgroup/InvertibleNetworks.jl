@@ -28,7 +28,7 @@ kernel_size(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D
 channels_in(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_in
 channels_out(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_out
 
-function DCDims(X::AbstractArray{Float32, N}, W::AbstractArray{Float32, N}; stride=1, padding=1, nc=nothing) where N
+function DCDims(X::AbstractArray{T, N}, W::AbstractArray{T, N}; stride=1, padding=1, nc=nothing) where {T, N}
     sw = size(W)
     isnothing(nc) && (nc = sw[N-1])
     sx = (size(X)[1:N-2]..., nc, size(X)[end])
@@ -76,6 +76,6 @@ include("networks/invertible_network_conditional_hint_multiscale.jl")
 include("utils/jacobian.jl")
 
 # gpu
-include("utils/cuda.jl")
+include("utils/compute_utils.jl")
 
 end

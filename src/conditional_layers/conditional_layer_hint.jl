@@ -82,7 +82,7 @@ end
 # 3D Constructor from input dimensions
 ConditionalLayerHINT3D(args...; kw...) = ConditionalLayerHINT(args...; kw..., ndims=3)
 
-function forward(X, Y, CH::ConditionalLayerHINT; logdet=nothing)
+function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     # Y-lane
@@ -99,7 +99,7 @@ function forward(X, Y, CH::ConditionalLayerHINT; logdet=nothing)
     logdet ? (return Zx, Zy, logdet1 + logdet2 + logdet3) : (return Zx, Zy)
 end
 
-function inverse(Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing)
+function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
 
     # Y-lane
@@ -117,7 +117,7 @@ function inverse(Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing)
     logdet ? (return X, Y, logdet1 + logdet2 + logdet3) : (return X, Y)
 end
 
-function backward(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing, set_grad::Bool=true)
+function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing, set_grad::Bool=true) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     # Y-lane
@@ -133,12 +133,12 @@ function backward(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing, 
 
     # X-lane: conditional layer
     if set_grad
-        ΔYp_, ΔX, X = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx)[[1,2,4]]
+        ΔYp_, ΔX, X = CH.CL_YX.backward(ΔYp.*0, ΔZx, Yp, Zx)[[1,2,4]]
     else
         if logdet
-            ΔYp_, ΔX, Δθ_CLYX, _, X, ∇logdet_CLYX = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx; set_grad=set_grad)
+            ΔYp_, ΔX, Δθ_CLYX, _, X, ∇logdet_CLYX = CH.CL_YX.backward(ΔYp.*0, ΔZx, Yp, Zx; set_grad=set_grad)
         else
-            ΔYp_, ΔX, Δθ_CLYX, _, X = CH.CL_YX.backward(ΔYp.*0f0, ΔZx, Yp, Zx; set_grad=set_grad)
+            ΔYp_, ΔX, Δθ_CLYX, _, X = CH.CL_YX.backward(ΔYp.*0, ΔZx, Yp, Zx; set_grad=set_grad)
         end
     end
     ΔYp += ΔYp_
@@ -178,14 +178,14 @@ function backward(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing, 
             return ΔX, ΔY, Δθ, X, Y
         else
             ∇logdet = cat(∇logdet_CLX, ∇logdet_CLY, ∇logdet_CLYX; dims=1)
-            ~isnothing(CH.C_X) && (∇logdet = cat(∇logdet, 0f0*Δθ_CX; dims=1))
-            ~isnothing(CH.C_Y) && (∇logdet = cat(∇logdet, 0f0*Δθ_CY; dims=1))
+            ~isnothing(CH.C_X) && (∇logdet = cat(∇logdet, 0*Δθ_CX; dims=1))
+            ~isnothing(CH.C_Y) && (∇logdet = cat(∇logdet, 0*Δθ_CY; dims=1))
             return ΔX, ΔY, Δθ, X, Y, ∇logdet
         end
     end
 end
 
-function backward_inv(ΔX, ΔY, X, Y, CH::ConditionalLayerHINT)
+function backward_inv(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, N}
 
     # 1x1 Convolutions
     if isnothing(CH.C_X) || isnothing(CH.C_Y)
@@ -200,7 +200,7 @@ function backward_inv(ΔX, ΔY, X, Y, CH::ConditionalLayerHINT)
     ΔX, X = backward_inv(ΔXp, Xp, CH.CL_X)
 
     # X-lane: conditional layer
-    ΔYp_, ΔZx, Zx = backward_inv(ΔYp.*0f0, ΔX, Yp, X, CH.CL_YX)[[1,2,4]]
+    ΔYp_, ΔZx, Zx = backward_inv(ΔYp.*0, ΔX, Yp, X, CH.CL_YX)[[1,2,4]]
     ΔYp += ΔYp_
 
     # Y-lane
@@ -209,14 +209,14 @@ function backward_inv(ΔX, ΔY, X, Y, CH::ConditionalLayerHINT)
     return ΔZx, ΔZy, Zx, Zy
 end
 
-function forward_Y(Y, CH::ConditionalLayerHINT)
+function forward_Y(Y::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, N}
     ~isnothing(CH.C_Y) ? (Yp = CH.C_Y.forward(Y)) : (Yp = copy(Y))
     Zy = CH.CL_Y.forward(Yp; logdet=false)
     return Zy
 
 end
 
-function inverse_Y(Zy, CH::ConditionalLayerHINT)
+function inverse_Y(Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, N}
     Yp = CH.CL_Y.inverse(Zy; logdet=false)
     ~isnothing(CH.C_Y) ? (Y = CH.C_Y.inverse(Yp)) : (Y = copy(Yp))
     return Y
@@ -225,7 +225,7 @@ end
 
 ## Jacobian-related utils
 
-function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::ConditionalLayerHINT; logdet=nothing)
+function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     # Selecting parameters
@@ -274,8 +274,8 @@ function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::ConditionalLaye
 
     if logdet
         GNΔθ = cat(GNΔθ_X, GNΔθ_Y, GNΔθ_YX; dims=1)
-        ~isnothing(CH.C_X) && (GNΔθ = cat(GNΔθ, 0f0.*Δθ_CX; dims=1))
-        ~isnothing(CH.C_Y) && (GNΔθ = cat(GNΔθ, 0f0.*Δθ_CY; dims=1))
+        ~isnothing(CH.C_X) && (GNΔθ = cat(GNΔθ, 0 .*Δθ_CX; dims=1))
+        ~isnothing(CH.C_Y) && (GNΔθ = cat(GNΔθ, 0 .*Δθ_CY; dims=1))
         return ΔZx, ΔZy, Zx, Zy, logdet1 + logdet2 + logdet3, GNΔθ
     else
         return ΔZx, ΔZy, Zx, Zy
@@ -283,7 +283,7 @@ function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::ConditionalLaye
 
 end
 
-adjointJacobian(ΔZx, ΔZy, Zx, Zy, CH::ConditionalLayerHINT; logdet=nothing) = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false, logdet=logdet)
+adjointJacobian(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing) where {T, N} = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false, logdet=logdet)
 
 
 ## Other utils
