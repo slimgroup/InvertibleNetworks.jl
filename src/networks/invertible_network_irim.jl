@@ -92,7 +92,7 @@ end
 NetworkLoop3D(args...; kw...) = NetworkLoop(args...; kw..., ndims=3)
 
 # 2D Forward loop: Input (η, s), Output (η, s)
-function forward(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d, J, UL::NetworkLoop) where N
+function forward(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop) where {T, N}
 
     # Dimensions
     n_in = size(s, N-1) + 1
@@ -114,7 +114,7 @@ function forward(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d,
 end
 
 # 2D Inverse loop: Input (η, s), Output (η, s)
-function inverse(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d, J, UL::NetworkLoop) where N
+function inverse(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop) where {T, N}
 
     # Dimensions
     n_in = size(s, N-1) + 1
@@ -137,8 +137,8 @@ function inverse(η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d,
 end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function backward(Δη::AbstractArray{Float32, N}, Δs::AbstractArray{Float32, N}, 
-    η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d, J, UL::NetworkLoop; set_grad::Bool=true) where N
+function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N}, 
+    η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop; set_grad::Bool=true) where {T, N}
 
     # Dimensions
     n_in = size(s, N-1) + 1
@@ -147,7 +147,7 @@ function backward(Δη::AbstractArray{Float32, N}, Δs::AbstractArray{Float32, N
     maxiter = length(UL.L)
 
     N0 = cuzeros(Δη, nn..., n_in-2, batchsize)
-    typeof(Δs) == Float32 && (Δs = 0f0.*s)  # make Δs zero tensor
+    typeof(Δs) == T && (Δs = 0 .* s)  # make Δs zero tensor
 
     # Initialize net parameters
     set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
@@ -177,12 +177,12 @@ function backward(Δη::AbstractArray{Float32, N}, Δs::AbstractArray{Float32, N
 end
 
 ## Jacobian-related utils
-function jacobian(η::AbstractArray{Float32, 5}, s::AbstractArray{Float32, 5}, d, J, UL::NetworkLoop)
-    throw(ArgumentError("Jacobian for NetworkLoop not yet implemented"))
-end
+jacobian(::AbstractArray{T, 5}, ::AbstractArray{T, 5}, d::AbstractArray, J, UL::NetworkLoop) where T = throw(ArgumentError("Jacobian for NetworkLoop not yet implemented"))
 
-adjointJacobian(Δη::AbstractArray{Float32, N}, Δs::AbstractArray{Float32, N}, 
-η::AbstractArray{Float32, N}, s::AbstractArray{Float32, N}, d, J, UL::NetworkLoop; set_grad::Bool=true) where N = backward(Δη, Δs, η, s, d, J, UL; set_grad=false)
+adjointJacobian(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N}, 
+                η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop;
+                set_grad::Bool=true) where {T, N} =
+            backward(Δη, Δs, η, s, d, J, UL; set_grad=false)
 
 
 ## Other utils

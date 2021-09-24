@@ -9,6 +9,18 @@ mutable struct Parameter
     grad
 end
 
+convert_data!(::Type{T}, ::Parameter, ::AbstractArray{T, N}) where {T, N} = nothing
+convert_data!(::Type{T}, p::Parameter, data::AbstractArray{T2, N}) where {T, T2, N} = (p.data = convert(AbstractArray{T, N}, data))
+convert_data!(::Type{T}, ::Parameter, ::Nothing) where T = nothing
+
+convert_grad!(::Type{T}, ::Parameter, ::AbstractArray{T, N}) where {T, N} = nothing
+convert_grad!(::Type{T}, p::Parameter, data::AbstractArray{T2, N}) where {T, T2, N} = (p.grad = convert(AbstractArray{T, N}, data))
+convert_grad!(::Type{T}, ::Parameter, ::Nothing) where T = nothing
+
+function convert_param!(::Type{T}, p::Parameter) where T
+    convert_data!(T, p, p.data)
+    convert_grad!(T, p, p.grad)
+end
 
 """
     Class for trainable network parameters.
@@ -82,11 +94,11 @@ function +(p1::Parameter, p2::Parameter)
     return Parameter(p1.data+p2.data)
 end
 
-function +(p1::Parameter, p2::Float32)
+function +(p1::Parameter, p2::T) where {T<:Real}
     return Parameter(p1.data+p2)
 end
 
-function +(p1::Float32, p2::Parameter)
+function +(p1::T, p2::Parameter) where {T<:Real}
     return p2+p1
 end
 
@@ -94,11 +106,11 @@ function -(p1::Parameter, p2::Parameter)
     return Parameter(p1.data-p2.data)
 end
 
-function -(p1::Parameter, p2::Float32)
+function -(p1::Parameter, p2::T) where {T<:Real}
     return Parameter(p1.data-p2)
 end
 
-function -(p1::Float32, p2::Parameter)
+function -(p1::T, p2::Parameter) where {T<:Real}
     return -(p2-p1)
 end
 
@@ -106,44 +118,38 @@ function -(p::Parameter)
     return Parameter(-p.data)
 end
 
-function *(p1::Parameter, p2::Float32)
+function *(p1::Parameter, p2::T) where {T<:Real}
     return Parameter(p1.data*p2)
 end
 
-function *(p1::Float32, p2::Parameter)
+function *(p1::T, p2::Parameter) where {T<:Real}
     return p2*p1
 end
 
-function /(p1::Parameter, p2::Float32)
+function /(p1::Parameter, p2::T) where {T<:Real}
     return Parameter(p1.data/p2)
 end
 
-function /(p1::Float32, p2::Parameter)
+function /(p1::T, p2::Parameter) where {T<:Real}
     return Parameter(p1/p2.data)
 end
 
 # Shape manipulation
 
-function par2vec(x::Parameter)
-    return vec(x.data), size(x.data)
-end
+par2vec(x::Parameter) = vec(x.data), size(x.data)
 
-function vec2par(x::Array{Float32, 1}, s::NTuple{N, Int64}) where {N}
+
+function vec2par(x::AbstractArray{T, 1}, s::NTuple{N, Int64}) where {T, N}
     return Parameter(reshape(x, s))
 end
 
 function par2vec(x::Array{Parameter, 1})
-    v = Array{Float32, 1}(undef, 0)
-    s = Array{Any, 1}(undef, 0)
-    for i = 1:length(x)
-        vi, si = par2vec(x[i])
-        v = cat(v, vi; dims=1)
-        s = cat(s, si; dims=1)
-    end
+    v = cat([vec(x[i].data) for i=1:length(x)]..., dims=1)
+    s = cat([size(x[i].data) for i=1:length(x)]..., dims=1)
     return v, s
 end
 
-function vec2par(x::Array{Float32, 1}, s::Array{Any, 1})
+function vec2par(x::AbstractArray{T, 1}, s::Array{Any, 1}) where T
     xpar = Array{Parameter, 1}(undef, length(s))
     idx_i = 0
     for i = 1:length(s)

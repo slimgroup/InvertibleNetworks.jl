@@ -52,7 +52,7 @@ function AffineLayer(nx::Int64, ny::Int64, nc::Int64; logdet=false)
 end
 
 # Foward pass: Input X, Output Y
-function forward(X, AL::AffineLayer)
+function forward(X::AbstractArray{T, N}, AL::AffineLayer) where {T, N}
 
     Y = X .* AL.s.data .+ AL.b.data
 
@@ -61,13 +61,13 @@ function forward(X, AL::AffineLayer)
 end
 
 # Inverse pass: Input Y, Output X
-function inverse(Y, AL::AffineLayer; eps::Float32=0f0)
+function inverse(Y::AbstractArray{T, N}, AL::AffineLayer; eps::T=T(0)) where {T, N}
     X = (Y .- AL.b.data) ./ (AL.s.data .+ eps)   # avoid division by 0
     return X
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔY, Y)
-function backward(ΔY, Y, AL::AffineLayer; set_grad::Bool=true)
+function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, AL::AffineLayer; set_grad::Bool=true) where {T, N}
     nx, ny, n_in, batchsize = size(Y)
     X = inverse(Y, AL)
     ΔX = ΔY .* AL.s.data
@@ -85,24 +85,24 @@ function backward(ΔY, Y, AL::AffineLayer; set_grad::Bool=true)
     if set_grad
         return ΔX, X
     else
-        AL.logdet ? (return ΔX, Δθ, X, [Parameter(Δs_), Parameter(0f0.*Δb)]) : (return ΔX, Δθ, X)
+        AL.logdet ? (return ΔX, Δθ, X, [Parameter(Δs_), Parameter(0 *Δb)]) : (return ΔX, Δθ, X)
     end
 end
 
 
 ## Jacobian-related utils
 
-function jacobian(ΔX, Δθ, X, AL::AffineLayer)
+function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter}, X::AbstractArray{T, N}, AL::AffineLayer) where {T, N}
     Y = X .* AL.s.data .+ AL.b.data
     ΔY = ΔX .* AL.s.data + X .* Δθ[1].data .+ Δθ[2].data
     if AL.logdet
-        return ΔY, Y, logdet_forward(AL.s), [Parameter(logdet_hessian(AL.s).*Δθ[1].data), 0f0*Δθ[2]]
+        return ΔY, Y, logdet_forward(AL.s), [Parameter(logdet_hessian(AL.s).*Δθ[1].data), 0*Δθ[2]]
     else
         return ΔY, Y
     end
 end
 
-adjointJacobian(ΔY, Y, AL::AffineLayer) = backward(ΔY, Y, AL; set_grad=false)
+adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, AL::AffineLayer) where {T, N} = backward(ΔY, Y, AL; set_grad=false)
 
 
 ## Other utils

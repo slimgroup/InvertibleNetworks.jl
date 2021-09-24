@@ -9,32 +9,34 @@ export Jacobian
 
 ## Jacobian types
 
-struct JacobianInvertibleNetwork <: joAbstractLinearOperator{Float32, Float32}
+struct JacobianInvertibleNetwork{T} <: joAbstractLinearOperator{T, T}
     name::String
     n::Int64
     m::Int64
     fop::Function
     fop_T::Function
     N::Union{NeuralNetLayer, InvertibleNetwork}
-    X::Array{Float32}
-    Y::Union{Nothing, Array{Float32}}
+    X::AbstractArray{T}
+    Y::Union{Nothing, AbstractArray{T}}
 end
 
-struct JacobianInvertibleNetworkAdjoint <: joAbstractLinearOperator{Float32, Float32}
+struct JacobianInvertibleNetworkAdjoint{T} <: joAbstractLinearOperator{T, T}
     name::String
     n::Int64
     m::Int64
     fop::Function
     fop_T::Function
     N::Union{NeuralNetLayer, InvertibleNetwork}
-    X::Array{Float32}
-    Y::Union{Nothing, Array{Float32}}
+    X::AbstractArray{T}
+    Y::Union{Nothing, AbstractArray{T}}
 end
 
 
 ## Constructor
 
-function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::Array{Float32}; Y::Union{Nothing, Array{Float32}}=nothing, save_Y::Bool=true, io_mode::String="θ↦Y", name::String="Jacobian")
+function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::AbstractArray{T};
+                  Y::Union{Nothing, AbstractArray{T}}=nothing, save_Y::Bool=true,
+                  io_mode::String="θ↦Y", name::String="Jacobian") where T
 
     # Computing & storing Y=f(X) if requested
     if save_Y && isnothing(Y)
@@ -48,7 +50,7 @@ function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::Array{Float32}
     ((io_mode == "X×θ↦Y") || (io_mode == "X×θ↦Y")) && (n += m)
 
     # Forward evaluation
-    function fop(ΔX::Union{Nothing, Array{Float32}}, Δθ::Array{Parameter, 1})
+    function fop(ΔX::Union{Nothing, AbstractArray{T}}, Δθ::Array{Parameter, 1}) where T
         isnothing(ΔX) && (ΔX = cuzeros(X, size(X)...))
         out = N.jacobian(ΔX, Δθ, X)
         ((io_mode == "θ↦Y") || (io_mode == "X×θ↦Y")) && (return out[1])
@@ -56,7 +58,7 @@ function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::Array{Float32}
     end
 
     # Adjoint evaluation
-    function fop_adj(ΔY::Array{Float32}; Y::Union{Nothing, Array{Float32}}=Y)
+    function fop_adj(ΔY::AbstractArray{T}; Y::Union{Nothing, AbstractArray{T}}=Y) where T
         if isnothing(Y)
             Y = N.forward(X)
             isa(Y, Tuple) && (Y = Y[1])
@@ -71,29 +73,27 @@ function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::Array{Float32}
     joJ = joLinearFunctionFwd_T(n, m, fop, fop_adj, Float32, Float32; name=name)
 
     # Output
-    return JacobianInvertibleNetwork(name, n, m, fop, fop_adj, N, X, Y)
+    return JacobianInvertibleNetwork{T}(name, n, m, fop, fop_adj, N, X, Y)
 
 end
 
 
 ## Algebra
 
-function adjoint(J::JacobianInvertibleNetwork)
-    return JacobianInvertibleNetworkAdjoint(string("adjoint(", J.name, ")"), J.m, J.n, J.fop_T, J.fop, J.N, J.X, J.Y)
+function adjoint(J::JacobianInvertibleNetwork{T}) where T
+    return JacobianInvertibleNetworkAdjoint{T}(string("adjoint(", J.name, ")"), J.m, J.n, J.fop_T, J.fop, J.N, J.X, J.Y)
 end
 
-function adjoint(JT::JacobianInvertibleNetworkAdjoint)
-    return JacobianInvertibleNetwork(JT.name[9:end-1], JT.m, JT.n, JT.fop_T, JT.fop, JT.N, JT.X, JT.Y)
+function adjoint(JT::JacobianInvertibleNetworkAdjoint{T}) where T
+    return JacobianInvertibleNetwork{T}(JT.name[9:end-1], JT.m, JT.n, JT.fop_T, JT.fop, JT.N, JT.X, JT.Y)
 end
 
-function *(J::JacobianInvertibleNetwork, Δθ::Array{Parameter,1})
-    return J.fop(nothing, Δθ)
+*(J::JacobianInvertibleNetwork{T}, Δθ::Array{Parameter,1}) where T = J.fop(nothing, Δθ)
+
+function *(J::JacobianInvertibleNetwork{T}, input::Tuple{AbstractArray{T2}, Array{Parameter,1}}) where {T, T2}
+    return J.fop(jo_convert(T, input[1], false), input[2])
 end
 
-function *(J::JacobianInvertibleNetwork, input::Tuple{Array{Float32}, Array{Parameter,1}})
-    return J.fop(input[1], input[2])
-end
-
-function *(JT::JacobianInvertibleNetworkAdjoint, ΔY::Array{Float32})
-    return JT.fop(ΔY)
+function *(JT::JacobianInvertibleNetworkAdjoint{T}, ΔY::AbstractArray{T2}) where {T, T2}
+    return JT.fop(jo_convert(T, ΔY, false))
 end

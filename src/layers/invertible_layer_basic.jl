@@ -87,7 +87,7 @@ end
 CouplingLayerBasic3D(args...;kw...) = CouplingLayerBasic(args...; kw..., ndims=3)
 
 # 2D/3D Forward pass: Input X, Output Y
-function forward(X1::AbstractArray{Float32, N}, X2::AbstractArray{Float32, N}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing) where N
+function forward(X1::AbstractArray{T, N}, X2::AbstractArray{T, N}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
 
     # Coupling layer
@@ -103,13 +103,13 @@ function forward(X1::AbstractArray{Float32, N}, X2::AbstractArray{Float32, N}, L
 end
 
 # 2D/3D Inverse pass: Input Y, Output X
-function inverse(Y1::AbstractArray{Float32, N}, Y2::AbstractArray{Float32, N}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing) where N
+function inverse(Y1::AbstractArray{T, N}, Y2::AbstractArray{T, N}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (L.logdet && L.is_reversed) : logdet = logdet
 
     # Inverse layer
     logS_T1, logS_T2 = tensor_split(L.RB.forward(Y1))
     S = L.activation.forward(logS_T1)
-    X2 = (Y2 - logS_T2) ./ (S .+ eps(1f0)) # add epsilon to avoid division by 0
+    X2 = (Y2 - logS_T2) ./ (S .+ eps(T)) # add epsilon to avoid division by 0
 
     if logdet
         save == true ? (return Y1, X2, -coupling_logdet_forward(S), S) : (return Y1, X2, -coupling_logdet_forward(S))
@@ -119,7 +119,7 @@ function inverse(Y1::AbstractArray{Float32, N}, Y2::AbstractArray{Float32, N}, L
 end
 
 # 2D/3D Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic; set_grad::Bool=true)
+function backward(ΔY1::AbstractArray{T, N}, ΔY2::AbstractArray{T, N}, Y1::AbstractArray{T, N}, Y2::AbstractArray{T, N}, L::CouplingLayerBasic; set_grad::Bool=true) where {T, N}
 
     # Recompute forward state
     X1, X2, S = inverse(Y1, Y2, L; save=true, logdet=false)
@@ -136,7 +136,7 @@ function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic; set_grad::Bool=true
     else
         ΔX1, Δθ = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), X1; set_grad=set_grad)
         if L.logdet
-            _, ∇logdet = L.RB.backward(tensor_cat(L.activation.backward(coupling_logdet_backward(S), S), 0f0.*ΔT), X1; set_grad=set_grad)
+            _, ∇logdet = L.RB.backward(tensor_cat(L.activation.backward(coupling_logdet_backward(S), S), 0 .*ΔT), X1; set_grad=set_grad)
         end
         ΔX1 += ΔY1
     end
@@ -149,7 +149,7 @@ function backward(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic; set_grad::Bool=true
 end
 
 # 2D/3D Reverse backward pass: Input (ΔX, X), Output (ΔY, Y)
-function backward_inv(ΔX1, ΔX2, X1, X2, L::CouplingLayerBasic; set_grad::Bool=true)
+function backward_inv(ΔX1::AbstractArray{T, N}, ΔX2::AbstractArray{T, N}, X1::AbstractArray{T, N}, X2::AbstractArray{T, N}, L::CouplingLayerBasic; set_grad::Bool=true) where {T, N}
 
     # Recompute inverse state
     Y1, Y2, S = forward(X1, X2, L; save=true, logdet=false)
@@ -179,9 +179,9 @@ end
 ## Jacobian-related functions
 
 # 2D
-function jacobian(ΔX1::AbstractArray{Float32, N}, ΔX2::AbstractArray{Float32, N}, Δθ::AbstractArray{Parameter, 1},
-                  X1::AbstractArray{Float32, N}, X2::AbstractArray{Float32, N}, L::CouplingLayerBasic;
-                  save=false, logdet=nothing) where N
+function jacobian(ΔX1::AbstractArray{T, N}, ΔX2::AbstractArray{T, N}, Δθ::AbstractArray{Parameter, 1},
+                  X1::AbstractArray{T, N}, X2::AbstractArray{T, N}, L::CouplingLayerBasic;
+                  save=false, logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
 
     logS_T1, logS_T2 = tensor_split(L.RB.forward(X1))
@@ -203,7 +203,7 @@ function jacobian(ΔX1::AbstractArray{Float32, N}, ΔX2::AbstractArray{Float32, 
 end
 
 # 2D/3D
-function adjointJacobian(ΔY1, ΔY2, Y1, Y2, L::CouplingLayerBasic)
+function adjointJacobian(ΔY1::AbstractArray{T, N}, ΔY2::AbstractArray{T, N}, Y1::AbstractArray{T, N}, Y2::AbstractArray{T, N}, L::CouplingLayerBasic) where {T, N}
     return backward(ΔY1, ΔY2, Y1, Y2, L; set_grad=false)
 end
 
