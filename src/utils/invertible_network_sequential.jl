@@ -74,8 +74,8 @@ end
 
 ## Forward/inverse/backward
 
-function forward(X, N::ComposedInvertibleNetwork)
-    N.logdet && (logdet = 0f0)
+function forward(X::AbstractArray{T, N1}, N::ComposedInvertibleNetwork) where {T, N1}
+    N.logdet && (logdet = 0)
     for i = 1:length(N)
         if N.logdet_array[i]        
             X, logdet_ = N.layers[i].forward(X)
@@ -87,14 +87,14 @@ function forward(X, N::ComposedInvertibleNetwork)
     N.logdet ? (return X, logdet) : (return X)
 end
 
-function inverse(Y, N::ComposedInvertibleNetwork)
+function inverse(Y::AbstractArray{T, N1}, N::ComposedInvertibleNetwork) where {T, N1}
     for i = length(N):-1:1
         Y = N.layers[i].inverse(Y)
     end
     return Y
 end
 
-function backward(ΔY, Y, N::ComposedInvertibleNetwork; set_grad::Bool = true)
+function backward(ΔY::AbstractArray{T, N1}, Y::AbstractArray{T, N1}, N::ComposedInvertibleNetwork; set_grad::Bool = true) where {T, N1}
     if ~set_grad
         Δθ = Array{Parameter, 1}(undef, 0)
         N.logdet && (∇logdet = Array{Parameter, 1}(undef, 0))
@@ -122,8 +122,8 @@ end
 
 ## Jacobian-related utilities
 
-function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, N::ComposedInvertibleNetwork)
-    N.logdet && (l = 0f0; GNΔθ = Array{Parameter, 1}(undef, 0))
+function jacobian(ΔX::AbstractArray{T, N1}, Δθ::Array{Parameter, 1}, X::AbstractArray{T, N1}, N::ComposedInvertibleNetwork) where {T, N1}
+    N.logdet && (l = 0; GNΔθ = Array{Parameter, 1}(undef, 0))
     idx_pars = 0
     for i = 1:length(N)
         npars_i = N.npars[i]
@@ -140,7 +140,7 @@ function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, N::ComposedInvertibleNetwor
     N.logdet ? (return ΔX, X, l, GNΔθ) : (return ΔX, X)
 end
 
-function adjointJacobian(ΔY, Y, N::ComposedInvertibleNetwork)
+function adjointJacobian(ΔY::AbstractArray{T, N1}, Y::AbstractArray{T, N1}, N::ComposedInvertibleNetwork) where {T, N1}
     return backward(ΔY, Y, N; set_grad = false)
 end
 

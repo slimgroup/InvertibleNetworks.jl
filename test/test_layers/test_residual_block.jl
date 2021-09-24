@@ -151,9 +151,9 @@ err7 = zeros(Float32, maxiter)
 err8 = zeros(Float32, maxiter)
 for j=1:maxiter
     set_params!(RB, θ+h*dθ)
-    Y_ = RB.forward(X+h*dX)
-    err7[j] = norm(Y_ - Y)
-    err8[j] = norm(Y_ - Y - h*dY)
+    Y_loc = RB.forward(X+h*dX)
+    err7[j] = norm(Y_loc - Y)
+    err8[j] = norm(Y_loc - Y - h*dY)
     print(err7[j], "; ", err8[j], "\n")
     global h = h/2f0
 end

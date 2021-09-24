@@ -256,9 +256,9 @@ err9 = zeros(Float32, maxiter)
 err10 = zeros(Float32, maxiter)
 for j=1:maxiter
     set_params!(AN, θ+h*dθ)
-    logdet ? ((Y_, _) = AN.forward(X+h*dX)) : (Y_ = AN.forward(X+h*dX))
-    err9[j] = norm(Y_ - Y)
-    err10[j] = norm(Y_ - Y - h*dY)
+    logdet ? ((Y_loc, _) = AN.forward(X+h*dX)) : (Y_loc = AN.forward(X+h*dX))
+    err9[j] = norm(Y_loc - Y)
+    err10[j] = norm(Y_loc - Y - h*dY)
     print(err9[j], "; ", err10[j], "\n")
     global h = h/2f0
 end

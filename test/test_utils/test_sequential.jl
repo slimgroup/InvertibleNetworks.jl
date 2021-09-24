@@ -170,9 +170,9 @@ err5 = zeros(Float32, maxiter)
 err6 = zeros(Float32, maxiter)
 for j=1:maxiter
     set_params!(N, θ+h*dθ)
-    Y_, _ = N.forward(X+h*dX)
-    err5[j] = norm(Y_ - Y)
-    err6[j] = norm(Y_ - Y - h*dY)
+    Y_loc, _ = N.forward(X+h*dX)
+    err5[j] = norm(Y_loc - Y)
+    err6[j] = norm(Y_loc - Y - h*dY)
     print(err5[j], "; ", err6[j], "\n")
     global h = h/2f0
 end

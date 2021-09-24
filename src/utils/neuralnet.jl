@@ -11,26 +11,26 @@ function Base.show(io::IO, m::Union{NeuralNetLayer, InvertibleNetwork})
     println(typeof(m))
 end
 
+function convert_params!(::Type{T}, obj::Union{NeuralNetLayer, InvertibleNetwork}) where T
+    for p ∈ get_params(obj)
+        convert_param!(T, p)
+    end
+end
+
+input_type(x::AbstractArray) = eltype(x)
+input_type(x::Tuple) = eltype(x[1])
+
+function _predefined_mode(obj, sym::Symbol, args...; kwargs...)
+    convert_params!(input_type(args[1]), obj)
+    eval(sym)(args..., obj; kwargs...)
+end
+
+_INet_modes = [:forward, :inverse, :backward, :inverse_Y, :forward_Y,
+               :jacobian, :jacobianInverse, :adjointJacobian, :adjointJacobianInverse]
 
 function Base.getproperty(obj::Union{InvertibleNetwork,NeuralNetLayer}, sym::Symbol)
-    if sym == :forward
-        return (args...; kwargs...) -> forward(args..., obj; kwargs...)
-    elseif sym == :inverse
-        return (args...; kwargs...) -> inverse(args..., obj; kwargs...)
-    elseif sym == :backward
-        return (args...; kwargs...) -> backward(args..., obj; kwargs...)
-    elseif sym == :inverse_Y
-        return (args...; kwargs...) -> inverse_Y(args..., obj; kwargs...)
-    elseif sym == :forward_Y
-        return (args...; kwargs...) -> forward_Y(args..., obj; kwargs...)
-    elseif sym == :jacobian
-        return (args...; kwargs...) -> jacobian(args..., obj; kwargs...)
-    elseif sym == :jacobianInverse
-        return (args...; kwargs...) -> jacobianInverse(args..., obj; kwargs...)
-    elseif sym == :adjointJacobian
-        return (args...; kwargs...) -> adjointJacobian(args..., obj; kwargs...)
-    elseif sym == :adjointJacobianInverse
-        return (args...; kwargs...) -> adjointJacobianInverse(args..., obj; kwargs...)
+    if sym ∈ _INet_modes
+        return (args...; kwargs...) -> _predefined_mode(obj, sym, args...; kwargs...)
     else
          # fallback to getfield
         return getfield(obj, sym)
@@ -39,17 +39,13 @@ end
 
 abstract type ReverseLayer end
 
+_RNet_modes = Dict(:forward=>:inverse, :inverse=>:forward,
+                   :backward=>:backward_inv,
+                   :inverse_Y=>:forward_Y, :forward_Y=>:inverse_Y)
+
 function Base.getproperty(obj::ReverseLayer, sym::Symbol)
-    if sym == :forward
-        return (args...; kwargs...) -> inverse(args..., obj.layer; kwargs...)
-    elseif sym == :inverse
-        return (args...; kwargs...) -> forward(args..., obj.layer; kwargs...)
-    elseif sym == :backward
-        return (args...; kwargs...) -> backward_inv(args..., obj.layer; kwargs...)
-    elseif sym == :inverse_Y
-        return (args...; kwargs...) -> forward_Y(args..., obj.layer; kwargs...)
-    elseif sym == :forward_Y
-        return (args...; kwargs...) -> inverse_Y(args..., obj.layer; kwargs...)
+    if sym ∈ keys(_RNet_modes)
+        return (args...; kwargs...) -> _predefined_mode(obj.layer, _RNet_modes[sym], args...; kwargs...)
     elseif sym == :layer
         return getfield(obj, sym)
     else
@@ -78,16 +74,8 @@ end
 abstract type ReverseNetwork end
 
 function Base.getproperty(obj::ReverseNetwork, sym::Symbol)
-    if sym == :forward
-        return (args...; kwargs...) -> inverse(args..., obj.network; kwargs...)
-    elseif sym == :inverse
-        return (args...; kwargs...) -> forward(args..., obj.network; kwargs...)
-    elseif sym == :backward
-        return (args...; kwargs...) -> backward_inv(args..., obj.network; kwargs...)
-    elseif sym == :inverse_Y
-        return (args...; kwargs...) -> forward_Y(args..., obj.network; kwargs...)
-    elseif sym == :forward_Y
-        return (args...; kwargs...) -> inverse_Y(args..., obj.network; kwargs...)
+    if sym ∈ keys(_RNet_modes)
+        return (args...; kwargs...) -> _predefined_mode(obj.network, _RNet_modes[sym], args...; kwargs...)
     elseif sym == :network
         return getfield(obj, sym)
     else
@@ -163,4 +151,4 @@ function set_params!(RN::ReverseNetwork, θ::Array{Parameter, 1})
 end
 
 # Make invertible nets callable objects
-(N::Union{NeuralNetLayer,InvertibleNetwork})(X::Array{Float32,N} where N) = N.forward(X)
+(N::Union{NeuralNetLayer,InvertibleNetwork})(X::AbstractArray{T,N} where {T, N}) = N.forward(X)

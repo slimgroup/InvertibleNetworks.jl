@@ -227,9 +227,9 @@ err9 = zeros(Float32, maxiter)
 err10 = zeros(Float32, maxiter)
 for j=1:maxiter
     set_params!(C, θ+h*dθ)
-    Y_, _ = C.forward(X+h*dX)
-    err9[j] = norm(Y_ - Y)
-    err10[j] = norm(Y_ - Y - h*dY)
+    Y_loc, _ = C.forward(X+h*dX)
+    err9[j] = norm(Y_loc - Y)
+    err10[j] = norm(Y_loc - Y - h*dY)
     print(err9[j], "; ", err10[j], "\n")
     global h = h/2f0
 end
@@ -263,9 +263,9 @@ err11 = zeros(Float32, maxiter)
 err12 = zeros(Float32, maxiter)
 for j=1:maxiter
     set_params!(C, θ+h*dθ)
-    X_, _ = C.inverse(Y+h*dY)
-    err11[j] = norm(X_ - X)
-    err12[j] = norm(X_ - X - h*dX)
+    X_loc, _ = C.inverse(Y+h*dY)
+    err11[j] = norm(X_loc - X)
+    err12[j] = norm(X_loc - X - h*dX)
     print(err11[j], "; ", err12[j], "\n")
     global h = h/2f0
 end
