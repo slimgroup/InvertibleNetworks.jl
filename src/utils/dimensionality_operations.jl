@@ -3,42 +3,30 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-<<<<<<< HEAD
-export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat
+export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, 
+export tensor_split, tensor_cat
 export cat_states, split_states
-=======
-export general_squeeze, general_unsqueeze, squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat, split_states, cat_states
->>>>>>> move state split and cat to dimensionality_operations.jl
+export ShuffleLayer, WaveletLayer, HaarLayer
+###############################################################################
+# Custom type for squeezer functions
 
-####################################################################################################
-# General Squeeze and unsqueeze for user selection by multiple dispatch
-# General Squeeze and unsqueeze for user selection
-function general_squeeze(X::AbstractArray{T, N}; squeeze_type="wavelet", pattern="column") where {T, N}
-
-    if squeeze_type == "shuffle"
-        Y = squeeze(X; pattern=pattern)
-    elseif squeeze_type == "wavelet"
-        Y = wavelet_squeeze(X)
-    elseif squeeze_type == "Haar"
-        Y = Haar_squeeze(X)
-    else
-        throw("Specified squeeze not defined.")
-    end
-    return Y
+struct Squeezer
+    forward::Function
+    inverse::Function
 end
 
-function general_unsqueeze(X::AbstractArray{T, N}; squeeze_type="wavelet", pattern="column") where {T, N}
-    if squeeze_type == "shuffle"
-        Y = unsqueeze(X; pattern=pattern)
-    elseif squeeze_type == "wavelet"
-        Y = wavelet_unsqueeze(X)
-    elseif squeeze_type == "Haar"
-        Y = invHaar_unsqueeze(X)
-    else
-        throw("Specified unsqueeze not defined.")
-    end
-    return Y
+function ShuffleLayer(;pattern="checkerboard")
+    return Squeezer(x -> squeeze(x;pattern=pattern), x -> unsqueeze(x;pattern=pattern))
 end
+
+function WaveletLayer(;type=WT.db1)
+    return Squeezer(x -> wavelet_squeeze(x;type=type), x -> wavelet_unsqueeze(x;type=type))
+end
+
+function HaarLayer()
+    return Squeezer(x -> Haar_squeeze(x), x -> invHaar_unsqueeze(x))
+end
+
 
 ####################################################################################################
 # Squeeze and unsqueeze
@@ -466,3 +454,5 @@ function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{T,
     Y, c2 = split_states(Y_full, XY_dims)
     return hcat(c1, c2), X, Y
 end
+
+

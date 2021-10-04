@@ -61,13 +61,13 @@ struct NetworkGlow <: InvertibleNetwork
     Z_dims::AbstractArray{Array, 1}
     L::Int64
     K::Int64
-    squeeze_type::String
+    squeezer::Squeezer
 end
 
 @Flux.functor NetworkGlow
 
 # Constructor
-function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeeze_type="shuffle", activation::ActivationFunction=SigmoidLayer())
+function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
 
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
@@ -82,7 +82,7 @@ function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, n
         (i < L) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkGlow(AN, CL, Z_dims, L, K, squeeze_type)
+    return NetworkGlow(AN, CL, Z_dims, L, K, squeezer)
 end
 
 NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
@@ -105,7 +105,7 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     Z_save = array_of_array(X, G.L-1)
     logdet = 0
     for i=1:G.L
-        X = general_squeeze(X; squeeze_type=G.squeeze_type, pattern="checkerboard")
+        X = G.squeezer.forward(X)
         for j=1:G.K            
             X, logdet1 = G.AN[i, j].forward(X)
             X, logdet2 = G.CL[i, j].forward(X)
@@ -132,7 +132,7 @@ function inverse(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
             X = G.CL[i, j].inverse(X)
             X = G.AN[i, j].inverse(X)
         end
-        X = general_unsqueeze(X; squeeze_type=G.squeeze_type, pattern="checkerboard")
+        X = G.squeezer.inverse(X)
         
     end
     return X
@@ -164,8 +164,8 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGl
             end
             blkidx -= 10
         end
-        X = general_unsqueeze(X; squeeze_type=G.squeeze_type, pattern="checkerboard")
-        ΔX = general_unsqueeze(ΔX; squeeze_type=G.squeeze_type, pattern="checkerboard")
+        X = G.squeezer.inverse(X)
+        ΔX = G.squeezer.inverse(ΔX)
     end
     set_grad ? (return ΔX, X) : (return ΔX, Δθ, X, ∇logdet)
 end
@@ -180,8 +180,8 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, G::Net
     GNΔθ = Array{Parameter, 1}(undef, 10*G.L*G.K)
     blkidx = 0
     for i=1:G.L
-        X = general_squeeze(X; squeeze_type=G.squeeze_type, pattern="checkerboard")
-        ΔX = general_squeeze(ΔX; squeeze_type=G.squeeze_type, pattern="checkerboard")
+        X = G.squeezer.forward(X) 
+        ΔX = G.squeezer.forward(ΔX) 
         
         for j=1:G.K
             Δθ_ij = Δθ[blkidx+1:blkidx+10]
