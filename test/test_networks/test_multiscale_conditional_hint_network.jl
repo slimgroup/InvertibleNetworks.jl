@@ -1,9 +1,17 @@
+<<<<<<< HEAD
 # Test Multiscale Conditional HINT network from Kruse et al. (2020)
+=======
+# Conditional HINT network from Kruse et al. (2020)
+>>>>>>> 690628a0469b51ed4de35d1a2621d2f0591e4b32
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Test, Random
+<<<<<<< HEAD
 Random.seed!(14)
+=======
+Random.seed!(11)
+>>>>>>> 690628a0469b51ed4de35d1a2621d2f0591e4b32
 
 # Define network
 nx = 16
@@ -14,6 +22,7 @@ batchsize = 2
 L = 2
 K = 2
 
+<<<<<<< HEAD
 function inv_test(nx, ny, n_in, batchsize, logdet, squeeze_type, split_scales)
     print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
     CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type, logdet=logdet, split_scales=split_scales)
@@ -44,6 +53,38 @@ function inv_test(nx, ny, n_in, batchsize, logdet, squeeze_type, split_scales)
 
     @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
 end   
+=======
+# Multi-scale network with and without logdet
+CH0_multi = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
+CH1_multi = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; logdet=false, split_scales=false, k1=3, k2=1, p1=1, p2=0)
+
+nets_multi = [CH0_multi, CH1_multi, reverse(CH0_multi), reverse(CH1_multi)] 
+
+function test_inv(CH, nx, ny, n_in)
+    print("\nInvertibility test HINT network\n")
+    # Test layers
+    test_size = 10
+    X = randn(Float32, nx, ny, n_in, test_size)
+    Y = X + .1f0*randn(Float32, nx, ny, n_in, test_size)
+
+    # Forward-backward
+    Zx, Zy = CH.forward(X, Y)[1:2]
+    X_, Y_ = CH.backward(0f0.*Zx, 0f0.*Zy, Zx, Zy)[3:4]
+    @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
+    @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
+
+    # Forward-inverse
+    Zx, Zy = CH.forward(X, Y)[1:2]
+    X_, Y_ = CH.inverse(Zx, Zy)
+    @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
+    @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
+
+    # Y-lane only
+    Zyy = CH.forward_Y(Y)
+    Yy = CH.inverse_Y(Zyy)
+    @test isapprox(norm(Y - Yy)/norm(Y), 0f0; atol=1f-3)
+end
+>>>>>>> 690628a0469b51ed4de35d1a2621d2f0591e4b32
 
 # Loss
 function loss(CH, X, Y)
@@ -60,6 +101,7 @@ function loss(CH, X, Y)
     return f, ΔX, ΔY
 end
 
+<<<<<<< HEAD
 function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_scales)
     print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
     CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type, logdet=logdet, split_scales=split_scales)
@@ -84,6 +126,28 @@ function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_s
         f = loss(CH, X0 + h*dX, Y0 + h*dY)[1]
         err1[j] = abs(f - f0)
         err2[j] = abs(f - f0 - h*dot(dX, gX) - h*dot(dY, gY))
+=======
+function test_grad(CH, nx, ny, n_in)
+    test_size = 10
+    X = randn(Float32, nx, ny, n_in, test_size)
+    Y = X + .1f0*randn(Float32, nx, ny, n_in, test_size)
+    X0 = randn(Float32, nx, ny, n_in, test_size)
+    Y0 = X0 + .1f0*randn(Float32, nx, ny, n_in, test_size)
+    dX = X - X0
+    dY = Y - Y0
+
+    f0, ΔX, ΔY = loss(CH, X0, Y0)
+    h = 0.1f0
+    maxiter = 6
+    err1 = zeros(Float32, maxiter)
+    err2 = zeros(Float32, maxiter)
+
+    print("\nGradient test cond. HINT net: input\n")
+    for j=1:maxiter
+        f = loss(CH, X0 + h*dX, Y0 + h*dY)[1]
+        err1[j] = abs(f - f0)
+        err2[j] = abs(f - f0 - h*dot(dX, ΔX) - h*dot(dY, ΔY))
+>>>>>>> 690628a0469b51ed4de35d1a2621d2f0591e4b32
         print(err1[j], "; ", err2[j], "\n")
         h = h/2f0
     end
@@ -92,6 +156,7 @@ function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_s
     @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 end
 
+<<<<<<< HEAD
 shuffle_sq = ShuffleLayer()
 wavelet_sq = WaveletLayer()
 Haar_sq    = HaarLayer()
@@ -103,6 +168,13 @@ for squeeze_i in [shuffle_sq, wavelet_sq, Haar_sq]
             grad_test_X(nx, ny, n_in, batchsize, logdet, squeeze_i, split_scales)
         end
     end
+=======
+# Loop over networks and reversed counterpart
+for CH in nets_multi
+	#add logic to change input dimensions since wavelet transforms change them.
+    CH.is_reversed ? test_inv(CH, nx÷(2^CH.L), ny ÷ (2^CH.L), n_in*(4^CH.L)) : test_inv(CH, nx, ny, n_in)
+    CH.is_reversed ? test_grad(CH, nx÷(2^CH.L), ny ÷ (2^CH.L), n_in*(4^CH.L)) : test_grad(CH, nx, ny, n_in)
+>>>>>>> 690628a0469b51ed4de35d1a2621d2f0591e4b32
 end
 
 ###################################################################################################
@@ -111,6 +183,7 @@ end
 # Gradient test
 
 # Initialization
+<<<<<<< HEAD
 CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0, squeezer = shuffle_sq); 
 CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ = deepcopy(get_params(CH))
@@ -120,6 +193,12 @@ CH0 = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false,
 CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ0 = deepcopy(get_params(CH0))
 
+=======
+CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+θ = deepcopy(get_params(CH))
+CH0 = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+θ0 = deepcopy(get_params(CH0))
+>>>>>>> 690628a0469b51ed4de35d1a2621d2f0591e4b32
 X = randn(Float32, nx, ny, n_in, batchsize)
 Y = randn(Float32, nx, ny, n_in, batchsize)
 
@@ -157,4 +236,8 @@ dZx_ = randn(Float32, size(dZx)); dZy_ = randn(Float32, size(dZy))
 dX_, dY_, dθ_, _, _, _ = CH.adjointJacobian(dZx_, dZy_, Zx, Zy)
 a = dot(dZx, dZx_)+dot(dZy, dZy_)
 b = dot(dX, dX_)+dot(dY, dY_)+dot(dθ, dθ_)
+<<<<<<< HEAD
 @test isapprox(a, b; rtol=1f-1)  ####### need to check low accuracy here
+=======
+@test isapprox(a, b; rtol=1f-1)  ####### need to check low accuracy here
+>>>>>>> 690628a0469b51ed4de35d1a2621d2f0591e4b32
