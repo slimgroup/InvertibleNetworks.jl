@@ -99,17 +99,12 @@ end
 NetworkMultiScaleConditionalHINT3D(args...;kw...) = NetworkMultiScaleConditionalHINT(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet
-<<<<<<< HEAD
-function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
-    CH.split_scales && (XY_save = array_of_array(X, CH.L-1, 2))
-    logdet = 0
-=======
-function forward(X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing)
+function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
-    CH.split_scales && (XY_save = Array{Array}(undef, CH.L-1, 2))
-    logdet_ = 0f0
->>>>>>> make CHmulti reversible and proper logdet
+    CH.split_scales && (XY_save = array_of_array(X, CH.L-1, 2))
+    logdet_ = 0
+
     for i=1:CH.L
         X = wavelet_squeeze(X)
         Y = wavelet_squeeze(Y)
@@ -132,13 +127,9 @@ function forward(X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing)
 end
 
 # Inverse pass and compute gradients
-<<<<<<< HEAD
-function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
-=======
-function inverse(Zx, Zy, CH::NetworkMultiScaleConditionalHINT; logdet=nothing)
+function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
 
->>>>>>> make CHmulti reversible and proper logdet
     CH.split_scales && ((XY_save, Zx, Zy) = split_states(CH.XY_dims, Zx, Zy))
     logdet_ = 0f0
     for i=CH.L:-1:1
