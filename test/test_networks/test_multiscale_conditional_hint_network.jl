@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # Test Multiscale Conditional HINT network from Kruse et al. (2020)
+=======
+# Conditional HINT network from Kruse et al. (2020)
+>>>>>>> b2c492511e756400e7ec27f4079c1bc4eb3d99b1
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
@@ -64,6 +68,7 @@ function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_s
     print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
     CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type, logdet=logdet, split_scales=split_scales)
 
+
     # Input image
     X0 = randn(Float32, nx, ny, n_channel, batchsize)
     dX = randn(Float32, nx, ny, n_channel, batchsize)
@@ -115,6 +120,7 @@ CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in,
 θ = deepcopy(get_params(CH))
 
 CH0 = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0, squeezer = shuffle_sq); 
+
 CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ0 = deepcopy(get_params(CH0))
 
