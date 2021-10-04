@@ -1,4 +1,4 @@
-# Invertible conditional HINT network from Kruse et. al (2020)
+# Invertible conditional HINT multiscale network from Kruse et. al (2020)
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: February 2020
 
@@ -64,14 +64,14 @@ mutable struct NetworkMultiScaleConditionalHINT <: InvertibleNetwork
     split_scales::Bool
     logdet::Bool
     is_reversed::Bool
-    squeeze_type::String
+    squeezer::Squeezer
 end
 
 @Flux.functor NetworkMultiScaleConditionalHINT
 
 # Constructor
 function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
-                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2, squeeze_type="shuffle")
+                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2, squeezer::Squeezer=ShuffleLayer())
 
     AN_X = Array{ActNorm}(undef, L, K)
     AN_Y = Array{ActNorm}(undef, L, K)
@@ -94,7 +94,7 @@ function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64
         n_in *= channel_factor
     end
 
-    return NetworkMultiScaleConditionalHINT(AN_X, AN_Y, CL, XY_dims, L, K, split_scales, logdet, false, squeeze_type)
+    return NetworkMultiScaleConditionalHINT(AN_X, AN_Y, CL, XY_dims, L, K, split_scales, logdet, false, squeezer)
 end
 
 NetworkMultiScaleConditionalHINT3D(args...;kw...) = NetworkMultiScaleConditionalHINT(args...; kw..., ndims=3)
@@ -109,8 +109,8 @@ function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMult
     logdet_ = 0f0
 
     for i=1:CH.L
-        X = general_squeeze(X; squeeze_type=CH.squeeze_type)
-        Y = general_squeeze(Y; squeeze_type=CH.squeeze_type)
+        X = CH.squeezer.forward(X)
+        Y = CH.squeezer.forward(Y)
 
         for j=1:CH.K
             logdet ? (X_, logdet1)   = CH.AN_X[i, j].forward(X) : X_ = CH.AN_X[i, j].forward(X)
@@ -148,8 +148,8 @@ function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMu
             logdet ? (Zx, logdet3) = CH.AN_X[i, j].inverse(Zx_; logdet=true) : Zx = CH.AN_X[i, j].inverse(Zx_; logdet=false)
             logdet && (logdet_ += (logdet1 + logdet2 + logdet3))
         end
-        Zx = general_unsqueeze(Zx; squeeze_type=CH.squeeze_type)
-        Zy = general_unsqueeze(Zy; squeeze_type=CH.squeeze_type)
+        Zx = CH.squeezer.inverse(Zx) 
+        Zy = CH.squeezer.inverse(Zy) 
     end
     logdet ? (return Zx, Zy, logdet_) : (return Zx, Zy)
 end
@@ -194,10 +194,10 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
                 Δθ = cat(Δθx, Δθy, Δθcl, Δθ; dims=1)
             end
         end
-        ΔZx = general_unsqueeze(ΔZx; squeeze_type=CH.squeeze_type)
-        ΔZy = general_unsqueeze(ΔZy; squeeze_type=CH.squeeze_type)
-        Zx  = general_unsqueeze(Zx;  squeeze_type=CH.squeeze_type)
-        Zy  = general_unsqueeze(Zy;  squeeze_type=CH.squeeze_type)
+        ΔZx = CH.squeezer.inverse(ΔZx)
+        ΔZy = CH.squeezer.inverse(ΔZy)
+        Zx = CH.squeezer.inverse(Zx)
+        Zy = CH.squeezer.inverse(Zy)
     end
     if set_grad
         return ΔZx, ΔZy, Zx, Zy
@@ -209,10 +209,10 @@ end
 # Backward reverse pass and compute gradients
 function backward_inv(ΔX, ΔY, X, Y, CH::NetworkMultiScaleConditionalHINT)
     for i=1:CH.L
-        ΔX = general_squeeze(ΔX; squeeze_type=CH.squeeze_type)
-        ΔY = general_squeeze(ΔY; squeeze_type=CH.squeeze_type)
-        X  = general_squeeze(X;  squeeze_type=CH.squeeze_type)
-        Y  = general_squeeze(Y;  squeeze_type=CH.squeeze_type)
+        ΔX = CH..squeezer.inverse(ΔX)
+        ΔY = CH..squeezer.inverse(ΔY)
+        X = CH.squeezer.inverser(X)
+        Y = CH.squeezer.inverser(Y)
         for j=1:CH.K
             ΔX_, X_ = backward_inv(ΔX, X, CH.AN_X[i, j])
             ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[i, j])
@@ -227,7 +227,7 @@ function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT)
     CH.split_scales && (Y_save = array_of_array(Y, CH.L-1))
 
     for i=1:CH.L
-        Y = general_squeeze(Y;  squeeze_type=CH.squeeze_type)
+        Y = CH.squeezer.forward(Y)
         for j=1:CH.K
             Y_ = CH.AN_Y[i, j].forward(Y; logdet=false)
             Y  = CH.CL[i, j].forward_Y(Y_)
@@ -259,7 +259,7 @@ function inverse_Y(Zy, CH::NetworkMultiScaleConditionalHINT)
             Zy_ = CH.CL[i, j].inverse_Y(Zy)
             Zy = CH.AN_Y[i, j].inverse(Zy_; logdet=false)
         end
-        Zy  = general_unsqueeze(Zy;  squeeze_type=CH.squeeze_type)
+        Zy = CH.squeezer.inverse(Zy)
     end
     return Zy
 end
@@ -290,10 +290,11 @@ function jacobian(ΔX, ΔY, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiSca
 >>>>>>> move state split and cat to dimensionality_operations.jl
     idxblk = 0
     for i=1:CH.L
-        X  = general_squeeze(X; squeeze_type=CH.squeeze_type)
-        ΔX = general_squeeze(ΔX; squeeze_type=CH.squeeze_type)
-        Y  = general_squeeze(Y; squeeze_type=CH.squeeze_type)
-        ΔY = general_squeeze(ΔY; squeeze_type=CH.squeeze_type)
+        ΔX = CH.squeezer.forward(ΔX)
+        ΔY = CH.squeezer.forward(ΔY)
+        X = CH.squeezer.forward(X)
+        Y = CH.squeezer.forward(Y)
+
         for j=1:CH.K
             npars_ij = 4+length(get_params(CH.CL[i, j]))
             Δθij = Δθ[idxblk+1:idxblk+npars_ij]
