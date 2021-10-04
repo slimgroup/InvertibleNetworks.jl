@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 # Test Multiscale Conditional HINT network from Kruse et al. (2020)
-=======
-# Conditional HINT network from Kruse et al. (2020)
->>>>>>> b2c492511e756400e7ec27f4079c1bc4eb3d99b1
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
