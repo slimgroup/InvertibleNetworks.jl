@@ -426,7 +426,6 @@ end
 
 tensor_cat(X::Tuple{AbstractArray{T,N}, AbstractArray{T,N}}) where {T, N} = tensor_cat(X[1], X[2])
 
-
 @inline xy_dims(dims::Tuple, ::Val{false}) = dims
 @inline xy_dims(dims::Tuple, ::Val{true}) = Int.(dims .* (.5, .5, 4, 1))
 
@@ -454,5 +453,3 @@ function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{T,
     Y, c2 = split_states(Y_full, XY_dims)
     return hcat(c1, c2), X, Y
 end
-
-

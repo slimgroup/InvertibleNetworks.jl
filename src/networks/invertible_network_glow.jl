@@ -68,7 +68,6 @@ end
 
 # Constructor
 function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
-
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
     Z_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it   # save dimensions for inverse/backward pass
@@ -106,6 +105,7 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     logdet = 0
     for i=1:G.L
         X = G.squeezer.forward(X)
+
         for j=1:G.K            
             X, logdet1 = G.AN[i, j].forward(X)
             X, logdet2 = G.CL[i, j].forward(X)
