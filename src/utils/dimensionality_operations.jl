@@ -425,8 +425,10 @@ end
 
 tensor_cat(X::Tuple{AbstractArray{T,N}, AbstractArray{T,N}}) where {T, N} = tensor_cat(X[1], X[2])
 
-@inline xy_dims(dims::Array, ::Val{false}) = tuple(dims...)
-@inline xy_dims(dims::Array, ::Val{true}) = tuple(Int.(dims .* (.5, .5, 4, 1))...)
+#@inline xy_dims(dims::Array, ::Val{false}) = tuple(dims...)
+#@inline xy_dims(dims::Array, ::Val{true}) = tuple(Int.(dims .* (.5, .5, 4, 1))...)
+@inline xy_dims(dims::Tuple, ::Val{false}) = dims
+@inline xy_dims(dims::Tuple, ::Val{true}) = Int.(dims .* (.5, .5, 4, 1))
 
 # Concatenate states Zi and final output
 function cat_states(XY_save::AbstractMatrix{<:AbstractArray}, X::AbstractArray{T, 4}, Y::AbstractArray{T, 4}) where T
@@ -447,7 +449,7 @@ function split_states(Y::AbstractVector{T}, Z_dims) where {T, N}
 end
 
 # Split 1D vector in latent space back to states Zi
-function split_states(XY_dims::AbstractArray{Array, 1}, X_full::AbstractArray{T, 1}, Y_full::AbstractArray{T, 1}) where T
+function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{T, 1}, Y_full::AbstractArray{T, 1}) where T
     X, c1 = split_states(X_full, XY_dims)
     Y, c2 = split_states(Y_full, XY_dims)
     return hcat(c1, c2), X, Y
