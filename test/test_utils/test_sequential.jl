@@ -1,8 +1,10 @@
 # Author: Gabrio Rizzuti, grizzuti3@gatech.edu
 # Date: September 2020
 
-using InvertibleNetworks, LinearAlgebra, Test, Statistics
+using InvertibleNetworks, LinearAlgebra, Test, Statistics, Random
 
+# Random seed
+Random.seed!(11)
 
 ###############################################################################
 # Initialization

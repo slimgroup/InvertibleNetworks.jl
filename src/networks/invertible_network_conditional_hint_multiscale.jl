@@ -289,18 +289,18 @@ function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Arra
 
         for j=1:CH.K
     	    if logdet
-      	            ΔX_, X_ = CH.AN_X[i, j].jacobian(ΔX, Δθj[1:2], X)
-                    ΔY_, Y_ = CH.AN_Y[i, j].jacobian(ΔY, Δθj[3:4], Y)
-                    ΔX, ΔY, X, Y = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθj[5:end], X_, Y_)
+                npars_ij = 4+length(get_params(CH.CL[i, j]))
+                Δθij = Δθ[idxblk+1:idxblk+npars_ij]
+                ΔX_, X_, logdet1, GNΔθ1 = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
+                ΔY_, Y_, logdet2, GNΔθ2 = CH.AN_Y[i, j].jacobian(ΔY, Δθij[3:4], Y)
+                ΔX, ΔY, X, Y, logdet3, GNΔθ3 = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθij[5:end], X_, Y_)
+                logdet_ += (logdet1 + logdet2 + logdet3)
+                GNΔθ = cat(GNΔθ, GNΔθ1, GNΔθ2, GNΔθ3; dims=1)
+                idxblk += npars_ij
     	    else 
-                    npars_ij = 4+length(get_params(CH.CL[i, j]))
-                    Δθij = Δθ[idxblk+1:idxblk+npars_ij]
-                    ΔX_, X_, logdet1, GNΔθ1 = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
-                    ΔY_, Y_, logdet2, GNΔθ2 = CH.AN_Y[i, j].jacobian(ΔY, Δθij[3:4], Y)
-                    ΔX, ΔY, X, Y, logdet3, GNΔθ3 = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθij[5:end], X_, Y_)
-                    logdet_ += (logdet1 + logdet2 + logdet3)
-                    GNΔθ = cat(GNΔθ, GNΔθ1, GNΔθ2, GNΔθ3; dims=1)
-                    idxblk += npars_ij
+                ΔX_, X_ = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
+                ΔY_, Y_ = CH.AN_Y[i, j].jacobian(ΔY, Δθij[3:4], Y)
+                ΔX, ΔY, X, Y = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθj[5:end], X_, Y_)
        	    end
         end
         if CH.split_scales && i < CH.L    # don't split after last iteration
