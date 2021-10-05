@@ -17,8 +17,9 @@ K = 2
 # Multi-scale and single scale network
 CH0 = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0)
 CH1 = NetworkConditionalHINT(n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
+CH2 = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=true, k1=3, k2=1, p1=1, p2=0)
 
-nets = [CH0, CH1, reverse(CH1)]
+nets = [CH0, CH1, reverse(CH1),CH2]
 
 function test_inv(CH, nx, ny, n_in)
     print("\nInvertibility test HINT network\n")
