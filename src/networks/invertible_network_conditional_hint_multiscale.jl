@@ -58,7 +58,7 @@ mutable struct NetworkMultiScaleConditionalHINT <: InvertibleNetwork
     AN_X::AbstractArray{ActNorm, 2}
     AN_Y::AbstractArray{ActNorm, 2}
     CL::AbstractArray{ConditionalLayerHINT, 2}
-    XY_dims::Union{Array{Tuple, 1}, Nothing}
+    XY_dims::Union{Array{Array, 1}, Nothing}
     L::Int64
     K::Int64
     split_scales::Bool
@@ -77,8 +77,7 @@ function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64
     AN_Y = Array{ActNorm}(undef, L, K)
     CL = Array{ConditionalLayerHINT}(undef, L, K)
     if split_scales
-        #XY_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it
-        XY_dims = Array{Tuple}(undef, L-1)
+        XY_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it
         channel_factor = 2
     else
         XY_dims = nothing
@@ -123,8 +122,7 @@ function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMult
             X, Zx = tensor_split(X)
             Y, Zy = tensor_split(Y)
             XY_save[i, :] = [Zx, Zy]
-            #CH.XY_dims[i] = collect(size(Zx))
-            CH.XY_dims[i] = size(Zx)
+            CH.XY_dims[i] = collect(size(Zx))
         end
     end
 
@@ -137,7 +135,7 @@ end
 function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
 
-    CH.split_scales && ((XY_save, Zx, Zy) = split_states(CH.XY_dims, Zx, Zy))
+    CH.split_scales && ((XY_save, Zx, Zy) = split_states(Zx, Zy, CH.XY_dims))
     logdet_ = 0f0
     for i=CH.L:-1:1
         if CH.split_scales && i < CH.L
@@ -162,8 +160,8 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
 
     # Split data and gradients
     if CH.split_scales
-        ΔXY_save, ΔZx, ΔZy = split_states(CH.XY_dims, ΔZx, ΔZy)
-        XY_save, Zx, Zy = split_states(CH.XY_dims, Zx, Zy)
+        ΔXY_save, ΔZx, ΔZy = split_states(ΔZx, ΔZy, CH.XY_dims)
+        XY_save, Zx, Zy = split_states(Zx, Zy, CH.XY_dims)
     end
 
     if ~set_grad
@@ -253,7 +251,7 @@ end
 
 # Inverse pass and compute gradients
 function inverse_Y(Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
-    CH.split_scales && ((Y_save, Zy) = split_states(CH.XY_dims, Zy))
+    CH.split_scales && ((Y_save, Zy) = split_states(Zy, CH.XY_dims))
 
     for i=CH.L:-1:1
         if CH.split_scales && i < CH.L

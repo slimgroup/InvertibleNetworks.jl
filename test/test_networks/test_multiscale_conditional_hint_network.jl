@@ -2,8 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using InvertibleNetworks, LinearAlgebra, Test, Random
-Random.seed!(14)
+using InvertibleNetworks, LinearAlgebra, Test
 
 # Define network
 nx = 16
@@ -98,7 +97,7 @@ Haar_sq    = HaarLayer()
 
 for squeeze_i in [shuffle_sq, wavelet_sq, Haar_sq]
     for split_scales in [true, false]
-        for logdet in [true, false]
+        for logdet in [false, true]
             inv_test(nx, ny, n_in, batchsize, logdet, squeeze_i, split_scales)
             grad_test_X(nx, ny, n_in, batchsize, logdet, squeeze_i, split_scales)
         end
