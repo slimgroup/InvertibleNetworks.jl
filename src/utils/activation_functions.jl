@@ -28,11 +28,11 @@ function LeakyReLUlayer()
 end
 
 function SigmoidLayer(;low=0f0, high=1f0)
-    return ActivationFunction(x -> Sigmoid(x; low=low, high=high), y -> SigmoidInv(y;low=low, high=high), (Δy, y) -> SigmoidGrad(Δy, y; low=low, high=high))
+    return ActivationFunction(x -> Sigmoid(x; low=low, high=high), y -> SigmoidInv(y;low=low, high=high), (Δy, y, x) -> SigmoidGrad(Δy, y, x; low=low, high=high))
 end
 
 function Sigmoid2Layer()
-    return ActivationFunction(x -> 2f0*Sigmoid(x), y -> SigmoidInv(y/2f0), (Δy, y) -> SigmoidGrad(Δy*2f0, y/2f0))
+    return ActivationFunction(x -> 2f0*Sigmoid(x), y -> SigmoidInv(y/2f0), (Δy, y, x) -> SigmoidGrad(Δy*2f0, y/2f0, x))
 end
 
 function GaLUlayer()
@@ -186,7 +186,7 @@ end
 
  See also: [`Sigmoid`](@ref), [`SigmoidInv`](@ref)
 """
-function SigmoidGrad(Δy::AbstractArray{T, N}, y::AbstractArray{T, N}; x=nothing, low=0f0, high=1f0) where {T, N}
+function SigmoidGrad(Δy::AbstractArray{T, N}, y::AbstractArray{T, N}, x::Union{AbstractArray{T, N}, Nothing};  low=0f0, high=1f0) where {T, N}
     if isnothing(x)
         x = SigmoidInv(y; low=low, high=high)  # recompute forward state
     end
@@ -197,7 +197,7 @@ function SigmoidGrad(Δy::AbstractArray{T, N}, y::AbstractArray{T, N}; x=nothing
     return Δx
 end
 
-function SigmoidGrad(Δy::AbstractArray{T, N}, ::Nothing; x=nothing, low=0f0, high=1f0) where {T, N}
+function SigmoidGrad(Δy::AbstractArray{T, N}, ::Nothing, x::Union{AbstractArray{T, N}, Nothing}; low=0f0, high=1f0) where {T, N}
     if isnothing(x)
        throw(InputError("Input x must be provided with y=nothing, can't inverse recompute"))  # recompute forward state
     end
@@ -247,7 +247,7 @@ function GaLUgrad(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
     k = Int(size(x, N-1) / 2)
     x1, x2 = tensor_split(x)
     Δx = 0 .*x
-    Δx = tensor_cat(Sigmoid(x2) .* Δy, SigmoidGrad(Δy, nothing; x=x2) .* x1)
+    Δx = tensor_cat(Sigmoid(x2) .* Δy, SigmoidGrad(Δy, nothing, x2) .* x1)
     return Δx
 end
 
@@ -256,7 +256,7 @@ function GaLUjacobian(Δx::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T
     x1, x2 = tensor_split(x)
     Δx1, Δx2 = tensor_split(Δx)
     s = Sigmoid(x2)
-    Δs = SigmoidGrad(Δx2, nothing; x=x2)
+    Δs = SigmoidGrad(Δx2, nothing, x2)
     y = x1 .* s
     Δy = Δx1 .* s + x1 .* Δs
     return Δy, y

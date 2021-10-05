@@ -101,9 +101,9 @@ function forward(X::AbstractArray{T, 4}, L::CouplingLayerGlow) where T
 
     Y2 = copy(X2)
     logS_T = L.RB.forward(X2)
-    S = L.activation.forward(logS_T[:,:,1:k,:])
-    T = logS_T[:, :, k+1:end, :]
-    Y1 = S.*X1 + T
+    Sm = L.activation.forward(logS_T[:,:,1:k,:])
+    Tm = logS_T[:, :, k+1:end, :]
+    Y1 = Sm.*X1 + Tm
 
     Y = tensor_cat(Y1, Y2)
 
@@ -119,9 +119,9 @@ function inverse(Y::AbstractArray{T, 4}, L::CouplingLayerGlow; save=false) where
 
     X2 = copy(Y2)
     logS_T = L.RB.forward(X2)
-    S = L.activation.forward(logS_T[:,:,1:k,:])
-    T = logS_T[:, :, k+1:end, :]
-    X1 = (Y1 - T) ./ (S .+ eps(T)) # add epsilon to avoid division by 0
+    Sm = L.activation.forward(logS_T[:,:,1:k,:])
+    Tm = logS_T[:, :, k+1:end, :]
+    X1 = (Y1 - Tm) ./ (Sm .+ eps(T)) # add epsilon to avoid division by 0
 
     X_ = tensor_cat(X1, X2)
     X = L.C.inverse(X_)
@@ -146,10 +146,10 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, L::CouplingL
 
     ΔX1 = ΔY1 .* S
     if set_grad
-        ΔX2 = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), X2) + ΔY2
+        ΔX2 = L.RB.backward(cat(L.activation.backward(ΔS, S, nothing), ΔT; dims=3), X2) + ΔY2
     else
-        ΔX2, Δθrb = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), X2; set_grad=set_grad)
-        _, ∇logdet = L.RB.backward(cat(L.activation.backward(ΔS_, S), 0f0.*ΔT; dims=3), X2; set_grad=set_grad)
+        ΔX2, Δθrb = L.RB.backward(cat(L.activation.backward(ΔS, S, nothing), ΔT; dims=3), X2; set_grad=set_grad)
+        _, ∇logdet = L.RB.backward(cat(L.activation.backward(ΔS_, S, nothing), 0f0.*ΔT; dims=3), X2; set_grad=set_grad)
         ΔX2 += ΔY2
     end
     ΔX_ = tensor_cat(ΔX1, ΔX2)
@@ -182,20 +182,20 @@ function jacobian(ΔX::AbstractArray{T, 4}, Δθ::Array{Parameter, 1}, X, L::Cou
     Y2 = copy(X2)
     ΔY2 = copy(ΔX2)
     ΔlogS_T, logS_T = L.RB.jacobian(ΔX2, Δθ[4:end], X2)
-    S = L.activation.forward(logS_T[:,:,1:k,:])
-    ΔS = L.activation.backward(ΔlogS_T[:,:,1:k,:], nothing; x=logS_T[:,:,1:k,:])
-    T = logS_T[:, :, k+1:end, :]
+    Sm = L.activation.forward(logS_T[:,:,1:k,:])
+    ΔS = L.activation.backward(ΔlogS_T[:,:,1:k,:], nothing, logS_T[:,:,1:k,:])
+    Tm = logS_T[:, :, k+1:end, :]
     ΔT = ΔlogS_T[:, :, k+1:end, :]
-    Y1 = S.*X1 + Tm
-    ΔY1 = ΔS.*X1 + S.*ΔX1 + ΔT
+    Y1 = Sm.*X1 + Tm
+    ΔY1 = ΔS.*X1 + Sm.*ΔX1 + ΔT
     Y = tensor_cat(Y1, Y2)
     ΔY = tensor_cat(ΔY1, ΔY2)
 
     # Gauss-Newton approximation of logdet terms
     JΔθ = L.RB.jacobian(cuzeros(ΔX2, size(ΔX2)), Δθ[4:end], X2)[1][:, :, 1:k, :]
-    GNΔθ = cat(0f0*Δθ[1:3], -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, S), zeros(Float32, size(S))), X2)[2]; dims=1)
+    GNΔθ = cat(0f0*Δθ[1:3], -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, Sm, nothing), zeros(Float32, size(Sm))), X2)[2]; dims=1)
 
-    L.logdet ? (return ΔY, Y, glow_logdet_forward(S), GNΔθ) : (return ΔY, Y)
+    L.logdet ? (return ΔY, Y, glow_logdet_forward(Sm), GNΔθ) : (return ΔY, Y)
 end
 
 function adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerGlow) where {T, N}

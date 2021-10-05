@@ -117,7 +117,7 @@ function objective(X, Y)
     Y0 = Sigmoid(X)
     ΔY = Y0 - Y
     f = .5f0*norm(ΔY)^2
-    ΔX = SigmoidGrad(ΔY, Y0)
+    ΔX = SigmoidGrad(ΔY, Y0, nothing)
     return f, ΔX
 end
 
@@ -164,7 +164,7 @@ function objective(X, Y)
     Y0 = Sigmoid(X; low=low, high=high)
     ΔY = Y0 - Y
     f = .5f0*norm(ΔY)^2
-    ΔX = SigmoidGrad(ΔY, Y0; low=low, high=high)
+    ΔX = SigmoidGrad(ΔY, Y0, nothing; low=low, high=high)
     return f, ΔX
 end
 
@@ -251,7 +251,7 @@ function objective(X, Y)
     Y0 = L.forward(X)
     ΔY = Y0 - Y
     f = .5f0*norm(ΔY)^2
-    ΔX = L.backward(ΔY, Y0)
+    ΔX = L.backward(ΔY, Y0, nothing)
     return f, ΔX
 end
 
