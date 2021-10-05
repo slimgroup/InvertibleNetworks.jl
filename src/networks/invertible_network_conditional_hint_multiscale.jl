@@ -58,7 +58,7 @@ mutable struct NetworkMultiScaleConditionalHINT <: InvertibleNetwork
     AN_X::AbstractArray{ActNorm, 2}
     AN_Y::AbstractArray{ActNorm, 2}
     CL::AbstractArray{ConditionalLayerHINT, 2}
-    XY_dims::Union{Array{Array, 1}, Nothing}
+    XY_dims::Union{Array{Tuple, 1}, Nothing}
     L::Int64
     K::Int64
     split_scales::Bool
@@ -77,7 +77,8 @@ function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64
     AN_Y = Array{ActNorm}(undef, L, K)
     CL = Array{ConditionalLayerHINT}(undef, L, K)
     if split_scales
-        XY_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it
+        #XY_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it
+        XY_dims = Array{Tuple}(undef, L-1)
         channel_factor = 2
     else
         XY_dims = nothing
@@ -122,7 +123,8 @@ function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMult
             X, Zx = tensor_split(X)
             Y, Zy = tensor_split(Y)
             XY_save[i, :] = [Zx, Zy]
-            CH.XY_dims[i] = collect(size(Zx))
+            #CH.XY_dims[i] = collect(size(Zx))
+            CH.XY_dims[i] = size(Zx)
         end
     end
 
