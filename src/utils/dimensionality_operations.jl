@@ -413,7 +413,8 @@ function cat_states(Z_save::Vector{<:AbstractArray}, X::AbstractArray{T, N}) whe
     return cat([[vec(Z_save[j]) for j=1:length(Z_save)]..., vec(X)]..., dims=1)
 end
 
-# Split 1D vector in latent space back to states Zi
+# Split and reshape 1D vector Y in latent space back to states Zi
+# where Zi is the split tensor at each multiscale level.
 function split_states(Y::AbstractVector{T}, Z_dims) where {T, N}
     L = length(Z_dims) + 1
     inds = cumsum([1, [prod(Z_dims[j]) for j=1:L-1]...])
@@ -422,9 +423,10 @@ function split_states(Y::AbstractVector{T}, Z_dims) where {T, N}
     return Z_save, X
 end
 
-# Split 1D vector in latent space back to states Zi
+# Split and reshape 1D vector X_full and Y_vull in latent space back to states Zi
+# where Zi is the split tensor at each multiscale level.
 function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{T, 1}, Y_full::AbstractArray{T, 1}) where T
-    X, c1 = split_states(X_full, XY_dims)
-    Y, c2 = split_states(Y_full, XY_dims)
+    c1, X = split_states(X_full, XY_dims)
+    c2, Y = split_states(Y_full, XY_dims)
     return hcat(c1, c2), X, Y
 end

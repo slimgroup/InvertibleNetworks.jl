@@ -203,7 +203,7 @@ end
 
 # Inverse pass and compute gradients
 function inverse_Y(Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
-    CH.split_scales && ((Y_save, Zy) = split_states(CH.XY_dims, Zy))
+    CH.split_scales && ((Y_save, Zy) = split_states(Zy, CH.XY_dims))
     for i=CH.L:-1:1
         if CH.split_scales && i < CH.L
             Zy = tensor_cat(Zy, Y_save[i])
