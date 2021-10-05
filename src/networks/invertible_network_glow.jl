@@ -86,19 +86,6 @@ end
 
 NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
 
-# Split 1D vector in latent space back to states Zi
-function split_states(Y, Z_dims)
-    L = length(Z_dims) + 1
-    Z_save = Array{Array}(undef, L-1)
-    count = 1
-    for j=1:L-1
-        Z_save[j] = reshape(Y[count: count + prod(Z_dims[j])-1], tuple(Z_dims[j]...))
-        count += prod(Z_dims[j])
-    end
-    X = reshape(Y[count: count + prod(Z_dims[end])-1], tuple(Int.(Z_dims[end].*(.5, .5, 4, 1))...))
-    return Z_save, X
-end
-
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     Z_save = array_of_array(X, G.L-1)
