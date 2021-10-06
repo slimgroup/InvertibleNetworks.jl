@@ -2,7 +2,8 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using InvertibleNetworks, LinearAlgebra, Test
+using InvertibleNetworks, LinearAlgebra, Test, Random
+Random.seed!(1)
 
 # Define network
 nx = 16
@@ -59,9 +60,9 @@ function loss(CH, X, Y)
     return f, ΔX, ΔY
 end
 
-function grad_test_X(nx, ny, n_channel, batchsize, lgdet, squeeze_type, split_scales)
+function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_scales)
     print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
-    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type, logdet=lgdet, split_scales=split_scales)
+    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type, logdet=logdet, split_scales=split_scales)
 
 
     # Input image
