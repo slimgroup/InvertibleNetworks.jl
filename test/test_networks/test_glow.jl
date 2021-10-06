@@ -4,6 +4,9 @@
 
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
+# Random seed
+Random.seed!(19)
+
 # Define network
 nx = 32
 ny = 32

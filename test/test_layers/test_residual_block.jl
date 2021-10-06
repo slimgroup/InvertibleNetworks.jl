@@ -2,7 +2,8 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using LinearAlgebra, InvertibleNetworks, Test
+using LinearAlgebra, InvertibleNetworks, Test, Random
+Random.seed!(2)
 
 # Input
 nx = 28
