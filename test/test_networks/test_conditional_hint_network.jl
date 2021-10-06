@@ -20,6 +20,7 @@ CH1  = NetworkConditionalHINT(n_in, n_hidden, L*K; logdet=false, k1=3, k2=1, p1=
 
 nets = [CH0, CH1, reverse(CH0), reverse(CH1)]
 
+
 function test_inv(CH, nx, ny, n_in)
     print("\nInvertibility test HINT network\n")
     # Test layers
