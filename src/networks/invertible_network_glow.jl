@@ -76,7 +76,7 @@ function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, n
         n_in *= 4 # squeeze
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = CouplingLayerGlow(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation, ndims=ndims)
+            CL[i, j] = CouplingLayerGlow(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
         end
         (i < L) && (n_in = Int64(n_in/2)) # split
     end
