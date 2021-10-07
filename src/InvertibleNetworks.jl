@@ -47,6 +47,14 @@ include("utils/invertible_network_sequential.jl")
 # AD rules
 include("utils/chainrules.jl")
 
+#gabrio layers
+include("layers/convolutional_layer.jl")
+include("layers/convolutional_layer0.jl")
+include("layers/invertible_layer_actnorm_par.jl")
+include("layers/convolutional_block.jl")
+include("layers/invertible_layer_conv1x1gen.jl")
+
+
 # Single network layers (invertible and non-invertible)
 include("conditional_layers/conditional_layer_residual_block.jl")
 include("layers/layer_residual_block.jl")

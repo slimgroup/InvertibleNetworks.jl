@@ -61,8 +61,8 @@ or
  See also: [`Conv1x1`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct CouplingLayerGlow <: NeuralNetLayer
-    C::Conv1x1
-    RB::Union{ResidualBlock, FluxBlock}
+    C::Union{Conv1x1, Conv1x1gen}
+    RB::Union{ResidualBlock,ConvolutionalBlock, FluxBlock}
     logdet::Bool
     activation::ActivationFunction
 end
@@ -79,12 +79,21 @@ end
 CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerGlow(C, RB, logdet, activation)
 
 # Constructor from input dimensions
-function CouplingLayerGlow(n_in::Int64, n_hidden::Int64; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
+function CouplingLayerGlow(n_in::Int64, n_hidden::Int64;gab_1x1=gab_1x1, gab_rb=gab_rb, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # 1x1 Convolution and residual block for invertible layer
-    C = Conv1x1(n_in)
-    RB = ResidualBlock(Int(n_in/2), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+    
+    if gab_1x1
+        C = Conv1x1gen(n_in; logdet=false, orthogonal=true, init_id=true, T=Float32)
+    else
+        C = Conv1x1(n_in)
+    end
 
+    if gab_rb
+        RB = ConvolutionalBlock(Int(n_in/2), n_in, n_hidden;k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, T=Float32, init_zero=true)
+    else
+        RB = ResidualBlock(Int(n_in/2), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+    end
     return CouplingLayerGlow(C, RB, logdet, activation)
 end
 
@@ -94,15 +103,14 @@ CouplingLayerGlow3D(args...;kw...) = CouplingLayerGlow(args...; kw..., ndims=3)
 function forward(X::AbstractArray{T, 4}, L::CouplingLayerGlow) where T
 
     # Get dimensions
-    k = Int(L.C.k/2)
-
     X_ = L.C.forward(X)
     X1, X2 = tensor_split(X_)
 
     Y2 = copy(X2)
     logS_T = L.RB.forward(X2)
-    Sm = L.activation.forward(logS_T[:,:,1:k,:])
-    Tm = logS_T[:, :, k+1:end, :]
+    logS, Tm = tensor_split(logS_T)
+
+    Sm = L.activation.forward(logS)
     Y1 = Sm.*X1 + Tm
 
     Y = tensor_cat(Y1, Y2)
@@ -114,13 +122,12 @@ end
 function inverse(Y::AbstractArray{T, 4}, L::CouplingLayerGlow; save=false) where T
 
     # Get dimensions
-    k = Int(L.C.k/2)
     Y1, Y2 = tensor_split(Y)
 
     X2 = copy(Y2)
     logS_T = L.RB.forward(X2)
-    Sm = L.activation.forward(logS_T[:,:,1:k,:])
-    Tm = logS_T[:, :, k+1:end, :]
+    logS, Tm = tensor_split(logS_T)
+    Sm = L.activation.forward(logS)
     X1 = (Y1 - Tm) ./ (Sm .+ eps(T)) # add epsilon to avoid division by 0
 
     X_ = tensor_cat(X1, X2)
@@ -133,7 +140,6 @@ end
 function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, L::CouplingLayerGlow; set_grad::Bool=true) where T
 
     # Recompute forward state
-    k = Int(L.C.k/2)
     X, X1, X2, S = inverse(Y, L; save=true)
 
     # Backpropagate residual
@@ -154,9 +160,9 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, L::CouplingL
     end
     ΔX_ = tensor_cat(ΔX1, ΔX2)
     if set_grad
-        ΔX = L.C.inverse((ΔX_, tensor_cat(X1, X2)))[1]
+        ΔX = L.C.backward(ΔX_, tensor_cat(X1, X2))[1]
     else
-        ΔX, Δθc = L.C.inverse((ΔX_, tensor_cat(X1, X2)); set_grad=set_grad)[1:2]
+        ΔX, Δθc = L.C.backward(ΔX_, tensor_cat(X1, X2); set_grad=set_grad)[1:2]
         Δθ = cat(Δθc, Δθrb; dims=1)
     end
 

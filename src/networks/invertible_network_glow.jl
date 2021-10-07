@@ -67,7 +67,7 @@ end
 @Flux.functor NetworkGlow
 
 # Constructor
-function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
+function NetworkGlow(n_in, n_hidden, L, K; gab_1x1=false, gab_rb=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
     Z_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it   # save dimensions for inverse/backward pass
@@ -76,7 +76,7 @@ function NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, n
         n_in *= 4 # squeeze
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = CouplingLayerGlow(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
+            CL[i, j] = CouplingLayerGlow(n_in, n_hidden;gab_1x1=gab_1x1, gab_rb=gab_rb, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
         end
         (i < L) && (n_in = Int64(n_in/2)) # split
     end
@@ -88,6 +88,7 @@ NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
+    original_shape = size(X)
     Z_save = array_of_array(X, G.L-1)
     logdet = 0
     for i=1:G.L
@@ -104,6 +105,7 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
             G.Z_dims[i] = collect(size(Z))
         end
     end
+    #X = reshape(cat_states(Z_save, X), original_shape)
     X = cat_states(Z_save, X)
     return X, logdet
 end
