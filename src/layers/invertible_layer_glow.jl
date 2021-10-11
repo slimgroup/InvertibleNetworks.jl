@@ -79,12 +79,12 @@ end
 CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerGlow(C, RB, logdet, activation)
 
 # Constructor from input dimensions
-function CouplingLayerGlow(n_in::Int64, n_hidden::Int64;gab_1x1=gab_1x1, gab_rb=gab_rb, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
+function CouplingLayerGlow(n_in::Int64, n_hidden::Int64;gab_1x1=gab_1x1, gab_rb=gab_rb,init_id=true, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # 1x1 Convolution and residual block for invertible layer
     
     if gab_1x1
-        C = Conv1x1gen(n_in; logdet=false, orthogonal=true, init_id=true, T=Float32)
+        C = Conv1x1gen(n_in; logdet=false, orthogonal=true, init_id=init_id, T=Float32)
     else
         C = Conv1x1(n_in)
     end
@@ -105,6 +105,7 @@ function forward(X::AbstractArray{T, 4}, L::CouplingLayerGlow) where T
     # Get dimensions
     X_ = L.C.forward(X)
     X1, X2 = tensor_split(X_)
+    #X2, X1 = tensor_split(X_)
 
     Y2 = copy(X2)
     logS_T = L.RB.forward(X2)
@@ -114,6 +115,7 @@ function forward(X::AbstractArray{T, 4}, L::CouplingLayerGlow) where T
     Y1 = Sm.*X1 + Tm
 
     Y = tensor_cat(Y1, Y2)
+    #Y = tensor_cat(Y2, Y1)
 
     L.logdet == true ? (return Y, glow_logdet_forward(Sm)) : (return Y)
 end
@@ -123,6 +125,7 @@ function inverse(Y::AbstractArray{T, 4}, L::CouplingLayerGlow; save=false) where
 
     # Get dimensions
     Y1, Y2 = tensor_split(Y)
+    #Y2, Y1 = tensor_split(Y)
 
     X2 = copy(Y2)
     logS_T = L.RB.forward(X2)
@@ -131,6 +134,7 @@ function inverse(Y::AbstractArray{T, 4}, L::CouplingLayerGlow; save=false) where
     X1 = (Y1 - Tm) ./ (Sm .+ eps(T)) # add epsilon to avoid division by 0
 
     X_ = tensor_cat(X1, X2)
+    #X_ = tensor_cat(X2, X1)
     X = L.C.inverse(X_)
 
     save == true ? (return X, X1, X2, Sm) : (return X)
@@ -144,6 +148,7 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, L::CouplingL
 
     # Backpropagate residual
     ΔY1, ΔY2 = tensor_split(ΔY)
+    #ΔY2, ΔY1 = tensor_split(ΔY)
     ΔT = copy(ΔY1)
     ΔS = ΔY1 .* X1
     if L.logdet
@@ -159,8 +164,10 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, L::CouplingL
         ΔX2 += ΔY2
     end
     ΔX_ = tensor_cat(ΔX1, ΔX2)
+    #ΔX_ = tensor_cat(ΔX2, ΔX1)
     if set_grad
         ΔX = L.C.backward(ΔX_, tensor_cat(X1, X2))[1]
+        #ΔX = L.C.backward(ΔX_, tensor_cat(X2, X1))[1]
     else
         ΔX, Δθc = L.C.backward(ΔX_, tensor_cat(X1, X2); set_grad=set_grad)[1:2]
         Δθ = cat(Δθc, Δθrb; dims=1)
