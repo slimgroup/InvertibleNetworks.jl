@@ -105,8 +105,8 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
             G.Z_dims[i] = collect(size(Z))
         end
     end
-    #X = reshape(cat_states(Z_save, X), original_shape)
-    X = cat_states(Z_save, X)
+    X = reshape(cat_states(Z_save, X), original_shape)
+    #X = cat_states(Z_save, X)
     return X, logdet
 end
 
