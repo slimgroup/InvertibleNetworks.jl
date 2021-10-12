@@ -210,11 +210,15 @@ function backward(ΔY::AbstractArray{T,4}, Y::AbstractArray{T,4}, CL::CouplingLa
     ΔX2 = ΔY2.*s
     Δs = X2.*ΔY2
     CL.logdet && (Δs .-= dlogdet(CL, s))
-    Δlogs = CL.activation.backward(Δs, logs, nothing)
+    Δlogs = CL.activation.backward(Δs,  nothing, logs)
     ΔX1 .+= CL.RB.backward(tensor_cat(Δlogs, Δt), X1)
 
+    ΔX_ = tensor_cat(ΔX1, ΔX2)
+    ΔX = CL.C.backward(ΔX_, tensor_cat(X1, X2))[1]
 
-    return tensor_cat(ΔX1, ΔX2), tensor_cat(X1, X2)
+    X = CL.C.inverse(tensor_cat(X1, X2))
+
+    return ΔX, X
 
 end
 
