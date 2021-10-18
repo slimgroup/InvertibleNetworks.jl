@@ -59,7 +59,7 @@ or
  See also: [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 mutable struct CouplingLayerBasic <: NeuralNetLayer
-    RB::Union{ResidualBlock, FluxBlock}
+    RB::Union{ResidualBlock, ConvolutionalBlock, FluxBlock}
     logdet::Bool
     activation::ActivationFunction
     is_reversed::Bool
@@ -76,11 +76,17 @@ end
 CouplingLayerBasic(RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerBasic(RB, logdet, activation, false)
 
 # 2D Constructor from input dimensions
-function CouplingLayerBasic(n_in::Int64, n_hidden::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
+function CouplingLayerBasic(n_in::Int64, n_hidden::Int64;gab_rb=false, init_id=true, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # 1x1 Convolution and residual block for invertible layer
-    RB = ResidualBlock(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
 
+    if gab_rb
+        RB = ConvolutionalBlock(n_in, 2*n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, T=Float32, init_zero=true)
+    else
+        RB = ResidualBlock(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+    end
+
+    
     return CouplingLayerBasic(RB, logdet, activation, false)
 end
 

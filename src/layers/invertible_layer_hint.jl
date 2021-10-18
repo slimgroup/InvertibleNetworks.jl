@@ -56,6 +56,7 @@ mutable struct CouplingLayerHINT <: NeuralNetLayer
     logdet::Bool
     permute::String
     is_reversed::Bool
+
 end
 
 @Flux.functor CouplingLayerHINT
@@ -76,15 +77,15 @@ CouplingLayerHINT(CL::AbstractArray{CouplingLayerBasic, 1}, C::Union{Conv1x1, No
     logdet=false, permute="none") = CouplingLayerHINT(CL, C, logdet, permute, false)
 
 # 2D Constructor from input dimensions
-function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; logdet=false, permute="none",
-                           k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2)
+function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; gab_rb=false, logdet=false, permute="none",
+                           k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # Create basic coupling layers
     n = get_depth(n_in)
     CL = Array{CouplingLayerBasic}(undef, n)
     for j=1:n
-        CL[j] = CouplingLayerBasic(Int(n_in/2^j), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2,
-                                   s1=s1, s2=s2, logdet=logdet, ndims=ndims)
+        CL[j] = CouplingLayerBasic(Int(n_in/2^j), n_hidden;gab_rb=gab_rb, k1=k1, k2=k2, p1=p1, p2=p2,
+                                   s1=s1, s2=s2, logdet=logdet, activation=activation, ndims=ndims)
     end
 
     # Permutation using 1x1 convolution
@@ -278,9 +279,9 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, H::CouplingL
     X = tensor_cat(Xa, Xb)
     if permute == "full" || permute == "both"
         if set_grad
-            ΔX, X = H.C.inverse((ΔX, X))
+            ΔX, X = H.C.backward(ΔX, X)
         else
-            ΔX, Δθ_C, X = H.C.inverse((ΔX, X); set_grad=set_grad)
+            ΔX, Δθ_C, X = H.C.backward(ΔX, X; set_grad=set_grad)
             if permute == "full"
                 Δθ[end-2:end] .= Δθ_C
                 H.logdet && (∇logdet[end-2:end] .= [Parameter(cuzeros(Y, size(H.C.v1))), Parameter(cuzeros(Y, size(H.C.v2))), Parameter(cuzeros(Y, size(H.C.v3)))])
