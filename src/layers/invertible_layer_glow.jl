@@ -100,42 +100,61 @@ end
 CouplingLayerGlow3D(args...;kw...) = CouplingLayerGlow(args...; kw..., ndims=3)
 
 # Forward pass: Input X, Output Y
-# function forward(X::AbstractArray{T, 4}, L::CouplingLayerGlow) where T
+function forward(X::AbstractArray{T, 4}, L::CouplingLayerGlow) where T
 
-#     # Get dimensions
+    # Get dimensions
+    X_ = L.C.forward(X)
+    #X1, X2 = tensor_split(X_)
+    X2, X1 = tensor_split(X_)
+
+    Y2 = copy(X2)
+    logS_T = L.RB.forward(X2)
+    logS, Tm = tensor_split(logS_T)
+
+    Sm = L.activation.forward(logS)
+    Y1 = Sm.*X1 + Tm
+
+    #Y = tensor_cat(Y1, Y2)
+    Y = tensor_cat(Y2, Y1)
+
+    L.logdet == true ? (return Y, glow_logdet_forward(Sm)) : (return Y)
+end
+
+# function forward(X::AbstractArray{T,4}, L::CouplingLayerGlow) where T
+
 #     X_ = L.C.forward(X)
-#     #X1, X2 = tensor_split(X_)
-#     X2, X1 = tensor_split(X_)
 
-#     Y2 = copy(X2)
-#     logS_T = L.RB.forward(X2)
-#     logS, Tm = tensor_split(logS_T)
+#     X1, X2 = tensor_split(X_)
 
-#     Sm = L.activation.forward(logS)
-#     Y1 = Sm.*X1 + Tm
-
-#     #Y = tensor_cat(Y1, Y2)
-#     Y = tensor_cat(Y2, Y1)
-
-#     L.logdet == true ? (return Y, glow_logdet_forward(Sm)) : (return Y)
+#     Y1 = X1
+#     t = L.RB.forward(X1)
+    
+#     logs, t = tensor_split(t)
+#     s = L.activation.forward(logs)
+#     Y2 = X2.*s+t
+#     L.logdet && (lgdt = logdet(L, s))
+    
+#     Y = tensor_cat(Y1, Y2)
+#     L.logdet ? (return Y, lgdt) : (return Y)
 # end
 
-function forward(X::AbstractArray{T,4}, L::CouplingLayerGlow) where T
+# function forward(X::AbstractArray{T,4}, L::CouplingLayerGlow) where T
 
-    X_ = L.C.forward(X)
+#     X_ = L.C.forward(X)
 
-    X1, X2 = tensor_split(X_)
-    Y1 = X1
-    t = L.RB.forward(X1)
+#     X1, X2 = tensor_split(X_)
+
+#     Y2 = X2
+#     t = L.RB.forward(X2)
     
-    logs, t = tensor_split(t)
-    s = L.activation.forward(logs)
-    Y2 = X2.*s+t
-    L.logdet && (lgdt = logdet(L, s))
+#     logs, t = tensor_split(t)
+#     s = L.activation.forward(logs)
+#     Y1 = X1.*s+t
+#     L.logdet && (lgdt = logdet(L, s))
     
-    Y = tensor_cat(Y1, Y2)
-    L.logdet ? (return Y, lgdt) : (return Y)
-end
+#     Y = tensor_cat(Y1, Y2)
+#     L.logdet ? (return Y, lgdt) : (return Y)
+# end
 
 # Inverse pass: Input Y, Output X
 function inverse(Y::AbstractArray{T, 4}, L::CouplingLayerGlow; save=false) where T
@@ -197,26 +216,65 @@ end
 #         L.logdet ? (return ΔX, Δθ, X, cat(0*Δθ[1:3], ∇logdet; dims=1)) : (return ΔX, Δθ, X)
 #     end
 # end
+# function backward(ΔY::AbstractArray{T,4}, Y::AbstractArray{T,4}, CL::CouplingLayerGlow) where T
+
+#     #ΔY1, ΔY2 = tensor_split(ΔY); 
+#     #Y1, Y2 = tensor_split(Y);
+#     ΔY2, ΔY1 = tensor_split(ΔY); 
+#     Y2, Y1 = tensor_split(Y);
+
+#     ΔX1 = ΔY1; X1 = Y1
+#     t = CL.RB.forward(X1)
+#     Δt = ΔY2
+    
+#     logs, t = tensor_split(t)
+#     s = CL.activation.forward(logs)
+#     X2 = (Y2-t)./s
+#     ΔX2 = ΔY2.*s
+#     Δs = X2.*ΔY2
+#     CL.logdet && (Δs .-= dlogdet(CL, s))
+#     Δlogs = CL.activation.backward(Δs,  nothing, logs)
+#     ΔX1 .+= CL.RB.backward(tensor_cat(Δlogs, Δt), X1)
+
+#     #ΔX_ = tensor_cat(ΔX1, ΔX2)
+#     #ΔX = CL.C.backward(ΔX_, tensor_cat(X1, X2))[1]
+#     #X = CL.C.inverse(tensor_cat(X1, X2))
+#     ΔX_ = tensor_cat(ΔX2, ΔX1)
+#     ΔX = CL.C.backward(ΔX_, tensor_cat(X2, X1))[1]
+#     X = CL.C.inverse(tensor_cat(X2, X1))
+
+#     return ΔX, X
+
+# end
+
 function backward(ΔY::AbstractArray{T,4}, Y::AbstractArray{T,4}, CL::CouplingLayerGlow) where T
 
-    ΔY1, ΔY2 = tensor_split(ΔY); Y1, Y2 = tensor_split(Y)
-    ΔX1 = ΔY1; X1 = Y1
-    t = CL.RB.forward(X1)
-    Δt = ΔY2
+#     #ΔY1, ΔY2 = tensor_split(ΔY); 
+#     #Y1, Y2 = tensor_split(Y);
+     
+     ΔY2, ΔY1 = tensor_split(ΔY); 
+     Y2, Y1 = tensor_split(Y);
+
+    ΔX2 = ΔY2; 
+    X2 = Y2
+    t = CL.RB.forward(X2)
+    Δt = ΔY1
     
     logs, t = tensor_split(t)
     s = CL.activation.forward(logs)
-    X2 = (Y2-t)./s
-    ΔX2 = ΔY2.*s
-    Δs = X2.*ΔY2
+    X1 = (Y1-t)./s
+    ΔX1 = ΔY1.*s
+    Δs = X1.*ΔY1
     CL.logdet && (Δs .-= dlogdet(CL, s))
     Δlogs = CL.activation.backward(Δs,  nothing, logs)
-    ΔX1 .+= CL.RB.backward(tensor_cat(Δlogs, Δt), X1)
+    ΔX2 .+= CL.RB.backward(tensor_cat(Δlogs, Δt), X2)
 
-    ΔX_ = tensor_cat(ΔX1, ΔX2)
-    ΔX = CL.C.backward(ΔX_, tensor_cat(X1, X2))[1]
-
-    X = CL.C.inverse(tensor_cat(X1, X2))
+#     #ΔX_ = tensor_cat(ΔX1, ΔX2)
+#     #ΔX = CL.C.backward(ΔX_, tensor_cat(X1, X2))[1]
+#     #X = CL.C.inverse(tensor_cat(X1, X2))
+     ΔX_ = tensor_cat(ΔX2, ΔX1)
+     ΔX = CL.C.backward(ΔX_, tensor_cat(X2, X1))[1]
+     X = CL.C.inverse(tensor_cat(X2, X1))
 
     return ΔX, X
 
