@@ -60,7 +60,7 @@ end
 @Flux.functor NetworkHINT
 
 # Constructor
-function NetworkHINT(n_in, n_hidden, depth;gab_rb=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, activation::ActivationFunction=SigmoidLayer(), ndims=2)
+function NetworkHINT(n_in, n_hidden, depth; max_recursion=nothing, gab_rb=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     AN_X = Array{ActNorm}(undef, depth)
     CL = Array{CouplingLayerHINT}(undef, depth)
@@ -68,7 +68,7 @@ function NetworkHINT(n_in, n_hidden, depth;gab_rb=false, k1=3, k2=3, p1=1, p2=1,
     # Create layers
     for j=1:depth
         AN_X[j] = ActNorm(n_in; logdet=logdet)
-        CL[j] = CouplingLayerHINT(n_in, n_hidden;gab_rb=gab_rb, permute="full", k1=k1, k2=k2, p1=p1,
+        CL[j] = CouplingLayerHINT(n_in, n_hidden;max_recursion=max_recursion, gab_rb=gab_rb, permute="full", k1=k1, k2=k2, p1=p1,
                                   p2=p2, s1=s1, s2=s2, logdet=logdet, activation=activation,ndims=ndims)
     end
 

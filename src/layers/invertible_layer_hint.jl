@@ -77,11 +77,11 @@ CouplingLayerHINT(CL::AbstractArray{CouplingLayerBasic, 1}, C::Union{Conv1x1, No
     logdet=false, permute="none") = CouplingLayerHINT(CL, C, logdet, permute, false)
 
 # 2D Constructor from input dimensions
-function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; gab_rb=false, logdet=false, permute="none",
+function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; max_recursion=nothing, gab_rb=false, logdet=false, permute="none",
                            k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # Create basic coupling layers
-    n = get_depth(n_in)
+    isnothing(max_recursion) ? n = get_depth(n_in) : n = max_recursion
     CL = Array{CouplingLayerBasic}(undef, n)
     for j=1:n
         CL[j] = CouplingLayerBasic(Int(n_in/2^j), n_hidden;gab_rb=gab_rb, k1=k1, k2=k2, p1=p1, p2=p2,
