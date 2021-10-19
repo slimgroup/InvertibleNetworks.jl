@@ -81,7 +81,8 @@ function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; max_recursion=nothing, 
                            k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # Create basic coupling layers
-    isnothing(max_recursion) ? n = get_depth(n_in) : n = max_recursion
+    isnothing(max_recursion) ? n = get_depth(n_in) : n = min(get_depth(n_in),max_recursion)
+
     CL = Array{CouplingLayerBasic}(undef, n)
     for j=1:n
         CL[j] = CouplingLayerBasic(Int(n_in/2^j), n_hidden;gab_rb=gab_rb, k1=k1, k2=k2, p1=p1, p2=p2,
@@ -96,7 +97,7 @@ function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; max_recursion=nothing, 
     else
         C = nothing
     end
-
+    
     return CouplingLayerHINT(CL, C, logdet, permute, false)
 end
 
@@ -112,18 +113,20 @@ function forward(X::AbstractArray{T, N}, H::CouplingLayerHINT; scale=1, permute=
         X = H.C.forward(X)
     end
     Xa, Xb = tensor_split(X)
+    #Xb, Xa = tensor_split(X)
     permute == "lower" && (Xb = H.C.forward(Xb))
 
     # Determine whether to continue recursion
     recursive = false
-    if N == 4 && size(X, 3) > 4
+    if N == 4 && size(X, 3) > 4 && scale < length(H.CL)
         recursive = true
-    elseif N == 5 && size(X, 4) > 4
+    elseif N == 5 && size(X, 4) > 4 && scale < length(H.CL)
         recursive = true
     end
 
     # HINT coupling
     if recursive
+        print("why the heck are you recursing")
         # Call function recursively
         Ya, logdet1 = forward(Xa, H; scale=scale+1, permute="none")
         Y_temp, logdet2 = forward(Xb, H; scale=scale+1, permute="none")
@@ -146,6 +149,7 @@ function forward(X::AbstractArray{T, N}, H::CouplingLayerHINT; scale=1, permute=
     end
 
     Y = tensor_cat(Ya, Yb)
+    #Y = tensor_cat(Yb, Ya)
     permute == "both" && (Y = H.C.inverse(Y))
     if scale == 1
         logdet ? (return Y, logdet_full) : (return Y)
@@ -164,7 +168,7 @@ function inverse(Y::AbstractArray{T, N} , H::CouplingLayerHINT; scale=1, permute
     Ya, Yb = tensor_split(Y)
 
     # Check for recursion
-    recursive = (size(Y, N-1) > 4)
+    recursive = (size(Y, N-1) > 4) && (scale < length(H.CL))
 
     # Coupling layer
     if recursive
@@ -225,9 +229,12 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, H::CouplingL
     end
     Ya, Yb = tensor_split(Y)
     ΔYa, ΔYb = tensor_split(ΔY)
+    #Yb, Ya = tensor_split(Y)
+    #ΔYb, ΔYa = tensor_split(ΔY)
 
     # Determine whether to continue recursion
-    recursive = (size(Y, N-1) > 4)
+    recursive = (size(Y, N-1) > 4) && (scale < length(H.CL))
+    
 
     # HINT coupling
     if recursive
@@ -277,6 +284,8 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, H::CouplingL
     end
     ΔX = tensor_cat(ΔXa, ΔXb)
     X = tensor_cat(Xa, Xb)
+    #ΔX = tensor_cat(ΔXb, ΔXa)
+    #X = tensor_cat(Xb, Xa)
     if permute == "full" || permute == "both"
         if set_grad
             ΔX, X = H.C.backward(ΔX, X)
