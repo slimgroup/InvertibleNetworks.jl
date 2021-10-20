@@ -57,25 +57,26 @@ export NetworkMultiScaleHINT, NetworkMultiScaleHINT3D
 struct NetworkMultiScaleHINT <: InvertibleNetwork
     AN::AbstractArray{ActNorm, 2}
     CL::AbstractArray{CouplingLayerHINT, 2}
-    X_dims::Union{Array{Tuple, 1}, Nothing}
+    Z_dims::Union{Array{Array, 1}, Nothing}
     L::Int64
     K::Int64
     split_scales::Bool
+    squeezer::Squeezer
 end
 
 @Flux.functor NetworkMultiScaleHINT
 
 # Constructor
 function NetworkMultiScaleHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
-                               split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2)
+                               split_scales=false, max_recursion=nothing, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
 
     AN = Array{ActNorm}(undef, L, K)
     CL = Array{CouplingLayerHINT}(undef, L, K)
     if split_scales
-        X_dims = Array{Tuple}(undef, L-1)
+        Z_dims = fill!(Array{Array}(undef, L-1), [1,1])
         channel_factor = 2
     else
-        X_dims = nothing
+        Z_dims = nothing
         channel_factor = 4
     end
 
@@ -83,23 +84,24 @@ function NetworkMultiScaleHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
     for i=1:L
         for j=1:K
             AN[i, j] = ActNorm(n_in*4; logdet=true)
-            CL[i, j] = CouplingLayerHINT(n_in*4, n_hidden; permute="full", k1=k1, k2=k2, p1=p1, p2=p2,
-                                         s1=s1, s2=s2, logdet=true, ndims=ndims)
+            CL[i, j] = CouplingLayerHINT(n_in*4, n_hidden; max_recursion=max_recursion, permute="full", k1=k1, k2=k2, p1=p1, p2=p2,
+                                         s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
         end
         n_in *= channel_factor
     end
 
-    return NetworkMultiScaleHINT(AN, CL, X_dims, L, K, split_scales)
+    return NetworkMultiScaleHINT(AN, CL, Z_dims, L, K, split_scales, squeezer)
 end
 
 NetworkMultiScaleHINT3D(args...; kw...) = NetworkMultiScaleHINT(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet
-function forward(X::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N}
-    H.split_scales && (X_save = Array{Array}(undef, H.L-1))
-    logdet = 0
+function forward(X, H::NetworkMultiScaleHINT)
+    original_shape = size(X)
+    H.split_scales && (X_save = array_of_array(X, H.L-1))
+    logdet = 0f0
     for i=1:H.L
-        X = wavelet_squeeze(X)
+        X = H.squeezer.forward(X)
         for j=1:H.K
             X_, logdet1 = H.AN[i, j].forward(X)
             X, logdet2 = H.CL[i, j].forward(X_)
@@ -108,16 +110,16 @@ function forward(X::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N}
         if H.split_scales && i < H.L    # don't split after last iteration
             X, Z = tensor_split(X)
             X_save[i] = Z
-            H.X_dims[i] = size(Z)
+            H.Z_dims[i] = collect(size(Z))
         end
     end
-    H.split_scales && (X = cat_states(X_save, X))
+    H.split_scales && (X = reshape(cat_states(X_save, X), original_shape))
     return X, logdet
 end
 
 # Inverse pass and compute gradients
-function inverse(Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N}
-    H.split_scales && ((X_save, Z) = split_states(H.X_dims, Z))
+function inverse(Z, H::NetworkMultiScaleHINT)
+    H.split_scales && ((X_save, Z) = split_states(Z, H.Z_dims))
     for i=H.L:-1:1
         if H.split_scales && i < H.L
             Z = tensor_cat(Z, X_save[i])
@@ -126,24 +128,25 @@ function inverse(Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N}
             Z_ = H.CL[i, j].inverse(Z)
             Z = H.AN[i, j].inverse(Z_; logdet=false)
         end
-        Z = wavelet_unsqueeze(Z)
+        Z = H.squeezer.inverse(Z)
     end
     return Z
 end
 
 # Backward pass and compute gradients
-function backward(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT; set_grad::Bool=true) where {T, N}
+function backward(ΔZ, Z, H::NetworkMultiScaleHINT; set_grad::Bool=true)
 
     # Split data and gradients
     if H.split_scales
-        ΔX_save, ΔZ = split_states(H.X_dims, ΔZ)
-        X_save, Z = split_states(H.X_dims, Z)
+        ΔX_save, ΔZ = split_states(ΔZ, H.Z_dims)
+        X_save, Z = split_states(Z, H.Z_dims)
     end
 
     if ~set_grad
         Δθ = Array{Parameter, 1}(undef, 0)
         ∇logdet = Array{Parameter, 1}(undef, 0)
     end
+
 
     for i=H.L:-1:1
         if H.split_scales && i < H.L
@@ -161,26 +164,25 @@ function backward(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, H::NetworkMu
                 ∇logdet = cat(∇logdet_x, ∇logdet_cl, ∇logdet; dims=1)
             end
         end
-        ΔZ = wavelet_unsqueeze(ΔZ)
-        Z = wavelet_unsqueeze(Z)
+        ΔZ = H.squeezer.inverse(ΔZ)
+        Z = H.squeezer.inverse(Z)
     end
     set_grad ? (return ΔZ, Z) : (return ΔZ, Δθ, Z, ∇logdet)
 end
 
-
 ## Jacobian-related utils
 
-function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, H::NetworkMultiScaleHINT) where {T, N}
+function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, H::NetworkMultiScaleHINT)
     if H.split_scales
-        X_save = array_of_array(ΔX, H.L-1, 2)
-        ΔX_save = array_of_array(ΔX, H.L-1, 2)
+        X_save = Array{Array}(undef, H.L-1, 2)
+        ΔX_save = Array{Array}(undef, H.L-1, 2)
     end
-    logdet = 0
+    logdet = 0f0
     GNΔθ = Array{Parameter, 1}(undef, 0)
     idxblk = 0
     for i=1:H.L
-        X = wavelet_squeeze(X)
-        ΔX = wavelet_squeeze(ΔX)
+        X = general_squeeze(X; squeeze_type=H.squeeze_type, pattern="checkerboard")
+        ΔX = general_squeeze(ΔX; squeeze_type=H.squeeze_type, pattern="checkerboard")
         for j=1:H.K
             npars_ij = 2+length(get_params(H.CL[i, j]))
             Δθij = Δθ[idxblk+1:idxblk+npars_ij]
@@ -195,7 +197,7 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, H::Net
             ΔX, ΔZ = tensor_split(ΔX)
             X_save[i] = Z
             ΔX_save[i] = ΔZ
-            H.X_dims[i] = size(Z)
+            H.Z_dims[i] = collect(size(Z))
         end
     end
     if H.split_scales
@@ -205,7 +207,7 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, H::Net
     return ΔX, X, logdet, GNΔθ
 end
 
-adjointJacobian(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N} = backward(ΔZ, Z, H; set_grad=false)
+adjointJacobian(ΔZ, Z, H::NetworkMultiScaleHINT) = backward(ΔZ, Z, H; set_grad=false)
 
 
 ## Other utils

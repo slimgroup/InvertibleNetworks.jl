@@ -126,7 +126,6 @@ function forward(X::AbstractArray{T, N}, H::CouplingLayerHINT; scale=1, permute=
 
     # HINT coupling
     if recursive
-        print("why the heck are you recursing")
         # Call function recursively
         Ya, logdet1 = forward(Xa, H; scale=scale+1, permute="none")
         Y_temp, logdet2 = forward(Xb, H; scale=scale+1, permute="none")
