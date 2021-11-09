@@ -64,13 +64,13 @@ end
 @Flux.functor ConditionalLayerHINT
 
 # 2D Constructor from input dimensions
-function ConditionalLayerHINT(n_in::Int64, n_hidden::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1,
-                              logdet=true, permute=true, ndims=2)
+function ConditionalLayerHINT(n_in::Int64, n_hidden::Int64; max_recursion=nothing, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1,
+                              logdet=true, permute=true, ndims=2, activation::ActivationFunction=SigmoidLayer())
 
     # Create basic coupling layers
-    CL_X = CouplingLayerHINT(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, permute="none", ndims=ndims)
-    CL_Y = CouplingLayerHINT(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, permute="none", ndims=ndims)
-    CL_YX = CouplingLayerBasic(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, ndims=ndims)
+    CL_X = CouplingLayerHINT(n_in, n_hidden; max_recursion=max_recursion, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, permute="none", activation=activation, ndims=ndims)
+    CL_Y = CouplingLayerHINT(n_in, n_hidden; max_recursion=max_recursion, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, permute="none", activation=activation, ndims=ndims)
+    CL_YX = CouplingLayerBasic(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, activation=activation, ndims=ndims)
 
     # Permutation using 1x1 convolution
     permute == true ? (C_X = Conv1x1(n_in)) : (C_X = nothing)
@@ -95,6 +95,7 @@ function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::Conditional
 
     # X-lane: conditional layer
     logdet ? (Zx, logdet3) = CH.CL_YX.forward(Yp, X)[2:3] : Zx = CH.CL_YX.forward(Yp, X)[2]
+    #logdet ? (Zx, logdet3) = CH.CL_YX.forward(X, Yp)[2:3] : Zx = CH.CL_YX.forward(X, Yp)[2]
 
     logdet ? (return Zx, Zy, logdet1 + logdet2 + logdet3) : (return Zx, Zy)
 end
@@ -160,11 +161,11 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
         ΔY = copy(ΔYp); Y = copy(Yp)
     else
         if set_grad
-            ΔX, X = CH.C_X.inverse((ΔXp, Xp))
-            ΔY, Y = CH.C_Y.inverse((ΔYp, Yp))
+            ΔX, X = CH.C_X.backward(ΔXp, Xp)
+            ΔY, Y = CH.C_Y.backward(ΔYp, Yp)
         else
-            ΔX, Δθ_CX, X = CH.C_X.inverse((ΔXp, Xp); set_grad=set_grad)
-            ΔY, Δθ_CY, Y = CH.C_Y.inverse((ΔYp, Yp); set_grad=set_grad)
+            ΔX, Δθ_CX, X = CH.C_X.backward(ΔXp, Xp; set_grad=set_grad)
+            ΔY, Δθ_CY, Y = CH.C_Y.backward(ΔYp, Yp; set_grad=set_grad)
         end
     end
 

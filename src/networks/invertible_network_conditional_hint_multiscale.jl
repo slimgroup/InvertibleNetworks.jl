@@ -70,8 +70,8 @@ end
 @Flux.functor NetworkMultiScaleConditionalHINT
 
 # Constructor
-function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
-                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2, squeezer::Squeezer=ShuffleLayer())
+function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64; max_recursion=nothing,
+                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
 
     AN_X = Array{ActNorm}(undef, L, K)
     AN_Y = Array{ActNorm}(undef, L, K)
@@ -89,7 +89,7 @@ function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64
         for j=1:K
             AN_X[i, j] = ActNorm(n_in*4; logdet=logdet)
             AN_Y[i, j] = ActNorm(n_in*4; logdet=logdet)
-            CL[i, j] = ConditionalLayerHINT(n_in*4, n_hidden; permute=true, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, ndims=ndims)
+            CL[i, j] = ConditionalLayerHINT(n_in*4, n_hidden;max_recursion=max_recursion, permute=true, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet,  activation=activation, ndims=ndims)
         end
         n_in *= channel_factor
     end
@@ -103,6 +103,9 @@ NetworkMultiScaleConditionalHINT3D(args...;kw...) = NetworkMultiScaleConditional
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
+
+    orig_shape_X = size(X)
+    orig_shape_Y = size(Y)
 
     CH.split_scales && (XY_save = array_of_array(X, CH.L-1, 2))
 
@@ -127,6 +130,9 @@ function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMult
     end
 
     CH.split_scales && ((X, Y) = cat_states(XY_save, X, Y))
+
+    #X = reshape(X, orig_shape_X)
+    #Y = reshape(Y, orig_shape_Y)
     
     logdet ? (return X, Y, logdet_) : (return X, Y)
 end
