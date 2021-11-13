@@ -235,7 +235,7 @@ function backward_inv(ΔX, ΔY, X, Y, CH::NetworkMultiScaleConditionalHINT)
 end
 
 # Forward pass and compute logdet
-function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
+function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; save_dims=false) where {T, N}
     CH.split_scales && (Y_save = array_of_array(Y, CH.L-1))
 
     for i=1:CH.L
@@ -247,7 +247,7 @@ function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT)
         if CH.split_scales && i < CH.L    # don't split after last iteration
             Y, Zy = tensor_split(Y)
             Y_save[i] = Zy
-            CH.XY_dims[i] = collect(size(Zy))
+            save_dims && (CH.XY_dims[i] = collect(size(Zy))) 
         end
     end
     CH.split_scales && (Y = cat_states(Y_save, Y))
