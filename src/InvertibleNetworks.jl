@@ -52,6 +52,7 @@ include("layers/convolutional_layer.jl")
 include("layers/convolutional_layer0.jl")
 include("layers/invertible_layer_actnorm_par.jl")
 include("layers/convolutional_block.jl")
+include("layers/invertible_layer_conv1x1gen.jl")
 
 
 
