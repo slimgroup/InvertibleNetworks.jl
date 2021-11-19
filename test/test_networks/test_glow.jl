@@ -4,6 +4,8 @@
 
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
+Random.seed!(1);
+
 # Define network
 nx = 32
 ny = 32
@@ -21,12 +23,13 @@ G = NetworkGlow(n_in, n_hidden, L, K)
 X = rand(Float32, nx, ny, n_in, batchsize)
 
 Y = G.forward(X)[1]
-X_ = G.backward(Y, Y)[2]
+X_ = G.inverse(Y)
 
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 ###################################################################################################
 # Test gradients are set and cleared
+G.backward(Y, Y)
 
 P = get_params(G)
 gsum = 0
@@ -166,12 +169,13 @@ G = NetworkGlow(n_in, n_hidden, L, K; split_scales=true)
 X = rand(Float32, nx, ny, n_in, batchsize)
 
 Y = G.forward(X)[1]
-X_ = G.backward(Y, Y)[2]
+X_ = G.inverse(Y)
 
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 ###################################################################################################
 # Test gradients are set and cleared
+G.backward(Y, Y)
 
 P = get_params(G)
 gsum = 0
