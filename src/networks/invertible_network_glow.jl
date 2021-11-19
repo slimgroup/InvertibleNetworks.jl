@@ -25,6 +25,10 @@ export NetworkGlow, NetworkGlow3D
 
  - `K`: number of flow steps per scale (inner loop)
 
+ - `split_scales`: if true, perform squeeze operation which halves spatial dimensions and duplicates channel dimensions
+    then split output in half along channel dimension after each scale. Feed one half through the next layers,
+    while saving the remaining channels for the output.
+
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third 
  operator, `k2` is the kernel size of the second operator.
 
@@ -115,11 +119,11 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     return X, logdet
 end
 
-# Inverse pass and compute gradients
+# Inverse pass 
 function inverse(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     G.split_scales && ((Z_save, X) = split_states(X, G.Z_dims))
     for i=G.L:-1:1
-        if i < G.L
+        if G.split_scales && i < G.L
             X = tensor_cat(X, Z_save[i])
         end
         for j=G.K:-1:1
