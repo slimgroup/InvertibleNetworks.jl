@@ -131,8 +131,8 @@ function unsqueeze(Y::AbstractArray{T,N}; pattern="column") where {T, N}
 
     # Dimensions
     batchsize = size(Y, N)
-    if any([mod(nn, 2) == 1 for nn=size(Y)[1:N-2]])
-        throw("Input dimensions must be multiple of 2")
+    if mod(size(Y)[N-1], 2) == 1  # I think that only channel needs to be divible by 2. 
+        throw("Input channel dimensions must be multiple of 2")
     end
     N_out = Tuple(nn*2 for nn=size(Y)[1:N-2])
     nc_out = size(Y, N-1) ÷ 2^(N-2)
