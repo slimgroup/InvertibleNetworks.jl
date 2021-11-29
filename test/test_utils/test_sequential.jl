@@ -4,7 +4,8 @@
 using InvertibleNetworks, LinearAlgebra, Test, Statistics, Random
 
 # Random seed
-Random.seed!(11)
+Random.seed!(1);
+
 
 ###############################################################################
 # Initialization
