@@ -13,15 +13,15 @@ n_hidden = 4
 batchsize = 2
 L = 2
 K = 2
+ 
+function inv_test(nx, ny, n_in, n_hidden, batchsize, logdet, squeeze_i, split_scales)
+    print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_i), split_scales=$(split_scales), logdet=$(logdet)\n")
+    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_i, logdet=logdet, split_scales=split_scales)
 
-function inv_test(nx, ny, n_in, batchsize, logdet, squeeze_type, split_scales)
-    print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
-    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type, logdet=logdet, split_scales=split_scales)
 
     # Input image and data
     X = randn(Float32, nx, ny, n_in, batchsize)
     Y = randn(Float32, nx, ny, n_in, batchsize)
-
 
     # Test inverse
     Zx, Zy = CH.forward(X, Y)[1:2]
@@ -29,6 +29,15 @@ function inv_test(nx, ny, n_in, batchsize, logdet, squeeze_type, split_scales)
 
     @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
     @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
+
+    # Test reversed inverse
+    CH_rev = reverse(CH) #make reversed 
+
+    Zx, Zy = CH_rev.forward(vec(X), vec(Y))[1:2]
+    X_, Y_ = CH_rev.inverse(Zx, Zy)
+
+    @test isapprox(norm(vec(X) - X_)/norm(X), 0f0; atol=1f-3)
+    @test isapprox(norm(vec(Y) - Y_)/norm(Y), 0f0; atol=1f-3)
 
     # Test backward
     ΔZx = randn(Float32, size(Zx))  # random derivative
@@ -38,12 +47,27 @@ function inv_test(nx, ny, n_in, batchsize, logdet, squeeze_type, split_scales)
     @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
     @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
 
+    # Test reversed backward
+    ΔZx = randn(Float32, size(Zx))  # random derivative
+    ΔZy = randn(Float32, size(Zx))
+    ΔX_, ΔY_, X_, Y_ = CH_rev.backward(ΔZx, ΔZy, Zx, Zy)
+
+    @test isapprox(norm(vec(X) - X_)/norm(X), 0f0; atol=1f-3)
+    @test isapprox(norm(vec(Y) - Y_)/norm(Y), 0f0; atol=1f-3)
+
     # Test inverse Y only
     Zy = CH.forward_Y(Y)
     Y_ = CH.inverse_Y(Zy)
 
     @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
+
+    # Test reversed inverse Y only
+    Zy = CH_rev.forward_Y(vec(Y))
+    Y_ = CH_rev.inverse_Y(Zy)
+
+    @test isapprox(norm(vec(Y) - Y_)/norm(Y), 0f0; atol=1f-3)
 end   
+
 
 # Loss
 function loss(CH, X, Y)
@@ -60,18 +84,17 @@ function loss(CH, X, Y)
     return f, ΔX, ΔY
 end
 
-function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_scales)
-    print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
-    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type, logdet=logdet, split_scales=split_scales)
-
+function grad_test_X(nx, ny, n_in, n_hidden, batchsize, logdet, squeeze_i, split_scales)
+    print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_i), split_scales=$(split_scales), logdet=$(logdet)\n")
+    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_i, logdet=logdet, split_scales=split_scales)
 
     # Input image
-    X0 = randn(Float32, nx, ny, n_channel, batchsize)
-    dX = randn(Float32, nx, ny, n_channel, batchsize)
+    X0 = randn(Float32, nx, ny, n_in, batchsize)
+    dX = randn(Float32, nx, ny, n_in, batchsize)
 
     # Input data
-    Y0 = randn(Float32, nx, ny, n_channel, batchsize)
-    dY = randn(Float32, nx, ny, n_channel, batchsize)
+    Y0 = randn(Float32, nx, ny, n_in, batchsize)
+    dY = randn(Float32, nx, ny, n_in, batchsize)
 
     f0, gX, gY = loss(CH, X0, Y0)[1:3]
 
@@ -90,17 +113,37 @@ function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_s
 
     @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
     @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+    ## test reversed gradient
+    CH_rev = reverse(CH) #make reversed 
+
+    f0, gX, gY = loss(CH_rev, vec(X0), vec(Y0))[1:3]
+
+    maxiter = 5
+    h = 0.01f0
+    err1 = zeros(Float32, maxiter)
+    err2 = zeros(Float32, maxiter)
+
+    for j=1:maxiter
+        f = loss(CH_rev, vec(X0 + h*dX), vec(Y0 + h*dY))[1]
+        err1[j] = abs(f - f0)
+        err2[j] = abs(f - f0 - h*dot(dX, gX) - h*dot(dY, gY))
+        print(err1[j], "; ", err2[j], "\n")
+        h = h/2f0
+    end
+
+    @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
+    @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 end
+#shuffle_sq = ShuffleLayer()
+#wavelet_sq = WaveletLayer()
+#Haar_sq    = HaarLayer()
 
-shuffle_sq = ShuffleLayer()
-wavelet_sq = WaveletLayer()
-Haar_sq    = HaarLayer()
-
-for squeeze_i in [shuffle_sq, wavelet_sq, Haar_sq]
+for squeeze_i in [ShuffleLayer(), WaveletLayer(), HaarLayer()]
     for split_scales in [true, false]
         for logdet in [false, true]
-            inv_test(nx, ny, n_in, batchsize, logdet, squeeze_i, split_scales)
-            grad_test_X(nx, ny, n_in, batchsize, logdet, squeeze_i, split_scales)
+            inv_test(nx, ny, n_in, n_hidden, batchsize, logdet, squeeze_i, split_scales)
+            grad_test_X(nx, ny, n_in, n_hidden, batchsize, logdet, squeeze_i, split_scales)
         end
     end
 end

@@ -215,23 +215,36 @@ end
 
 # Backward reverse pass and compute gradients
 function backward_inv(ΔX, ΔY, X, Y, CH::NetworkMultiScaleConditionalHINT)
+
+    CH.split_scales && (XY_save = array_of_array(X, CH.L-1, 2))
+    CH.split_scales && (ΔXY_save = array_of_array(ΔX, CH.L-1, 2))
+
     for i=1:CH.L
-        ΔX = CH.squeezer.inverse(ΔX)
-        ΔY = CH.squeezer.inverse(ΔY)
-        X  = CH.squeezer.inverse(X)
-        Y  = CH.squeezer.inverse(Y)
+        ΔX = CH.squeezer.forward(ΔX)
+        ΔY = CH.squeezer.forward(ΔY)
+        X  = CH.squeezer.forward(X)
+        Y  = CH.squeezer.forward(Y)
         for j=1:CH.K
             ΔX_, X_ = backward_inv(ΔX, X, CH.AN_X[i, j])
             ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[i, j])
             ΔX, ΔY, X, Y = backward_inv(ΔX_, ΔY_, X_, Y_, CH.CL[i, j])
-       end
+        end
+        if CH.split_scales && i < CH.L    # don't split after last iteration
+            X, Zx = tensor_split(X)
+            Y, Zy = tensor_split(Y)
+            XY_save[i, :] = [Zx, Zy]
+
+            ΔX, ΔZx = tensor_split(ΔX)
+            ΔY, ΔZy = tensor_split(ΔY)
+            ΔXY_save[i, :] = [ΔZx, ΔZy]
+            CH.XY_dims[i] = collect(size(ΔZx))
+        end
     end
 
-    if set_grad
-        return ΔZx, ΔZy, Zx, Zy
-    else
-        CH.logdet ? (return ΔZx, ΔZy, Δθ, Zx, Zy, ∇logdet) : (return ΔZx, ΔZy, Δθ, Zx, Zy)
-    end
+    CH.split_scales && ((X, Y) = cat_states(XY_save, X, Y))
+    CH.split_scales && ((ΔX, ΔY) = cat_states(ΔXY_save, ΔX, ΔY))
+
+    return ΔX, ΔY, X, Y
 end
 
 # Forward pass and compute logdet

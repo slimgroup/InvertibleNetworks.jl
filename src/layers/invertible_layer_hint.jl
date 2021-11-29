@@ -320,7 +320,7 @@ function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, H::Coupl
     permute == "lower" && ((ΔXb, Xb) = H.C.forward((ΔXb, Xb)))
 
     # Check whether to continue recursion
-    recursive = (size(X, N-1) > 4)
+    recursive = (size(X, N-1) > 4) && scale < length(H.CL)
 
     # Coupling layer backprop
     if recursive
