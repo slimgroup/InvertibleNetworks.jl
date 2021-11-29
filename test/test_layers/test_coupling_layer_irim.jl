@@ -4,8 +4,8 @@
 
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
-# Random seed
-Random.seed!(11)
+Random.seed!(1);
+
 
 # Input
 nx = 28
