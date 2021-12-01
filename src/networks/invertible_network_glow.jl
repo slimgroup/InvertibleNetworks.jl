@@ -62,7 +62,7 @@ export NetworkGlow, NetworkGlow3D
 struct NetworkGlow <: InvertibleNetwork
     AN::AbstractArray{ActNorm, 2}
     CL::AbstractArray{CouplingLayerGlow, 2}
-    Z_dims::Union{AbstractArray{Tuple, 1}, Nothing}
+    Z_dims::Union{Array{Array, 1}, Nothing}
     L::Int64
     K::Int64
     squeezer::Squeezer
