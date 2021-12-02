@@ -30,14 +30,14 @@ end
 function SigmoidLayer(;low=0f0, high=1f0)
     fwd_a(x) = Sigmoid(x; low=low, high=high)
     inv_a(y) = SigmoidInv(y; low=low, high=high)
-    grad_a(Δy, y, x) = SigmoidGrad(Δy, y; x=x, low=low, high=high)
+    grad_a(Δy, y; x=nothing) = SigmoidGrad(Δy, y; x=x, low=low, high=high)
     return ActivationFunction(fwd_a, inv_a, grad_a)
 end
 
 function Sigmoid2Layer()
     fwd_a(x) = 2f0*Sigmoid(x)
     inv_a(y) = SigmoidInv(y/2f0)
-    grad_a(Δy, y, x) = SigmoidGrad(Δy*2f0, y/2f0; x=x)
+    grad_a(Δy, y; x=nothing) = SigmoidGrad(Δy*2f0, y/2f0; x=x)
     return ActivationFunction(fwd_a, inv_a, grad_a)
 end
 
