@@ -1,6 +1,12 @@
 name: CI
 
-on: push
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
 
 jobs:
   test:
@@ -34,6 +40,12 @@ jobs:
         uses: julia-actions/julia-buildpkg@latest
 
       - name: Run tests
+        id: test
+        continue-on-error: true  
+        uses: julia-actions/julia-runtest@latest
+
+      - name: Retry tests once if failed
+        if: steps.test.outcome=='failure' 
         uses: julia-actions/julia-runtest@latest
 
       - name: Run simple example
