@@ -6,6 +6,7 @@ using InvertibleNetworks, LinearAlgebra, Test, Random
 
 Random.seed!(1);
 
+
 # Input
 nx = 28
 ny = 28
