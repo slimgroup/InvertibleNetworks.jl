@@ -270,9 +270,9 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, H::CouplingL
     end
     if permute == "lower"
         if set_grad
-            ΔXb, Xb = H.C.inverse((ΔXb, Xb))
+            ΔXb, Xb = H.C.backward(ΔXb, Xb)
         else
-            ΔXb, Δθ_C, Xb = H.C.inverse((ΔXb, Xb); set_grad=set_grad)
+            ΔXb, Δθ_C, Xb = H.C.backward(ΔXb, Xb; set_grad=set_grad)
             H.logdet && (∇logdet[end-2:end] .= [Parameter(cuzeros(Y, size(H.C.v1))), Parameter(cuzeros(Y, size(H.C.v2))), Parameter(cuzeros(Y, size(H.C.v3)))])
         end
     end
@@ -329,7 +329,7 @@ function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, H::Coupl
     end
     ΔY = tensor_cat(ΔYa, ΔYb)
     Y = tensor_cat(Ya, Yb)
-    permute == "both" && ((ΔY, Y) = H.C.inverse((ΔY, Y)))
+    permute == "both" && ((ΔY, Y) = H.C.backward(ΔY, Y))
     return ΔY, Y
 end
 

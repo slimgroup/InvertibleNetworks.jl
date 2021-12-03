@@ -233,8 +233,8 @@ function jacobian(ΔX, Δθ::Array{Parameter, 1}, X, H::NetworkMultiScaleHINT)
     GNΔθ = Array{Parameter, 1}(undef, 0)
     idxblk = 0
     for i=1:H.L
-        X = general_squeeze(X; squeeze_type=H.squeeze_type, pattern="checkerboard")
-        ΔX = general_squeeze(ΔX; squeeze_type=H.squeeze_type, pattern="checkerboard")
+        ΔX = H.squeezer.forward(ΔX)
+        X  = H.squeezer.forward(X)
         for j=1:H.K
             npars_ij = 2+length(get_params(H.CL[i, j]))
             Δθij = Δθ[idxblk+1:idxblk+npars_ij]

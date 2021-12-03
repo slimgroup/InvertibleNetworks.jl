@@ -51,7 +51,7 @@ err2 = norm(X - X_)/norm(X)
 
 Y = C.forward(X)
 ΔY = randn(Float32, nx, ny, k, batchsize)
-ΔX_, X_ = C.inverse((ΔY, Y))
+ΔX_, X_ = C.backward(ΔY, Y)
 err3 = norm(X - X_)/norm(X)
 
 @test isapprox(err3, 0f0; atol=1f-6)
@@ -68,7 +68,7 @@ Y_ = C0.forward(X)
 ΔY = Y_ - Y
 
 # Compute gradients w.r.t. v
-ΔX, X_ = C0.inverse((ΔY, Y_))
+ΔX, X_ = C0.backward(ΔY, Y_)
 @test ~isnothing(C0.v1.grad)
 
 
@@ -81,7 +81,7 @@ function objective(C, X, Y)
     Y0 = C.forward(X)
     ΔY = Y0 - Y
     f = loss(ΔY)
-    ΔX, X_ = C.inverse((ΔY, Y0))
+    ΔX, X_ = C.backward(ΔY, Y0)
     @test isapprox(norm(X - X_)/norm(X), 0f0, atol=1f-6)
     return f, ΔX, C.v1.grad, C.v2.grad, C.v3.grad
 end

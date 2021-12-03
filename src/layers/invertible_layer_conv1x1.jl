@@ -234,7 +234,7 @@ function inverse(Y::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N
 end
 
 # Backwards: Inverse pass and update weights
-function backwards(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::Conv1x1; set_grad::Bool=true)
+function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::Conv1x1; set_grad::Bool=true) where {T, N}
     ΔX = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
     X = inverse(Y, C; logdet=false)  # recompute forward state
     Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C)  # gradient w.r.t. weights
@@ -286,7 +286,7 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::Abstra
 end
 
 function adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::Conv1x1) where {T, N}
-    return inverse((ΔY, Y), C; set_grad=false)
+    return backward(ΔY, Y, C; set_grad=false)
 end
 
 function jacobianInverse(ΔY::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, Y::AbstractArray{T, N}, C::Conv1x1) where {T, N}

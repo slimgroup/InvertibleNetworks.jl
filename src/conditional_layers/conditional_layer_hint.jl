@@ -160,11 +160,11 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
         ΔY = copy(ΔYp); Y = copy(Yp)
     else
         if set_grad
-            ΔX, X = CH.C_X.inverse((ΔXp, Xp))
-            ΔY, Y = CH.C_Y.inverse((ΔYp, Yp))
+            ΔX, X = CH.C_X.backward(ΔXp, Xp)
+            ΔY, Y = CH.C_Y.backward(ΔYp, Yp)
         else
-            ΔX, Δθ_CX, X = CH.C_X.inverse((ΔXp, Xp); set_grad=set_grad)
-            ΔY, Δθ_CY, Y = CH.C_Y.inverse((ΔYp, Yp); set_grad=set_grad)
+            ΔX, Δθ_CX, X = CH.C_X.backward(ΔXp, Xp; set_grad=set_grad)
+            ΔY, Δθ_CY, Y = CH.C_Y.backward(ΔYp, Yp; set_grad=set_grad)
         end
     end
 

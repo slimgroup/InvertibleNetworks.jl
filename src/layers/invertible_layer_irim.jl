@@ -132,9 +132,9 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
     
     ΔX_ = tensor_cat(ΔY1_, ΔYr_)
     if set_grad
-        ΔX = L.C.inverse((ΔX_, X_))[1]
+        ΔX = L.C.backward(ΔX_, X_)[1]
     else
-        ΔX, Δθ_C2 = L.C.inverse((ΔX_, X_); set_grad=set_grad)[1:2]
+        ΔX, Δθ_C2 = L.C.backward(ΔX_, X_; set_grad=set_grad)[1:2]
     end
     
     set_grad ? (return ΔX, X) : (return ΔX, cat(Δθ_C1+Δθ_C2, Δθ_RB; dims=1), X)
