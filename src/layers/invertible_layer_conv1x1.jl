@@ -233,10 +233,8 @@ function inverse(Y::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N
     logdet == true ? (return X, 0) : (return X)   # logdet always 0
 end
 
-# Inverse pass and update weights
-function inverse(Y_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
-    ΔY = Y_tuple[1]
-    Y = Y_tuple[2]
+# Backwards: Inverse pass and update weights
+function backwards(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::Conv1x1; set_grad::Bool=true)
     ΔX = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
     X = inverse(Y, C; logdet=false)  # recompute forward state
     Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C)  # gradient w.r.t. weights
