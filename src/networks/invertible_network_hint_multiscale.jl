@@ -109,13 +109,6 @@ function forward(X, H::NetworkMultiScaleHINT; logdet=nothing)
        
         X = H.squeezer.forward(X)
         for j=1:H.K
-       
-            #X_, logdet1 = H.AN[i, j].forward(X)
-        
-            #X, logdet2 = H.CL[i, j].forward(X_)
-            #logdet += (logdet1 + logdet2)
-
-
             logdet ? (X_, logdet1)   = H.AN[i, j].forward(X) : X_ = H.AN[i, j].forward(X)
             logdet ? (X, logdet2) = H.CL[i, j].forward(X_) : (X) = H.CL[i, j].forward(X_)
             logdet && (logdet_ += (logdet1 + logdet2)) 
@@ -142,9 +135,6 @@ function inverse(Z, H::NetworkMultiScaleHINT; logdet=nothing)
             Z = tensor_cat(Z, X_save[i])
         end
         for j=H.K:-1:1
-            #Z_ = H.CL[i, j].inverse(Z)
-            #Z = H.AN[i, j].inverse(Z_; logdet=false)
-
             logdet ? (Z_, logdet1) = H.CL[i, j].inverse(Z; logdet=true) : Z_ = H.CL[i, j].inverse(Z; logdet=false)
             logdet ? (Z, logdet2) = H.AN[i, j].inverse(Z_; logdet=true) : Z = H.AN[i, j].inverse(Z_; logdet=false)
             logdet && (logdet_ += (logdet1 + logdet2))
@@ -178,11 +168,6 @@ function backward(ΔZ, Z, H::NetworkMultiScaleHINT; set_grad::Bool=true)
                 ΔZ_, Z_ = H.CL[i, j].backward(ΔZ, Z)
                 ΔZ, Z = H.AN[i, j].backward(ΔZ_, Z_)
             else
-                #ΔZ_, Δθcl, Z_, ∇logdet_cl = H.CL[i, j].backward(ΔZ, Z; set_grad=set_grad)
-                #ΔZ, Δθx, Z, ∇logdet_x = H.AN[i, j].backward(ΔZ_, Z_; set_grad=set_grad)
-                #Δθ = cat(Δθx, Δθcl, Δθ; dims=1)
-                #∇logdet = cat(∇logdet_x, ∇logdet_cl, ∇logdet; dims=1)
-
                 if H.logdet
                     ΔZ_, Δθcl, Z_, ∇logdetcl = H.CL[i, j].backward(ΔZ, Z ; set_grad=set_grad)
                     ΔZ, Δθx, Z, ∇logdet_x = H.AN[i, j].backward(ΔZ_, Z_; set_grad=set_grad)
@@ -312,6 +297,5 @@ function tag_as_reversed!(CH::NetworkMultiScaleHINT, tag::Bool)
             tag_as_reversed!(CH.CL[i, j], tag)
         end
     end
-
     return CH
 end
