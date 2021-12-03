@@ -248,6 +248,7 @@ dX = X - X0
 # Gradient test Sigmoid2
 L = Sigmoid2Layer()
 function objective(X, Y)
+    print("here")
     Y0 = L.forward(X)
     ΔY = Y0 - Y
     f = .5f0*norm(ΔY)^2

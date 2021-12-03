@@ -4,6 +4,7 @@
 
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
+# Random seed
 Random.seed!(1);
 
 # Define network

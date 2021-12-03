@@ -2,8 +2,30 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze, tensor_split, tensor_cat
+export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze 
+export tensor_split, tensor_cat
 export cat_states, split_states
+export ShuffleLayer, WaveletLayer, HaarLayer
+###############################################################################
+# Custom type for squeezer functions
+
+struct Squeezer
+    forward::Function
+    inverse::Function
+end
+
+function ShuffleLayer(;pattern="checkerboard")
+    return Squeezer(x -> squeeze(x;pattern=pattern), x -> unsqueeze(x;pattern=pattern))
+end
+
+function WaveletLayer(;type=WT.db1)
+    return Squeezer(x -> wavelet_squeeze(x;type=type), x -> wavelet_unsqueeze(x;type=type))
+end
+
+function HaarLayer()
+    return Squeezer(x -> Haar_squeeze(x), x -> invHaar_unsqueeze(x))
+end
+
 
 ####################################################################################################
 # Squeeze and unsqueeze
@@ -25,6 +47,8 @@ end
 
 """
     Y = squeeze(X; pattern="column")
+ 
+ Squeeze operation that is only a reshape. 
 
  Reshape input image such that each spatial dimension is reduced by a factor
  of 2, while the number of channels is increased by a factor of 4.
@@ -49,7 +73,6 @@ end
  See also: [`unsqueeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
 """
 function squeeze(X::AbstractArray{T, N}; pattern="column") where {T, N}
-
     # Dimensions
     nc_in, batchsize = size(X)[N-1:N]
     if any([mod(nn, 2) == 1 for nn=size(X)[1:N-2]])
@@ -139,6 +162,7 @@ function unsqueeze(X::AbstractArray{T,N}, Y::AbstractArray{T,4}; pattern="column
     return unsqueeze(X; pattern=pattern), unsqueeze(Y; pattern=pattern)
 end
 
+
 ####################################################################################################
 # Squeeze and unsqueeze using the wavelet transform
 
@@ -164,6 +188,7 @@ end
  See also: [`wavelet_unsqueeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
 function wavelet_squeeze(X::AbstractArray{T, N}; type=WT.db1) where {T, N}
+  
     batchsize = size(X, N)
     N_in = size(X)[1:N-2]
     N_out = Tuple(nn÷2 for nn=size(X)[1:N-2])
@@ -400,9 +425,8 @@ end
 
 tensor_cat(X::Tuple{AbstractArray{T,N}, AbstractArray{T,N}}) where {T, N} = tensor_cat(X[1], X[2])
 
-
-@inline xy_dims(dims::Tuple, ::Val{false}) = dims
-@inline xy_dims(dims::Tuple, ::Val{true}) = Int.(dims .* (.5, .5, 4, 1))
+@inline xy_dims(dims::Array, ::Val{false}) = tuple(dims...)
+@inline xy_dims(dims::Array, ::Val{true}) = tuple(Int.(dims .* (.5, .5, 4, 1))...)
 
 # Concatenate states Zi and final output
 function cat_states(XY_save::AbstractMatrix{<:AbstractArray}, X::AbstractArray{T, 4}, Y::AbstractArray{T, 4}) where T
@@ -425,8 +449,8 @@ end
 
 # Split and reshape 1D vector X_full and Y_vull in latent space back to states Zi
 # where Zi is the split tensor at each multiscale level.
-function split_states(XY_dims::AbstractArray{Tuple, 1}, X_full::AbstractArray{T, 1}, Y_full::AbstractArray{T, 1}) where T
-    c1, X = split_states(X_full, XY_dims)
-    c2, Y = split_states(Y_full, XY_dims)
+function split_states(X_full::AbstractArray{T, 1}, Y_full::AbstractArray{T, 1}, XY_dims::AbstractArray{Array, 1}) where T
+    c1, X  = split_states(X_full, XY_dims)
+    c2, Y  = split_states(Y_full, XY_dims)
     return hcat(c1, c2), X, Y
 end
