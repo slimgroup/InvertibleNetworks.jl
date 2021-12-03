@@ -16,7 +16,7 @@ K = 2
 
 function inv_test(nx, ny, n_in, batchsize, logdet, squeeze_type, split_scales)
     print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
-    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type, logdet=logdet, split_scales=split_scales)
+    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type(), logdet=logdet, split_scales=split_scales)
 
     # Input image and data
     X = randn(Float32, nx, ny, n_in, batchsize)
@@ -61,8 +61,8 @@ function loss(CH, X, Y)
 end
 
 function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_scales)
-    print("\nMultiscale Conditional HINT invertibility test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
-    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type, logdet=logdet, split_scales=split_scales)
+    print("\nMultiscale Conditional HINT gradient test with squeeze_type=$(squeeze_type), split_scales=$(split_scales), logdet=$(logdet)\n")
+    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; squeezer = squeeze_type(), logdet=logdet, split_scales=split_scales)
 
 
     # Input image
@@ -71,12 +71,12 @@ function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_s
 
     # Input data
     Y0 = randn(Float32, nx, ny, n_channel, batchsize)
-    dY = randn(Float32, nx, ny, n_channel, batchsize)
+    dY = 10*randn(Float32, nx, ny, n_channel, batchsize)
 
     f0, gX, gY = loss(CH, X0, Y0)[1:3]
 
     maxiter = 5
-    h = 0.1f0
+    h = 0.1f0 
     err1 = zeros(Float32, maxiter)
     err2 = zeros(Float32, maxiter)
 
@@ -92,11 +92,7 @@ function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_s
     @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 end
 
-shuffle_sq = ShuffleLayer()
-wavelet_sq = WaveletLayer()
-Haar_sq    = HaarLayer()
-
-for squeeze_i in [shuffle_sq, wavelet_sq, Haar_sq]
+for squeeze_i in [ShuffleLayer, WaveletLayer, HaarLayer]
     for split_scales in [true, false]
         for logdet in [false, true]
             inv_test(nx, ny, n_in, batchsize, logdet, squeeze_i, split_scales)
@@ -111,11 +107,11 @@ end
 # Gradient test
 
 # Initialization
-CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0, squeezer = shuffle_sq); 
+CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0, squeezer = ShuffleLayer()); 
 CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ = deepcopy(get_params(CH))
 
-CH0 = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0, squeezer = shuffle_sq); 
+CH0 = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0, squeezer = ShuffleLayer()); 
 
 CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ0 = deepcopy(get_params(CH0))

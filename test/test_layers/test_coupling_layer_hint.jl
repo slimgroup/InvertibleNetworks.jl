@@ -50,7 +50,7 @@ end
 function grad_test_X(nx, ny, n_channel, n_hidden, batchsize, permute, logdet, rev)
     logdet ? lossf = loss_logdet : lossf = loss
     # Input image
-    X0 = randn(Float32, nx, ny, n_channel, batchsize)
+    X0 = rand(Float32, nx, ny, n_channel, batchsize)
     dX = randn(Float32, nx, ny, n_channel, batchsize)
     # Test for input X
     HL = CouplingLayerHINT(n_channel, n_hidden; permute=permute, logdet=logdet)
