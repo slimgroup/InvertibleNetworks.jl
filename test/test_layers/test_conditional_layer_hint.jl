@@ -5,7 +5,7 @@
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
 # Random seed
-Random.seed!(11)
+Random.seed!(13)
 
 #######################################################################################################################
 # Test invertibility
