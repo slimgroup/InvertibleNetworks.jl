@@ -51,11 +51,12 @@ end
  Squeeze operation that is only a reshape. 
 
  Reshape input image such that each spatial dimension is reduced by a factor
- of 2, while the number of channels is increased by a factor of 4.
+ of 2, while the number of channels is increased by a factor of 4 if 4D tensor 
+ and increased by a factor of 8 if 5D tensor.
 
  *Input*:
 
- - `X`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
+ - `X`: 4D/5D  input tensor of dimensions `nx` x `ny` (x `nz`) x `n_channel` x `batchsize`
 
  - `pattern`: Squeezing pattern
 
@@ -67,8 +68,10 @@ end
         column          patch       checkerboard
 
  *Output*:
-
+ if 4D tensor:
  - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
+ or if 5D tensor:
+ - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `nz/2` x `n_channel*8` x `batchsize`
 
  See also: [`unsqueeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
 """
@@ -106,11 +109,12 @@ end
     X = unsqueeze(Y; pattern="column")
 
  Undo squeezing operation by reshaping input image such that each spatial dimension is
- increased by a factor of 2, while the number of channels is decreased by a factor of 4.
+ increased by a factor of 2, while the number of channels is decreased by a factor of 4
+ if 4D tensor of decreased by a factor of 8 if a 5D tensor.
 
  *Input*:
 
- - `Y`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
+ - `Y`: 4D/5D input tensor of dimensions `nx` x `ny` (x `nz`) x `n_channel` x `batchsize`
 
  - `pattern`: Squeezing pattern
 
@@ -122,8 +126,10 @@ end
             column          patch       checkerboard
 
  *Output*:
-
+ If 4D tensor:
  - `X`: Reshaped tensor of dimensions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
+ If 5D tensor:
+ - `X`: Reshaped tensor of dimensions `nx*2` x `ny*2` x `nz*2` x `n_channel/8` x `batchsize`
 
  See also: [`squeeze`](@ref), [`wavelet_squeeze`](@ref), [`wavelet_unsqueeze`](@ref)
 """
@@ -131,8 +137,8 @@ function unsqueeze(Y::AbstractArray{T,N}; pattern="column") where {T, N}
 
     # Dimensions
     batchsize = size(Y, N)
-    if any([mod(nn, 2) == 1 for nn=size(Y)[1:N-2]])
-        throw("Input dimensions must be multiple of 2")
+    if mod(size(Y, N-1), 2^(N-2)) != 0
+        throw("With tensor of dimension N, number of channels must be divisible by 2^(N-2)")
     end
     N_out = Tuple(nn*2 for nn=size(Y)[1:N-2])
     nc_out = size(Y, N-1) ÷ 2^(N-2)
@@ -170,11 +176,12 @@ end
     Y = wavelet_squeeze(X; type=WT.db1)
 
  Perform a 1-level channelwise 2D wavelet transform of X and squeeze output of each
- transform into 4 channels (per 1 input channel).
+ transform to increase number of channels by a factor of 4 if input is 4D tensor or by a factor of 
+ 8 if a 5D tensor.
 
  *Input*:
 
- - `X`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
+ - `X`: 4D/5D input tensor of dimensions `nx` x `ny` (x `nz`) x `n_channel` x `batchsize`
 
  - `type`: Wavelet filter type. Possible values are `WT.haar` for Haar wavelets,
     `WT.coif2`, `WT.coif4`, etc. for Coiflet wavelets, or `WT.db1`, `WT.db2`, etc.
@@ -182,9 +189,10 @@ end
     full list.
 
  *Output*:
-
- - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
-
+  if 4D tensor:
+  - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
+  or if 5D tensor:
+  - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `nz/2` x `n_channel*8` x `batchsize`
  See also: [`wavelet_unsqueeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
 function wavelet_squeeze(X::AbstractArray{T, N}; type=WT.db1) where {T, N}
@@ -210,24 +218,28 @@ end
     X = wavelet_unsqueeze(Y; type=WT.db1)
 
  Perform a 1-level inverse 2D wavelet transform of Y and unsqueeze output.
- This reduces the number of channels by 4 and increases each spatial
- dimension by a factor of 2. Inverse operation of `wavelet_squeeze`.
+ This reduces the number of channels by factor of 4 if 4D tensor or by a 
+ factor of 8 if 5D tensor and increases each spatial dimension by a factor of 2.
+ Inverse operation of `wavelet_squeeze`.
 
  *Input*:
 
- - `Y`: 4D input tensor of dimensions `nx` x `ny` x `n_channel` x `batchsize`
+ - `Y`: 4D/5D input tensor of dimensions `nx` x `ny` (x `nz`) x `n_channel` x `batchsize`
 
  - `type`: Wavelet filter type. Possible values are `haar` for Haar wavelets,
   `coif2`, `coif4`, etc. for Coiflet wavelets, or `db1`, `db2`, etc. for Daubechies
   wavetlets. See *https://github.com/JuliaDSP/Wavelets.jl* for a full list.
 
  *Output*:
-
- - `X`: Reshaped tensor of dimenions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
+ If 4D tensor:
+ - `X`: Reshaped tensor of dimensions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
+ If 5D tensor:
+ - `X`: Reshaped tensor of dimensions `nx*2` x `ny*2` x `nz*2` x `n_channel/8` x `batchsize`
 
  See also: [`wavelet_squeeze`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
 function wavelet_unsqueeze(Y::AbstractArray{T,N}; type=WT.db1) where {T, N}
+
     N_out = Tuple(nn*2 for nn=size(Y)[1:N-2])
     nd = 2^(N-2)
     nc_out = size(Y, N-1) ÷ nd
@@ -299,7 +311,7 @@ end
     Y = Haar_squeeze(X)
 
  Perform a 1-level channelwise 2D/3D (lifting) Haar transform of X and squeeze output of each
- transform into 8 channels (per 1 input channel).
+ transform to increase channels by factor of 4 in 4D tensor or by factor of 8 in 5D channels.
 
  *Input*:
 
@@ -307,7 +319,10 @@ end
 
  *Output*:
 
- - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` (x `nz/2`) x `n_channel*8` x `batchsize`
+ if 4D tensor:
+ - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
+  or if 5D tensor:
+ - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `nz/2` x `n_channel*8` x `batchsize`
 
  See also: [`wavelet_unsqueeze`](@ref), [`Haar_unsqueeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
@@ -331,8 +346,9 @@ end
     X = invHaar_unsqueeze(Y)
 
  Perform a 1-level inverse 2D/3D Haar transform of Y and unsqueeze output.
- This reduces the number of channels by 8 and increases each spatial
- dimension by a factor of 2. Inverse operation of `Haar_squeeze`.
+ This reduces the number of channels by factor of 4 in 4D tensors or by factor
+ of 8 in 5D tensors and increases each spatial dimension by a factor of 2.
+ Inverse operation of `Haar_squeeze`.
 
  *Input*:
 
@@ -340,7 +356,10 @@ end
 
  *Output*:
 
- - `X`: Reshaped tensor of dimenions `nx*2` x `ny*2` (x `nz*2`) x `n_channel/8` x `batchsize`
+ If 4D tensor:
+ - `X`: Reshaped tensor of dimensions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
+ If 5D tensor:
+ - `X`: Reshaped tensor of dimensions `nx*2` x `ny*2` x `nz*2` x `n_channel/8` x `batchsize`
 
  See also: [`wavelet_unsqueeze`](@ref), [`Haar_unsqueeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
