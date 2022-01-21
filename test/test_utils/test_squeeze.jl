@@ -34,6 +34,14 @@ b = dot(X, invHaar_unsqueeze(Y))
 # Split and cat
 @test isapprox(norm(X - tensor_cat(tensor_split(X))), 0f0; atol=1f-5)
 
+# Unsqueeze works for any size as long as channel size divisible by 4 (for 4D Tensor)
+x_size  = 27
+y_size  = 27
+ch_size = 8
+batch_size = 4
+X = randn(Float32, x_size, y_size, ch_size, batch_size)
+@test isequal(size(unsqueeze(X)), (x_size*2, y_size*2, div(ch_size,4), batch_size))
+
 
 ##############################################################################################################################
 # 5D Tensor
@@ -64,3 +72,12 @@ b = dot(X, invHaar_unsqueeze(Y))
 
 # Split and cat
 @test isapprox(norm(X - tensor_cat(tensor_split(X))), 0f0; atol=1f-5)
+
+# Unsqueeze works for any size as long as channel size divisible by 8 (for 5D Tensor)
+x_size  = 27
+y_size  = 27
+z_size  = 27
+ch_size = 8
+batch_size = 4
+X = randn(Float32, x_size, y_size, z_size, ch_size, batch_size)
+@test isequal(size(unsqueeze(X)), (x_size*2, y_size*2, z_size*2, div(ch_size,8), batch_size))
