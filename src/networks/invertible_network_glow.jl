@@ -103,6 +103,7 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
             X, Z = tensor_split(X)
             Z_save[i] = Z
             G.Z_dims[i] = collect(size(Z))
+            print("what the heck")
         end
     end
     X = reshape(cat_states(Z_save, X), original_shape)
