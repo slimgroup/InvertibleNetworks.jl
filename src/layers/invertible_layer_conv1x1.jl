@@ -153,14 +153,19 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
     for i=1:k
         # ∂V1
         mul!(tmp, ∂V1[i, :, :], M1)
-        @views adjoint ? adjoint!(∂V1[i, :, :], tmp) : copyto!(∂V1[i, :, :], tmp)
+        #@views adjoint ? adjoint!(∂V1[i, :, :], tmp) : copyto!(∂V1[i, :, :], tmp)
+        adjoint ? adjoint!(∂V1[i, :, :], tmp) : copyto!(∂V1[i, :, :], tmp)
+        
         # ∂V2
         v2 = ∂V2[i, :, :]
         broadcast!(+, tmp, v2, 4 * V1 * v2 * V3 - 2 * (V1 * v2 + v2 * V3))
-        @views adjoint ? adjoint!(∂V2[i, :, :], tmp) : copyto!(∂V2[i, :, :], tmp)
+        #@views adjoint ? adjoint!(∂V2[i, :, :], tmp) : copyto!(∂V2[i, :, :], tmp)
+        adjoint ? adjoint!(∂V2[i, :, :], tmp) : copyto!(∂V2[i, :, :], tmp)
+        
         # ∂V3
         mul!(tmp, M3, ∂V3[i, :, :])
-        @views adjoint ? adjoint!(∂V3[i, :, :], tmp) : copyto!(∂V3[i, :, :], tmp)
+        #@views adjoint ? adjoint!(∂V3[i, :, :], tmp) : copyto!(∂V3[i, :, :], tmp)
+        adjoint ? adjoint!(∂V3[i, :, :], tmp) : copyto!(∂V3[i, :, :], tmp)
     end
 
     prod_res = cuzeros(X, size(∂V1, 1), prod(size(X)[1:N-2]), n_in)
