@@ -65,7 +65,7 @@ end
 @Flux.functor CouplingLayerIRIM
 
 # 2D Constructor from input dimensions
-function CouplingLayerIRIM(n_in::Int64, n_hidden::Int64; ds=nothing,
+function CouplingLayerIRIM(n_in::Int64;n_hiddens=nothing, ds=nothing,
                            k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
 
 
@@ -75,7 +75,7 @@ function CouplingLayerIRIM(n_in::Int64, n_hidden::Int64; ds=nothing,
         
     for j=1:num_downsamp
         C[j]  = Conv1x1(n_in)
-        RB[j] = ResidualBlock(n_in÷2, n_hidden; d=ds[j], k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=false, ndims=ndims)
+        RB[j] = ResidualBlock(n_in÷2, n_hiddens[j]; d=ds[j], k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=false, ndims=ndims)
     end
 
     return CouplingLayerIRIM(C, RB)
@@ -88,7 +88,6 @@ function forward(X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
 
     num_downsamp = length(L.C)
     for j=1:num_downsamp
-        println("here at $(j)")
         X_ = L.C[j].forward(X)
         X1_, X2_ = tensor_split(X_)
 
@@ -106,7 +105,7 @@ end
 function inverse(Y::AbstractArray{T, N}, L::CouplingLayerIRIM; save=false) where {T, N}
    
     num_downsamp = length(L.C)
-    for j=1:num_downsamp 
+    for j=num_downsamp:-1:1
         Y_ = L.C[j].forward(Y)
         Y1_, Y2_ = tensor_split(Y_)
 
@@ -131,7 +130,7 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
     #X, X_, Y1_ = inverse(Y, L; save=true)
 
     num_downsamp = length(L.C)
-    for j=1:num_downsamp 
+    for j=num_downsamp:-1:1
 
         # Recompute forward state
         Y_ = L.C[j].forward(Y)
@@ -190,8 +189,13 @@ end
 
 # Clear gradients
 function clear_grad!(L::CouplingLayerIRIM)
-    clear_grad!(L.C)
-    clear_grad!(L.RB)
+
+    maxiter = length(L.C)
+
+    for j=1:maxiter
+        clear_grad!(L.C[j])
+        clear_grad!(L.RB[j])
+    end
 end
 
 # Get parameters
