@@ -58,6 +58,7 @@ include("layers/invertible_layer_conv1x1.jl")
 include("layers/invertible_layer_basic.jl")
 include("layers/invertible_layer_irim.jl")
 include("layers/invertible_layer_glow.jl")
+include("layers/invertible_layer_condglow.jl")
 include("layers/invertible_layer_hyperbolic.jl")
 include("layers/invertible_layer_hint.jl")
 
@@ -65,6 +66,7 @@ include("layers/invertible_layer_hint.jl")
 include("networks/invertible_network_hint_multiscale.jl")
 include("networks/invertible_network_irim.jl")  # i-RIM: Putzky and Welling (2019)
 include("networks/invertible_network_glow.jl")  # Glow: Dinh et al. (2017), Kingma and Dhariwal (2018)
+include("networks/invertible_network_ciin.jl")
 include("networks/invertible_network_hyperbolic.jl")    # Hyperbolic: Lensink et al. (2019)
 
 # Conditional layers and nets
