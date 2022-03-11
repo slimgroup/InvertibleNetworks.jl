@@ -83,7 +83,7 @@ function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; logdet=false, permute="
     n = get_depth(n_in)
     CL = Array{CouplingLayerBasic}(undef, n)
     for j=1:n
-        CL[j] = CouplingLayerBasic(Int(n_in/2^j), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2,
+        CL[j] = CouplingLayerBasic(Int(n_in/2^j),Int(n_in/2^j), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2,
                                    s1=s1, s2=s2, logdet=logdet, ndims=ndims)
     end
 

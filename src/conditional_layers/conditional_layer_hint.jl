@@ -52,8 +52,8 @@ export ConditionalLayerHINT, ConditionalLayerHINT3D
  See also: [`CouplingLayerBasic`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 mutable struct ConditionalLayerHINT <: NeuralNetLayer
-    CL_X::CouplingLayerHINT
-    CL_Y::CouplingLayerHINT
+    CL_X::CouplingLayerGlow
+    CL_Y::CouplingLayerGlow
     CL_YX::CouplingLayerBasic
     C_X::Union{Conv1x1, Nothing}
     C_Y::Union{Conv1x1, Nothing}
@@ -64,17 +64,17 @@ end
 @Flux.functor ConditionalLayerHINT
 
 # 2D Constructor from input dimensions
-function ConditionalLayerHINT(n_in::Int64, n_hidden::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1,
+function ConditionalLayerHINT(n_in_x::Int64, n_in_y::Int64, n_hidden::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1,
                               logdet=true, permute=true, ndims=2)
 
     # Create basic coupling layers
-    CL_X = CouplingLayerHINT(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, permute="none", ndims=ndims)
-    CL_Y = CouplingLayerHINT(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, permute="none", ndims=ndims)
-    CL_YX = CouplingLayerBasic(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, ndims=ndims)
+    CL_X = CouplingLayerGlow(n_in_x, n_hidden;  logdet=logdet )
+    CL_Y = CouplingLayerGlow(n_in_y, n_hidden;  logdet=logdet )
+    CL_YX = CouplingLayerBasic(n_in_y, n_in_x, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, ndims=ndims)
 
     # Permutation using 1x1 convolution
-    permute == true ? (C_X = Conv1x1(n_in)) : (C_X = nothing)
-    permute == true ? (C_Y = Conv1x1(n_in)) : (C_Y = nothing)
+    permute == true ? (C_X = Conv1x1(n_in_x)) : (C_X = nothing)
+    permute == true ? (C_Y = Conv1x1(n_in_y)) : (C_Y = nothing)
 
     return ConditionalLayerHINT(CL_X, CL_Y, CL_YX, C_X, C_Y, logdet, false)
 end
@@ -103,7 +103,7 @@ function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::Condition
     isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
 
     # Y-lane
-    logdet ? (Yp, logdet1) = CH.CL_Y.inverse(Zy; logdet=true) : Yp = CH.CL_Y.inverse(Zy; logdet=false)
+    logdet ? (Yp, logdet1) = CH.CL_Y.inverse(Zy; logdet=true) : Yp = CH.CL_Y.inverse(Zy)
     ~isnothing(CH.C_Y) ? (Y = CH.C_Y.inverse(Yp)) : (Y = copy(Yp))
 
     # X-lane: conditional layer
@@ -111,7 +111,7 @@ function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::Condition
     logdet ? (X, logdet2) = CH.CL_YX.inverse(Yp, Zx)[2:3] : X = CH.CL_YX.inverse(Yp, Zx)[2]
 
     # X-lane: coupling layer
-    logdet ? (Xp, logdet3) = CH.CL_X.inverse(X; logdet=true) : Xp = CH.CL_X.inverse(X; logdet=false)
+    logdet ? (Xp, logdet3) = CH.CL_X.inverse(X; logdet=true) : Xp = CH.CL_X.inverse(X)
     ~isnothing(CH.C_X) ? (X = CH.C_X.inverse(Xp)) : (X = copy(Xp))
 
     logdet ? (return X, Y, logdet1 + logdet2 + logdet3) : (return X, Y)
@@ -211,7 +211,7 @@ end
 
 function forward_Y(Y::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, N}
     ~isnothing(CH.C_Y) ? (Yp = CH.C_Y.forward(Y)) : (Yp = copy(Y))
-    Zy = CH.CL_Y.forward(Yp; logdet=false)
+    Zy, _ = CH.CL_Y.forward(Yp;)
     return Zy
 
 end
