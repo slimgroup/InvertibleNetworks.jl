@@ -86,6 +86,7 @@ function NetworkCIIN(n_in, n_cond, n_hidden, L, K; split_scales=false, k1=3, k2=
 
     for i=1:L
         n_in *= channel_factor # squeeze if split_scales is turned on
+        n_cond *= channel_factor # squeeze if split_scales is turned on
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
             CL[i, j] = CondCouplingLayerGlow(n_in, n_cond, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
@@ -105,6 +106,7 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCIIN)
     logdet = 0
     for i=1:G.L
         (G.split_scales) && (X = G.squeezer.forward(X))
+        (G.split_scales) && (C = G.squeezer.forward(C))
         for j=1:G.K     
             println(j)       
             X, logdet1 = G.AN[i, j].forward(X)
@@ -118,11 +120,11 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCIIN)
         end
     end
     G.split_scales && (X = cat_states(Z_save, X))
-    return X, logdet
+    return X, C, logdet
 end
 
 # Inverse pass 
-function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCIIN) where {T, N}
+function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, M}, G::NetworkCIIN) where {T, N, M}
     G.split_scales && ((Z_save, X) = split_states(X, G.Z_dims))
     for i=G.L:-1:1
         if G.split_scales && i < G.L
@@ -134,12 +136,13 @@ function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCIIN)
         end
 
         (G.split_scales) && (X = G.squeezer.inverse(X))
+        (G.split_scales) && (C = G.squeezer.inverse(C))
     end
     return X
 end
 
 # Backward pass and compute gradients
-function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N},C::AbstractArray{T, N}, G::NetworkCIIN; set_grad::Bool=true) where {T, N}
+function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, M}, G::NetworkCIIN; set_grad::Bool=true) where {T, N, M}
     
     # Split data and gradients
     if G.split_scales
@@ -171,8 +174,9 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N},C::AbstractAr
         end
 
         if G.split_scales 
-            X = G.squeezer.inverse(X)
-          ΔX = G.squeezer.inverse(ΔX)
+            X  = G.squeezer.inverse(X)
+            C  = G.squeezer.inverse(C)
+            ΔX = G.squeezer.inverse(ΔX)
         end
     end
     set_grad ? (return ΔX, X) : (return ΔX, Δθ, X, ∇logdet)
