@@ -6,7 +6,7 @@ using LinearAlgebra, InvertibleNetworks, PyPlot, Flux, Random, Test
 import Flux.Optimise.update!
 
 # Random seed
-Random.seed!(99)
+Random.seed!(98)
 
 ####################################################################################################
 
@@ -91,11 +91,11 @@ figure(figsize=[16,6])
 ax1 = subplot(2,5,1); plot(X[1, 1, 1, :], X[1, 1, 2, :], "."); title(L"Model space: $x \sim \hat{p}_x$")
 ax1.set_xlim([-3.5, 3.5]); ax1.set_ylim([0,50])
 ax2 = subplot(2,5,2); plot(Y[1, 1, 1, :], Y[1, 1, 2, :], "."); title(L"Noisy data $y=Ax+n$ ")
-ax2.set_xlim([-11, 1]); ax2.set_ylim([-16, 1])
+
 ax3 = subplot(2,5,3); plot(X_[1, 1, 1, :], X_[1, 1, 2, :], "g."); title(L"Model space: $x = f(zx|zy)^{-1}$")
 ax3.set_xlim([-3.5, 3.5]); ax3.set_ylim([0,50])
 ax4 = subplot(2,5,4); plot(Y_[1, 1, 1, :], Y_[1, 1, 2, :], "g."); title(L"Data space: $y = f(zx|zy)^{-1}$")
-ax4.set_xlim([-11, 1]); ax4.set_ylim([-16, 1])
+
 ax5 = subplot(2,5,5); plot(X_post[1, 1, 1, :], X_post[1, 1, 2, :], "g."); 
 plot(X_fixed[1, 1, 1, :], X_fixed[1, 1, 2, :], "r."); title(L"Model space: $x = f(zx|zy_{fix})^{-1}$")
 ax5.set_xlim([-3.5, 3.5]); ax5.set_ylim([0,50])
