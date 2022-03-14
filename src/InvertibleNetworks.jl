@@ -59,6 +59,7 @@ include("layers/invertible_layer_basic.jl")
 include("layers/invertible_layer_irim.jl")
 include("layers/invertible_layer_glow.jl")
 include("layers/invertible_layer_condglow.jl")
+include("layers/invertible_layer_cond_spade.jl")
 include("layers/invertible_layer_hyperbolic.jl")
 include("layers/invertible_layer_hint.jl")
 

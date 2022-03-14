@@ -61,7 +61,7 @@ export NetworkCIIN, NetworkCIIN3D
 """
 struct NetworkCIIN <: InvertibleNetwork
     AN::AbstractArray{ActNorm, 2}
-    CL::AbstractArray{CondCouplingLayerGlow, 2}
+    CL::Union{AbstractArray{CondCouplingLayerGlow, 2},AbstractArray{CondCouplingLayerSpade, 2}}
     Z_dims::Union{Array{Array, 1}, Nothing}
     L::Int64
     K::Int64
@@ -72,9 +72,16 @@ end
 @Flux.functor NetworkCIIN
 
 # Constructor
-function NetworkCIIN(n_in, n_cond, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
+function NetworkCIIN(n_in, n_cond, n_hidden, L, K; coupling_type ="glow", split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
-    CL = Array{CondCouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
+    
+    if coupling_type == "spade"
+        CL = Array{CondCouplingLayerSpade}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
+    else
+        CL = Array{CondCouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
+
+
+    end
  
     if split_scales
         Z_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it   # save dimensions for inverse/backward pass
@@ -89,7 +96,13 @@ function NetworkCIIN(n_in, n_cond, n_hidden, L, K; split_scales=false, k1=3, k2=
         n_cond *= channel_factor # squeeze if split_scales is turned on
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = CondCouplingLayerGlow(n_in, n_cond, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
+            if coupling_type == "spade"
+                CL[i, j] = CondCouplingLayerSpade(n_in, n_cond, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
+            else
+                CL[i, j] = CondCouplingLayerGlow(n_in, n_cond, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
+            
+
+            end
         end
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
@@ -107,8 +120,7 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCIIN)
     for i=1:G.L
         (G.split_scales) && (X = G.squeezer.forward(X))
         (G.split_scales) && (C = G.squeezer.forward(C))
-        for j=1:G.K     
-            println(j)       
+        for j=1:G.K          
             X, logdet1 = G.AN[i, j].forward(X)
             X, logdet2 = G.CL[i, j].forward(X,C)
             logdet += (logdet1 + logdet2)
