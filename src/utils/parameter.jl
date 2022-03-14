@@ -134,6 +134,14 @@ function /(p1::T, p2::Parameter) where {T<:Real}
     return Parameter(p1/p2.data)
 end
 
+function *(p1::Parameter, p2::Bool)
+    return Parameter(p1.data*p2)
+end
+
+function *(p1::Bool, p2::Parameter)
+    return p2*p1
+end
+
 # Shape manipulation
 
 par2vec(x::Parameter) = vec(x.data), size(x.data)

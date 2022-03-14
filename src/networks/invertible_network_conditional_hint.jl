@@ -78,7 +78,7 @@ end
 NetworkConditionalHINT3D(args...;kw...) = NetworkConditionalHINT(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet
-function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkConditionalHINT; logdet=nothing) where {T, N}
+function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkConditionalHINT; logdet=nothing, x_lane=false) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     depth = length(CH.CL)
@@ -86,29 +86,30 @@ function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkCond
     for j=1:depth
         logdet ? (X_, logdet1) = CH.AN_X[j].forward(X) : X_ = CH.AN_X[j].forward(X)
         logdet ? (Y_, logdet2) = CH.AN_Y[j].forward(Y) : Y_ = CH.AN_Y[j].forward(Y)
-        logdet ? (X, Y, logdet3) = CH.CL[j].forward(X_, Y_) : (X, Y) = CH.CL[j].forward(X_, Y_)
-        logdet && (logdet_ += (logdet1 + logdet2 + logdet3))
+        logdet ? (X, Y, logdet3) = CH.CL[j].forward(X_, Y_; x_lane=x_lane) : (X, Y) = CH.CL[j].forward(X_, Y_)
+        logdet && (logdet_ += (logdet1 + !x_lane*logdet2 + logdet3))
     end
     logdet ? (return X, Y, logdet_) : (return X, Y)
 end
 
 # Inverse pass and compute gradients
-function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkConditionalHINT; logdet=nothing) where {T, N}
+function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkConditionalHINT; logdet=nothing, x_lane=false) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
 
     depth = length(CH.CL)
     logdet_ = 0
     for j=depth:-1:1
-        logdet ? (Zx_, Zy_, logdet1) = CH.CL[j].inverse(Zx, Zy; logdet=true) : (Zx_, Zy_) = CH.CL[j].inverse(Zx, Zy; logdet=false)
+        logdet ? (Zx_, Zy_, logdet1) = CH.CL[j].inverse(Zx, Zy; logdet=true, x_lane=x_lane) : (Zx_, Zy_) = CH.CL[j].inverse(Zx, Zy; logdet=false)
         logdet ? (Zy, logdet2) = CH.AN_Y[j].inverse(Zy_; logdet=true) : Zy = CH.AN_Y[j].inverse(Zy_; logdet=false)
         logdet ? (Zx, logdet3) = CH.AN_X[j].inverse(Zx_; logdet=true) : Zx = CH.AN_X[j].inverse(Zx_; logdet=false)
-        logdet && (logdet_ += (logdet1 + logdet2 + logdet3))
+        logdet && (logdet_ += (logdet1 + !x_lane*logdet2 + logdet3))
     end
     logdet ? (return Zx, Zy, logdet_) : (return Zx, Zy)
 end
 
 # Backward pass and compute gradients
-function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkConditionalHINT; set_grad::Bool=true) where {T, N}
+function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N},
+                  Zy::AbstractArray{T, N}, CH::NetworkConditionalHINT; set_grad::Bool=true, x_lane::Bool=false) where {T, N}
     depth = length(CH.CL)
     if ~set_grad
         Δθ = Array{Parameter, 1}(undef, 0)
@@ -116,14 +117,14 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
     end
     for j=depth:-1:1
         if set_grad
-            ΔZx_, ΔZy_, Zx_, Zy_ = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy)
+            ΔZx_, ΔZy_, Zx_, Zy_ = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy; x_lane=x_lane)
             ΔZx, Zx = CH.AN_X[j].backward(ΔZx_, Zx_)
-            ΔZy, Zy = CH.AN_Y[j].backward(ΔZy_, Zy_)
+            ΔZy, Zy = CH.AN_Y[j].backward(ΔZy_, Zy_; x_lane=x_lane)
         else
             if CH.logdet
-                ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdetcl = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
+                ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdetcl = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad, x_lane=x_lane)
                 ΔZx, Δθx, Zx, ∇logdetx = CH.AN_X[j].backward(ΔZx_, Zx_; set_grad=set_grad)
-                ΔZy, Δθy, Zy, ∇logdety = CH.AN_Y[j].backward(ΔZy_, Zy_; set_grad=set_grad)
+                ΔZy, Δθy, Zy, ∇logdety = CH.AN_Y[j].backward(ΔZy_, Zy_; set_grad=set_grad, x_lane=x_lane)
                 ∇logdet = cat(∇logdetx, ∇logdety, ∇logdetcl, ∇logdet; dims=1)
             else
                 ΔZx_, ΔZy_, Δθcl, Zx_, Zy_ = CH.CL[j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
@@ -141,12 +142,13 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
 end
 
 # Backward reverse pass and compute gradients
-function backward_inv(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkConditionalHINT) where {T, N}
+function backward_inv(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, X::AbstractArray{T, N},
+                      Y::AbstractArray{T, N}, CH::NetworkConditionalHINT; x_lane::Bool=false) where {T, N}
     depth = length(CH.CL)
     for j=1:depth
         ΔX_, X_ = backward_inv(ΔX, X, CH.AN_X[j])
-        ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[j])
-        ΔX, ΔY, X, Y = backward_inv(ΔX_, ΔY_, X_, Y_, CH.CL[j])
+        ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[j]; x_lane=x_lane)
+        ΔX, ΔY, X, Y = backward_inv(ΔX_, ΔY_, X_, Y_, CH.CL[j]; x_lane=x_lane)
     end
     return ΔX, ΔY, X, Y
 end

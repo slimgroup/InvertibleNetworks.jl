@@ -129,6 +129,23 @@ end
 @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
 
+# Gradient test w.r.t. input X0 with x_lane = true
+# Invertible layers
+RB0 = ResidualBlock(n_in, n_hidden; fan=true)
+L = CouplingLayerBasic(RB; logdet=true)
+L01 = CouplingLayerBasic(RB; logdet=true)
+L02 = CouplingLayerBasic(RB0; logdet=true)
+
+Ya_, Yb_, logdet = L.forward(Xa, Xb)
+f = mse(tensor_cat(Ya_, Yb_), tensor_cat(Ya, Yb)) - logdet
+ΔY = ∇mse(tensor_cat(Ya_, Yb_), tensor_cat(Ya, Yb))
+ΔYa, ΔYb = tensor_split(ΔY)
+∇logdet = L.backward(ΔYa, ΔYb, Ya_, Yb_; set_grad = false, x_lane = true)[end]
+
+for param in ∇logdet
+    @test isapprox(param.data, zeros(size(param)))
+end
+
 # Gradient test w.r.t. weights of residual block
 Ya, Yb = L.forward(Xa, Xb)[1:2]
 Lini = deepcopy(L02)

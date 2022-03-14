@@ -82,7 +82,7 @@ end
 # 3D Constructor from input dimensions
 ConditionalLayerHINT3D(args...; kw...) = ConditionalLayerHINT(args...; kw..., ndims=3)
 
-function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing) where {T, N}
+function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing,  x_lane::Bool=false) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     # Y-lane
@@ -96,10 +96,10 @@ function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::Conditional
     # X-lane: conditional layer
     logdet ? (Zx, logdet3) = CH.CL_YX.forward(Yp, X)[2:3] : Zx = CH.CL_YX.forward(Yp, X)[2]
 
-    logdet ? (return Zx, Zy, logdet1 + logdet2 + logdet3) : (return Zx, Zy)
+    logdet ? (return Zx, Zy, logdet1 + !x_lane*logdet2 + logdet3) : (return Zx, Zy)
 end
 
-function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing) where {T, N}
+function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing, x_lane::Bool=false) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
 
     # Y-lane
@@ -114,18 +114,19 @@ function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::Condition
     logdet ? (Xp, logdet3) = CH.CL_X.inverse(X; logdet=true) : Xp = CH.CL_X.inverse(X; logdet=false)
     ~isnothing(CH.C_X) ? (X = CH.C_X.inverse(Xp)) : (X = copy(Xp))
 
-    logdet ? (return X, Y, logdet1 + logdet2 + logdet3) : (return X, Y)
+    logdet ? (return X, Y, !x_lane*logdet1 + logdet2 + logdet3) : (return X, Y)
 end
 
-function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing, set_grad::Bool=true) where {T, N}
+function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N},
+                  CH::ConditionalLayerHINT; logdet=nothing, set_grad::Bool=true, x_lane::Bool=false) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     # Y-lane
     if set_grad
-        ΔYp, Yp = CH.CL_Y.backward(ΔZy, Zy)
+        ΔYp, Yp = CH.CL_Y.backward(ΔZy, Zy; x_lane=x_lane)
     else
         if logdet
-            ΔYp, Δθ_CLY, Yp, ∇logdet_CLY = CH.CL_Y.backward(ΔZy, Zy; set_grad=set_grad)
+            ΔYp, Δθ_CLY, Yp, ∇logdet_CLY = CH.CL_Y.backward(ΔZy, Zy; set_grad=set_grad, x_lane=x_lane)
         else
             ΔYp, Δθ_CLY, Yp = CH.CL_Y.backward(ΔZy, Zy; set_grad=set_grad)
         end
@@ -185,7 +186,8 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
     end
 end
 
-function backward_inv(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, N}
+function backward_inv(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, X::AbstractArray{T, N},
+                      Y::AbstractArray{T, N}, CH::ConditionalLayerHINT; x_lane::Bool=false) where {T, N}
 
     # 1x1 Convolutions
     if isnothing(CH.C_X) || isnothing(CH.C_Y)
@@ -204,7 +206,7 @@ function backward_inv(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, X::Abs
     ΔYp += ΔYp_
 
     # Y-lane
-    ΔZy, Zy = backward_inv(ΔYp, Yp, CH.CL_Y)
+    ΔZy, Zy = backward_inv(ΔYp, Yp, CH.CL_Y; x_lane=x_lane)
 
     return ΔZx, ΔZy, Zx, Zy
 end
