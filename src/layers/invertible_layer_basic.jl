@@ -128,7 +128,7 @@ function backward(ΔY1::AbstractArray{T, N}, ΔY2::AbstractArray{T, N}, Y1::Abst
     ΔT = copy(ΔY2)
     ΔS = ΔY2 .* X2
     if L.logdet
-        set_grad && (ΔS -= !x_lane*coupling_logdet_backward(S))
+        set_grad && (ΔS -= !x_lane * coupling_logdet_backward(S))
     end
     ΔX2 = ΔY2 .* S
     if set_grad
@@ -136,7 +136,7 @@ function backward(ΔY1::AbstractArray{T, N}, ΔY2::AbstractArray{T, N}, Y1::Abst
     else
         ΔX1, Δθ = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), X1; set_grad=set_grad)
         if L.logdet
-            _, ∇logdet = L.RB.backward(tensor_cat(L.activation.backward(!x_lane*coupling_logdet_backward(S), S), 0f0.*ΔT), X1; set_grad=set_grad)
+            _, ∇logdet = L.RB.backward(tensor_cat(L.activation.backward(!x_lane * coupling_logdet_backward(S), S), 0f0.*ΔT), X1; set_grad=set_grad)
         end
         ΔX1 += ΔY1
     end
@@ -195,7 +195,7 @@ function jacobian(ΔX1::AbstractArray{T, N}, ΔX2::AbstractArray{T, N}, Δθ::Ab
         # Gauss-Newton approximation of logdet terms
         JΔθ = tensor_split(L.RB.jacobian(zeros(Float32, size(ΔX1)), Δθ, X1)[1])[1]
         GNΔθ = -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, S), zeros(Float32, size(S))), X1)[2]
-        
+
         save ? (return ΔX1, ΔY2, X1, Y2, coupling_logdet_forward(S), GNΔθ, S) : (return ΔX1, ΔY2, X1, Y2, coupling_logdet_forward(S), GNΔθ)
     else
         save ? (return ΔX1, ΔY2, X1, Y2, S) : (return ΔX1, ΔY2, X1, Y2)

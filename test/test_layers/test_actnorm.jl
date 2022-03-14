@@ -146,6 +146,28 @@ end
 @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
 
+# Gradient test when x_lane = true
+AN_x = ActNorm(nc; logdet=true)
+X = randn(Float32, nx, ny, nc, batchsize)
+X0 = randn(Float32, nx, ny, nc, batchsize)
+
+# Forward pass
+Y = AN.forward(X)[1]
+
+# Forward pass
+Y_, lgdet = AN.forward(X)
+
+# Residual and function value
+ΔY = Y_ - Y
+f = .5f0/batchsize*norm(ΔY)^2
+AN.logdet == true && (f -= lgdet)
+
+# Back propagation
+ΔX, X_ = AN.backward(ΔY./batchsize, Y_, x_lane = true)
+
+grads = get_grads(AN)
+@test isapprox(grads[1].data, zeros(size(grads[1])))
+
 # Gradient test for parameters
 AN0 = ActNorm(nc; logdet=true); AN0.forward(randn(Float32, nx, ny, nc, batchsize))
 AN_ini = deepcopy(AN0)
