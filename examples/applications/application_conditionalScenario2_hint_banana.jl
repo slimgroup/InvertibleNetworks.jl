@@ -17,7 +17,7 @@ ny = 1
 n_in = 2
 n_hidden = 64
 batchsize = 64
-depth = 8
+depth = 32
 AN = Array{ActNorm}(undef, depth)
 L = Array{CouplingLayerHINT}(undef, depth)
 Params = Array{Parameter}(undef, 0)
@@ -59,7 +59,7 @@ c = [1f0, 4f0]
 function neglogprior(X::Array{Float32, 4})
     z1 = c[1]*X[:, :, 1:1, :]
     z2 = X[:, :, 2:2, :]/c[1]-c[2]*c[1]^2*(X[:, :, 1:1, :].^2 .+1)
-    return sum(0.5f0*(z1.^2+z2.^2)), cat(c[1]*z1-2*c[2]*c[1]^2*z2.*X[:, :, 1:1, :], z2/c[1]; dims = 3)
+    return (1f0 ./ size(X)[end]) .* sum(0.5f0*(z1.^2+z2.^2)), (1f0 ./ size(X)[end]) .* cat(c[1]*z1-2*c[2]*c[1]^2*z2.*X[:, :, 1:1, :], z2/c[1]; dims = 3)
 end
 
 # Negative log-likelihood (Gaussian)
@@ -87,9 +87,9 @@ function loss(Z::Array{Float32, 4})
 end
 
 # Training
-maxiter = 2000
+maxiter = 1000
 opt = Flux.ADAM(1f-3)
-lr_step = 100
+lr_step = 50
 lr_decay_fn = Flux.ExpDecay(1f-3, .9, lr_step, 0.)
 fval = zeros(Float32, maxiter)
 

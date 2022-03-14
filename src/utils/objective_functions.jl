@@ -46,7 +46,8 @@ end
 """
     f = log_likelihood(X; μ=T(0), σ=T(1))
 
-Log-likelihood of X for a Gaussian distribution with given mean μ and variance σ. All elements of X are assumed to be iid.
+Log-likelihood of X for a Gaussian distribution with given mean μ and variance
+σ. All elements of X are assumed to be iid.
 
 See also: [`∇log_likelihood`](@ref)
 """
@@ -54,9 +55,10 @@ log_likelihood(X::AbstractArray{T, N}; μ=T(0), σ=T(1)) where {T, N} = T(1/size
 
 
 """
-    Hf = Hlog_likelihood(X; μ=T(0), σ=T(1))
+    ∇f = ∇log_likelihood(X; μ=T(0), σ=T(1))
 
-Hessian of the log-likelihood function with respect to the input tensor X.
+Gradient of the Gaussian log-likelihood function with respect to the input
+tensor X.
 
 See also: [`log_likelihood`](@ref)
 """
@@ -66,7 +68,8 @@ See also: [`log_likelihood`](@ref)
 """
     Hf = Hlog_likelihood(X; μ=T(0), σ=T(1))
 
-Hessian of the log-likelihood function with respect to the input tensor X.
+Hessian of the Gaussian log-likelihood function with respect to the input
+tensor X.
 
 See also: [`log_likelihood`](@ref)
 """

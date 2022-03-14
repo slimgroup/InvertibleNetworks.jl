@@ -12,14 +12,22 @@ Random.seed!(66)
 ####################################################################################################
 
 # Load original data X (size of n1 x n2 x nc x ntrain)
-X_orig = load("../../data/seismic_samples_32_by_32_num_10k.jld")["X"]
-n1, n2, nc, nsamples = size(X_orig)
-AN = ActNorm(nsamples)
+#X_orig = load("../../data/seismic_samples_32_by_32_num_10k.jld")["X"]
+
+
+# Load original data X (size of n1 x n2 x nc x ntrain)
+datadir = dirname(pathof(InvertibleNetworks))*"/../data/"
+filename = "seismic_samples_64_by_64_num_10k.jld"
+~isfile("$(datadir)$(filename)") && run(`curl -L https://www.dropbox.com/s/mh5dv0yprestot4/seismic_samples_32_by_32_num_10k.jld\?dl\=0 --create-dirs -o $(datadir)$(filename)`)
+X_orig = load("$(datadir)$(filename)")["X"]
+n1, n2, nc, n_samples = size(X_orig)
+
+AN = ActNorm(n_samples)
 X_orig = AN.forward(X_orig) # zero mean and unit std
 
 # Split in training - testing
-ntrain = Int(nsamples*.9)
-ntest = nsamples - ntrain
+ntrain = Int(n_samples*.9)
+ntest = n_samples - ntrain
 
 # Dimensions after wavelet squeeze to increase no. of channels
 nx = Int(n1)
@@ -87,7 +95,7 @@ function loss(CH, X, Y)
 end
 
 # Training
-maxiter = 1000
+maxiter = 500
 opt = Flux.ADAM(1f-3)
 lr_step = 100
 lr_decay_fn = Flux.ExpDecay(1f-3, .9, lr_step, 0.)

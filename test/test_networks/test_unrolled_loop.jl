@@ -27,8 +27,8 @@ J = 1 .+ rand(Float32, nt*nxrec*nyrec, nx*ny*nz)
 L = NetworkLoop3D(n_in, n_hidden, maxiter, Ψ; type="HINT")
 
 # Initializations
-η = randn(Float32, nx, ny, nz, 1, batchsize)
-s = randn(Float32, nx, ny, nz, n_in-1, batchsize)
+η = 10*randn(Float32, nx, ny, nz, 1, batchsize)
+s = 10*randn(Float32, nx, ny, nz, n_in-1, batchsize)
 
 ###################################################################################################
 
@@ -36,7 +36,7 @@ s = randn(Float32, nx, ny, nz, n_in-1, batchsize)
 η_, s_ = L.forward(η, s, d, J)
 ηInv, sInv = L.inverse(η_, s_, d, J)
 @test isapprox(norm(ηInv - η)/norm(η), 0f0, atol=1e-5)
-@test isapprox(norm(sInv - s)/norm(sInv), 0f0, atol=1e-5)
+@test isapprox(norm(sInv - s)/norm(s), 0f0, atol=1e-5)
 
 # Test invertibility
 η_, s_ = L.forward(η, s, d, J)
