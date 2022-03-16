@@ -61,6 +61,7 @@ export NetworkCIIN, NetworkCIIN3D
 """
 struct NetworkCIIN <: InvertibleNetwork
     AN::AbstractArray{ActNorm, 2}
+    AN_c::AbstractArray{ActNorm, 2}
     CL::Union{AbstractArray{CondCouplingLayerGlow, 2},AbstractArray{CondCouplingLayerSpade, 2}}
     Z_dims::Union{Array{Array, 1}, Nothing}
     L::Int64
@@ -74,6 +75,7 @@ end
 # Constructor
 function NetworkCIIN(n_in, n_cond, n_hidden, L, K; coupling_type ="glow", split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
+    AN_c = Array{ActNorm}(undef, L, K)    # activation normalization
     
     if coupling_type == "spade"
         CL = Array{CondCouplingLayerSpade}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
@@ -96,6 +98,7 @@ function NetworkCIIN(n_in, n_cond, n_hidden, L, K; coupling_type ="glow", split_
         n_cond *= channel_factor # squeeze if split_scales is turned on
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
+            AN_c[i, j] = ActNorm(n_cond; logdet=true)
             if coupling_type == "spade"
                 CL[i, j] = CondCouplingLayerSpade(n_in, n_cond, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
             else
@@ -107,7 +110,7 @@ function NetworkCIIN(n_in, n_cond, n_hidden, L, K; coupling_type ="glow", split_
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkCIIN(AN, CL, Z_dims, L, K, squeezer, split_scales)
+    return NetworkCIIN(AN,AN_c, CL, Z_dims, L, K, squeezer, split_scales)
 end
 
 NetworkCIIN3D(args; kw...) = NetworkCIIN(args...; kw..., ndims=3)
@@ -122,6 +125,7 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCIIN)
         (G.split_scales) && (C = G.squeezer.forward(C))
         for j=1:G.K          
             X, logdet1 = G.AN[i, j].forward(X)
+            C, _       = G.AN_c[i, j].forward(C)
             X, logdet2 = G.CL[i, j].forward(X,C)
             logdet += (logdet1 + logdet2)
         end
@@ -143,8 +147,9 @@ function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, M}, G::NetworkCIIN)
             X = tensor_cat(X, Z_save[i])
         end
         for j=G.K:-1:1
-            X = G.CL[i, j].inverse(X,C)
+            X = G.CL[i, j].inverse(X, C)
             X = G.AN[i, j].inverse(X)
+            C = G.AN_c[i, j].inverse(C)
         end
 
         (G.split_scales) && (X = G.squeezer.inverse(X))
@@ -154,7 +159,7 @@ function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, M}, G::NetworkCIIN)
 end
 
 # Backward pass and compute gradients
-function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, M}, G::NetworkCIIN; set_grad::Bool=true) where {T, N, M}
+function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, ΔC::AbstractArray{T, M}, C::AbstractArray{T, M}, G::NetworkCIIN; set_grad::Bool=true) where {T, N, M}
     
     # Split data and gradients
     if G.split_scales
@@ -174,8 +179,10 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
         end
         for j=G.K:-1:1
             if set_grad
-                ΔX, X = G.CL[i, j].backward(ΔX, X, C)
-                ΔX, X = G.AN[i, j].backward(ΔX, X)
+                ΔX, X, ΔC  = G.CL[i, j].backward(ΔX, X, ΔC, C)
+                ΔX, X      = G.AN[i, j].backward(ΔX, X)
+                ΔC, C      = G.AN_c[i, j].backward(ΔC, C)
+                #C         = G.AN_c[i, j].inverse(C)
             else
                 ΔX, Δθcl_ij, X, ∇logdetcl_ij = G.CL[i, j].backward(ΔX, X, C; set_grad=set_grad)
                 ΔX, Δθan_ij, X, ∇logdetan_ij = G.AN[i, j].backward(ΔX, X; set_grad=set_grad)
@@ -189,6 +196,7 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
             X  = G.squeezer.inverse(X)
             C  = G.squeezer.inverse(C)
             ΔX = G.squeezer.inverse(ΔX)
+            ΔC = G.squeezer.inverse(ΔC)
         end
     end
     set_grad ? (return ΔX, X) : (return ΔX, Δθ, X, ∇logdet)
@@ -247,6 +255,7 @@ function clear_grad!(G::NetworkCIIN)
     for i=1:L
         for j=1:K
             clear_grad!(G.AN[i, j])
+            clear_grad!(G.AN_c[i, j])
             clear_grad!(G.CL[i, j])
         end
     end
@@ -259,6 +268,7 @@ function get_params(G::NetworkCIIN)
     for i=1:L
         for j=1:K
             p = cat(p, get_params(G.AN[i, j]); dims=1)
+            p = cat(p, get_params(G.AN_c[i, j]); dims=1)
             p = cat(p, get_params(G.CL[i, j]); dims=1)
         end
     end

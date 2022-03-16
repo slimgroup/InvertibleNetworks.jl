@@ -71,7 +71,7 @@ end
 
 # Constructor from 1x1 convolution and residual block
 function CondCouplingLayerSpade(C::Conv1x1, RB::ResidualBlock; logdet=false, activation::ActivationFunction=SigmoidLayer())
-    RB.fan == false && throw("Set ResidualBlock.fan == true")
+    #RB.fan == false && throw("Set ResidualBlock.fan == true")
     return CondCouplingLayerSpade(C, RB, logdet, activation)
 end
 
@@ -125,7 +125,7 @@ function inverse(Y::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::CondCoupling
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::CondCouplingLayerSpade; set_grad::Bool=true) where T
+function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, ΔC::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::CondCouplingLayerSpade; set_grad::Bool=true) where T
 
     # Recompute forward state
     X, X1, S = inverse(Y,C,L; save=true)
@@ -139,7 +139,7 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, C::AbstractA
 
     ΔX = ΔY .* S
     if set_grad
-        L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), C) 
+        ΔC = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), C) + ΔC
     else
         ΔX2, Δθrb = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), C; set_grad=set_grad)
         _, ∇logdet = L.RB.backward(cat(L.activation.backward(ΔS_, S), 0f0.*ΔT; dims=3), C; set_grad=set_grad)
@@ -154,7 +154,7 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, C::AbstractA
     end
 
     if set_grad
-        return ΔX, X
+        return ΔX, X, ΔC
     else
         L.logdet ? (return ΔX, Δθ, X, cat(0*Δθ[1:3], ∇logdet; dims=1)) : (return ΔX, Δθ, X)
     end
