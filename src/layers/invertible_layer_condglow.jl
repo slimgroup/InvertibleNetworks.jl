@@ -84,7 +84,7 @@ function CondCouplingLayerGlow(n_in::Int64, n_c::Int64, n_hidden::Int64; k1=3, k
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
     #RB = ResidualBlock(Int(n_in/2), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
-    RB = ResidualBlock(Int(n_in/2)+n_c, 2*n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=false, ndims=ndims)
+    RB = ResidualBlock(Int(n_in/2)+n_c, n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
     #tensor cat the condition which has equal amount of channels
 
     return CondCouplingLayerGlow(C, RB, logdet, activation)
@@ -133,7 +133,7 @@ function inverse(Y::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::CondCoupling
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::CondCouplingLayerGlow; set_grad::Bool=true) where T
+function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, ΔC::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::CondCouplingLayerGlow; set_grad::Bool=true) where T
 
     # Recompute forward state
     k = Int(L.C.k/2)
@@ -149,7 +149,9 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, C::AbstractA
 
     ΔX1 = ΔY1 .* S
     if set_grad
-        ΔX2 = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), tensor_cat(X2,C))[:,:,1:Int(L.C.k/2),:] + ΔY2 #have to grab the gradient only wrt x not c
+        rb = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), tensor_cat(X2,C)) #have to grab the gradient only wrt x not c
+        ΔX2 = rb[:,:,1:Int(L.C.k/2),:] + ΔY2
+        ΔC  = rb[:,:,Int(L.C.k/2)+1:end,:] + ΔC
     else
         ΔX2, Δθrb = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), tensor_cat(X2,C); set_grad=set_grad)
         _, ∇logdet = L.RB.backward(cat(L.activation.backward(ΔS_, S), 0f0.*ΔT; dims=3), tensor_cat(X2,C); set_grad=set_grad)
@@ -164,7 +166,7 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, C::AbstractA
     end
 
     if set_grad
-        return ΔX, X
+        return ΔX, X, ΔC
     else
         L.logdet ? (return ΔX, Δθ, X, cat(0*Δθ[1:3], ∇logdet; dims=1)) : (return ΔX, Δθ, X)
     end

@@ -84,7 +84,7 @@ function CondCouplingLayerSpade(n_in::Int64, n_c::Int64, n_hidden::Int64; k1=3, 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
     #RB = ResidualBlock(Int(n_in/2), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
-    RB = ResidualBlock(n_c, 4*n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=false, ndims=ndims)
+    RB = ResidualBlock(n_c, 2*n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
     #tensor cat the condition which has equal amount of channels
 
     return CondCouplingLayerSpade(C, RB, logdet, activation)
