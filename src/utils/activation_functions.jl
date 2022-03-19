@@ -8,11 +8,10 @@ export Sigmoid, SigmoidInv, SigmoidGrad
 export GaLU, GaLUgrad
 export ExpClamp, ExpClampInv, ExpClampGrad
 export ReLUlayer, LeakyReLUlayer, SigmoidLayer, Sigmoid2Layer, GaLUlayer, ExpClampLayer
-
+export TANH, TANHgrad
 
 ###############################################################################
 # Custom type for activation functions
-
 struct ActivationFunction
     forward::Function
     inverse::Union{Nothing, Function}
@@ -84,6 +83,42 @@ end
 function ReLUgrad(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
     return  Δy .* (sign.(x) .+ 1) ./ 2
 end
+
+###############################################################################
+# Rectified linear unit (ReLU) (not invertible)
+
+"""
+    y = ReLU(x)
+
+ Rectified linear unit (not invertible).
+
+ See also: [`ReLUgrad`](@ref)
+"""
+function TANH(x::AbstractArray{T, N}) where {T, N}
+    return @. (exp(x) - exp(-x)) / (exp(x) + exp(-x))
+end
+
+"""
+    Δx = ReLUgrad(Δy, x)
+
+ Backpropagate data residual through ReLU function.
+
+ *Input*:
+
+ - `Δy`: data residual
+
+ - `x`: original input (since not invertible)
+
+ *Output*:
+
+ - `Δx`: backpropagated residual
+
+ See also: [`ReLU`](@ref)
+"""
+function TANHgrad(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
+    return   Δy .* (1 .- TANH(x).^2) 
+end
+
 
 ###############################################################################
 # Leaky ReLU (invertible)

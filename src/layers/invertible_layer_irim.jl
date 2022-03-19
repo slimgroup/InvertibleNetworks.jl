@@ -58,19 +58,25 @@ or
  See also: [`Conv1x1`](@ref), [`ResidualBlock!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
 struct CouplingLayerIRIM <: NeuralNetLayer
-    C::Conv1x1
-    RB::Union{ResidualBlock, FluxBlock}
+    C::AbstractArray{Conv1x1, 1}
+    RB::AbstractArray{ResidualBlock, 1}
 end
 
 @Flux.functor CouplingLayerIRIM
 
 # 2D Constructor from input dimensions
-function CouplingLayerIRIM(n_in::Int64, n_hidden::Int64; 
+function CouplingLayerIRIM(n_in::Int64;n_hiddens=nothing, ds=nothing,
                            k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
 
-    # 1x1 Convolution and residual block for invertible layer
-    C = Conv1x1(n_in)
-    RB = ResidualBlock(n_in÷2, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
+
+    num_downsamp = length(ds)
+    C = Array{Conv1x1}(undef, num_downsamp)
+    RB = Array{ResidualBlock}(undef, num_downsamp)
+        
+    for j=1:num_downsamp
+        C[j]  = Conv1x1(n_in)
+        RB[j] = ResidualBlock(n_in÷2, n_in, n_hiddens[j]; d=ds[j], k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=false, ndims=ndims)
+    end
 
     return CouplingLayerIRIM(C, RB)
 end
@@ -79,28 +85,36 @@ CouplingLayerIRIM3D(args...;kw...) = CouplingLayerIRIM(args...; kw..., ndims=3)
 
 # 2D Forward pass: Input X, Output Y
 function forward(X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
-    X_ = L.C.forward(X)
-    X1_, X2_ = tensor_split(X_)
 
-    Y1_ = X1_
-    Y2_ = X2_ + L.RB.forward(Y1_)
+    num_downsamp = length(L.C)
+    for j=1:num_downsamp
+        X_ = L.C[j].forward(X)
+        X1_, X2_ = tensor_split(X_)
 
-    Y_ = tensor_cat(Y1_, Y2_)
-    Y = L.C.inverse(Y_)
+        Y1_ = X1_
+        Y2_ = X2_ + L.RB[j].forward(Y1_)
+
+        Y_ = tensor_cat(Y1_, Y2_)
+        X = L.C[j].inverse(Y_)
+    end
     
-    return Y
+    return X
 end
 
 # 2D Inverse pass: Input Y, Output X
 function inverse(Y::AbstractArray{T, N}, L::CouplingLayerIRIM; save=false) where {T, N}
-    Y_ = L.C.forward(Y)
-    Y1_, Y2_ = tensor_split(Y_)
+   
+    num_downsamp = length(L.C)
+    for j=num_downsamp:-1:1
+        Y_ = L.C[j].forward(Y)
+        Y1_, Y2_ = tensor_split(Y_)
 
-    X1_ = Y1_
-    X2_ = Y2_ - L.RB.forward(Y1_)
+        X1_ = Y1_
+        X2_ = Y2_ - L.RB[j].forward(Y1_)
 
-    X_ = tensor_cat(X1_, X2_)
-    X = L.C.inverse(X_)
+        X_ = tensor_cat(X1_, X2_)
+        X = L.C[j].inverse(X_)
+    end
 
     if save == false
         return X
@@ -113,31 +127,32 @@ end
 function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM; set_grad::Bool=true) where {T, N}
 
     # Recompute forward state
-    k = Int(L.C.k/2)
-    X, X_, Y1_ = inverse(Y, L; save=true)
+    #X, X_, Y1_ = inverse(Y, L; save=true)
 
-    # Backpropagate residual
-    if set_grad
-        ΔY_ = L.C.forward((ΔY, Y))[1]
-    else
-        ΔY_, Δθ_C1 = L.C.forward((ΔY, Y); set_grad=set_grad)[1:2]
-    end
-    ΔYl_, ΔYr_ = tensor_split(ΔY_)
-    if set_grad
-        ΔY1_ = L.RB.backward(ΔYr_, Y1_) + ΔYl_
-    else
-        ΔY1_, Δθ_RB = L.RB.backward(ΔYr_, Y1_; set_grad=set_grad)
-        ΔY1_ = ΔY1_ + ΔYl_
+    num_downsamp = length(L.C)
+    for j=num_downsamp:-1:1
+
+        # Recompute forward state
+        Y_ = L.C[j].forward(Y)
+        Y1_, Y2_ = tensor_split(Y_)
+
+        X1_ = Y1_
+        X2_ = Y2_ - L.RB[j].forward(Y1_)
+        X_ = tensor_cat(X1_, X2_)
+        X = L.C[j].inverse(X_)
+
+
+        # Backpropagate residual
+        ΔY_, Y_ = L.C[j].forward((ΔY, Y))
+        ΔYl_, ΔYr_ = tensor_split(ΔY_)
+        
+        ΔY1_ = L.RB[j].backward(ΔYr_, Y1_) + ΔYl_
+        ΔX_ = tensor_cat(ΔY1_, ΔYr_)
+
+        ΔY, Y = L.C[j].inverse((ΔX_, X_))
     end
     
-    ΔX_ = tensor_cat(ΔY1_, ΔYr_)
-    if set_grad
-        ΔX = L.C.inverse((ΔX_, X_))[1]
-    else
-        ΔX, Δθ_C2 = L.C.inverse((ΔX_, X_); set_grad=set_grad)[1:2]
-    end
-    
-    set_grad ? (return ΔX, X) : (return ΔX, cat(Δθ_C1+Δθ_C2, Δθ_RB; dims=1), X)
+   return ΔY, Y
 end
 
 ## Jacobian utilities
@@ -174,13 +189,27 @@ end
 
 # Clear gradients
 function clear_grad!(L::CouplingLayerIRIM)
-    clear_grad!(L.C)
-    clear_grad!(L.RB)
+
+    maxiter = length(L.C)
+
+    for j=1:maxiter
+        clear_grad!(L.C[j])
+        clear_grad!(L.RB[j])
+    end
 end
 
 # Get parameters
 function get_params(L::CouplingLayerIRIM)
-    p1 = get_params(L.C)
-    p2 = get_params(L.RB)
+    maxiter = length(L.C)
+
+    p1 = get_params(L.C[1])
+    p2 = get_params(L.RB[1])
+    if maxiter > 1
+        for j=2:maxiter
+            p1 = cat(p1, get_params(L.C[j]); dims=1)
+            p2 = cat(p2, get_params(L.RB[j]); dims=1)
+        end
+    end
+
     return cat(p1, p2; dims=1)
 end

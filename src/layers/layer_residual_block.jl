@@ -67,6 +67,8 @@ struct ResidualBlock <: NeuralNetLayer
     fan::Bool
     strides
     pad
+    ANs::AbstractArray{ActNorm, 1}
+    an::Bool
 end
 
 @Flux.functor ResidualBlock
@@ -75,10 +77,17 @@ end
 #  Constructors
 
 # Constructor
-function ResidualBlock(n_in, n_out, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
+function ResidualBlock(n_in, n_out, n_hidden; an = false, d=nothing,  k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
+
+    if !isnothing(d)
+        k1 = d
+        s1 = d
+        p1 = 0
+    end
 
     k1 = Tuple(k1 for i=1:ndims)
     k2 = Tuple(k2 for i=1:ndims)
+
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1..., n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2..., n_hidden, n_hidden))
@@ -86,8 +95,17 @@ function ResidualBlock(n_in, n_out, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
-    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2))
+    ANs = Array{ActNorm}(undef, 2)  
+
+    T = Float32
+    #ANs[1] = ActNormPar(n_hidden;logdet=false, T=T)
+    #ANs[2] = ActNormPar(n_hidden;logdet=false, T=T)
+    ANs[1] = ActNorm(n_hidden; logdet=false)
+    ANs[2] = ActNorm(n_hidden; logdet=false)
+
+    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2),ANs,an)
 end
+
 
 # Constructor for given weights
 function ResidualBlock(W1, W2, W3, b1, b2; p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
@@ -99,60 +117,74 @@ function ResidualBlock(W1, W2, W3, b1, b2; p1=1, p2=1, s1=1, s2=1, fan=false, nd
     b1 = Parameter(b1)
     b2 = Parameter(b2)
 
-    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2))
+    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2),ANs,an)
 end
 
 ResidualBlock3D(args...; kw...) = ResidualBlock(args...; kw..., ndims=3)
 #######################################################################################################################
 # Functions
-
 # Forward
 function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {T, N}
+    #println("x1",size(X1))
+    #println("RB.W1.data",size(RB.W1.data))
+    #println("stride",RB.strides[1])
+    #println("pad",RB.pad[1])
     inds =[i!=(N-1) ? 1 : (:) for i=1:N]
 
-    Y1 = conv(X1, RB.W1.data; stride=RB.strides[1], pad=RB.pad[1]) .+ reshape(RB.b1.data, inds...)
+    Y1_ = conv(X1, RB.W1.data; stride=RB.strides[1], pad=RB.pad[1]) .+ reshape(RB.b1.data, inds...)
+    RB.an == true ? (Y1 = RB.ANs[1].forward(Y1_)) : (Y1 = Y1_)
     X2 = ReLU(Y1)
 
-    Y2 = X2 + conv(X2, RB.W2.data; stride=RB.strides[2], pad=RB.pad[2]) .+ reshape(RB.b2.data, inds...)
+
+    #Y2 = X2 + conv(X2, RB.W2.data; stride=RB.strides[2], pad=RB.pad[2]) .+ reshape(RB.b2.data, inds...)
+    Y2 =  conv(X2, RB.W2.data; stride=RB.strides[2], pad=RB.pad[2]) .+ reshape(RB.b2.data, inds...)
     X3 = ReLU(Y2)
 
     cdims3 = DCDims(X1, RB.W3.data; stride=RB.strides[1], padding=RB.pad[1])
     Y3 = ∇conv_data(X3, RB.W3.data, cdims3)
-    RB.fan == true ? (X4 = ReLU(Y3)) : (X4 = GaLU(Y3))
+    #Y3 = conv(X3, RB.W3.data; stride=RB.strides[2], pad=RB.pad[1])
+    #RB.fan == true ? (X4 = ReLU(Y3)) : (X4 = GaLU(Y3)
+    RB.fan == true ? (X4 = TANH(Y3)) : (X4 = GaLU(Y3))
 
     if save == false
         return X4
     else
-        return Y1, Y2, Y3, X2, X3
+        return Y1, Y2, Y3, X2, X3, Y1_
     end
 end
 
-# Backward
+# Backward #VERY BAD BACKWARDS. BACKWARDS is normally defined with its output not the input of the function
 function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
                   RB::ResidualBlock; set_grad::Bool=true) where {T, N}
     inds = [i!=(N-1) ? 1 : (:) for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 
     # Recompute forward states from input X
-    Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
+    Y1, Y2, Y3, X2, X3, Y1_ = forward(X1, RB; save=true)
 
     # Cdims
     cdims2 = DenseConvDims(X2, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
     cdims3 = DCDims(X1, RB.W3.data; stride=RB.strides[1], padding=RB.pad[1])
 
     # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    #RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    RB.fan == true ? (ΔY3 = TANHgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+   
     ΔX3 = conv(ΔY3, RB.W3.data, cdims3)
     ΔW3 = ∇conv_filter(ΔY3, X3, cdims3)
 
     ΔY2 = ReLUgrad(ΔX3, Y2)
-    ΔX2 = ∇conv_data(ΔY2, RB.W2.data, cdims2) + ΔY2
+
+    #RB.an == true ? (ΔY2, _ = RB.ANs[2].backward(ΔY2, Y2)) : (ΔY2 = ΔY2)
+    ΔX2 = ∇conv_data(ΔY2, RB.W2.data, cdims2) #+ ΔY2
     ΔW2 = ∇conv_filter(X2, ΔY2, cdims2)
     Δb2 = sum(ΔY2, dims=dims)[inds...]
 
     cdims1 = DenseConvDims(X1, RB.W1.data; stride=RB.strides[1], padding=RB.pad[1])
 
     ΔY1 = ReLUgrad(ΔX2, Y1)
+
+    RB.an == true ? (ΔY1, _ = RB.ANs[1].backward(ΔY1, Y1)) : (ΔY1 = ΔY1)
     ΔX1 = ∇conv_data(ΔY1, RB.W1.data, cdims1)
     ΔW1 = ∇conv_filter(X1, ΔY1, cdims1)
     Δb1 = sum(ΔY1, dims=dims)[inds...]
@@ -217,6 +249,21 @@ function clear_grad!(RB::ResidualBlock)
     RB.W3.grad = nothing
     RB.b1.grad = nothing
     RB.b2.grad = nothing
+
+    clear_grad!(RB.ANs[1])
+    clear_grad!(RB.ANs[2])
 end
 
-get_params(RB::ResidualBlock) = [RB.W1, RB.W2, RB.W3, RB.b1, RB.b2]
+function get_params(RB::ResidualBlock)
+    p1 = RB.W1
+    p2 = RB.W2
+    p3 = RB.W3
+    p4 = RB.b1
+    p5 = RB.b2
+    RB.an == true ? (p6 = get_params(RB.ANs[1])) : (p6 = [])
+    #RB.an == true ? (p7 = get_params(RB.ANs[2])) : (p7 = [])
+    
+    return cat(p1, p2,p3, p4,p5, p6; dims=1)
+end
+#gpu(RB::ResidualBlock{T}) where T = ResidualBlock{T}(gpu(RB.CL1),gpu(RB.A1),gpu(RB.CL2),gpu(RB.A2),gpu(RB.CL3))
+#get_params(RB::ResidualBlock) = [RB.W1, RB.W2, RB.W3, RB.b1, RB.b2, get_params(RB.ANs[1]), get_params(RB.ANs[2])]
