@@ -69,6 +69,8 @@ include("layers/invertible_layer_irim.jl")
 include("layers/invertible_layer_glow.jl")
 include("layers/invertible_layer_hyperbolic.jl")
 include("layers/invertible_layer_hint.jl")
+include("layers/invertible_layer_cond_spade_additive.jl")
+
 
 # Invertible network architectures
 include("networks/invertible_network_hint.jl")
@@ -81,6 +83,7 @@ include("networks/invertible_network_hyperbolic.jl")    # Hyperbolic: Lensink et
 include("conditional_layers/conditional_layer_hint.jl")
 include("networks/invertible_network_conditional_hint.jl")
 include("networks/invertible_network_conditional_hint_multiscale.jl")
+include("networks/invertible_network_conditional_hint_multiscale_ciin.jl")
 
 # Jacobians
 include("utils/jacobian.jl")
