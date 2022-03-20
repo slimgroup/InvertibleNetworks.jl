@@ -98,7 +98,7 @@ function forward(X::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::CondCoupling
     # Get dimensions
     k = Int(L.C.k/2)
 
-    X_ = X#L.C.forward(X)
+    X_ = L.C.forward(X)
     X1, X2 = tensor_split(X_)
 
     Y2 = copy(X2)
@@ -127,7 +127,7 @@ function inverse(Y::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::CondCoupling
     X1 = (Y1 - Tm) ./ (Sm .+ eps(T)) # add epsilon to avoid division by 0
 
     X_ = tensor_cat(X1, X2)
-    X = X_#L.C.inverse(X_)
+    X = L.C.inverse(X_)
 
     save == true ? (return X, X1, X2, Sm) : (return X)
 end
