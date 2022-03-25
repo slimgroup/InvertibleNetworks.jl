@@ -67,6 +67,7 @@ struct ResidualBlock <: NeuralNetLayer
     fan::Bool
     strides
     pad
+    invertible::Bool
 end
 
 @Flux.functor ResidualBlock
@@ -76,6 +77,8 @@ end
 
 # Constructor
 function ResidualBlock(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
+    # RB is not invertible
+    invertible = false 
 
     k1 = Tuple(k1 for i=1:ndims)
     k2 = Tuple(k2 for i=1:ndims)
@@ -86,12 +89,14 @@ function ResidualBlock(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=f
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
-    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2))
+    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2), invertible)
 end
 
 # Constructor for given weights
 function ResidualBlock(W1, W2, W3, b1, b2; p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
-
+    # RB is not invertible
+    invertible = false 
+    
     # Make weights parameters
     W1 = Parameter(W1)
     W2 = Parameter(W2)
@@ -99,7 +104,7 @@ function ResidualBlock(W1, W2, W3, b1, b2; p1=1, p2=1, s1=1, s2=1, fan=false, nd
     b1 = Parameter(b1)
     b2 = Parameter(b2)
 
-    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2))
+    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2), invertible)
 end
 
 ResidualBlock3D(args...; kw...) = ResidualBlock(args...; kw..., ndims=3)

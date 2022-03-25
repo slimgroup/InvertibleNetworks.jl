@@ -65,6 +65,7 @@ struct CouplingLayerGlow <: NeuralNetLayer
     RB::Union{ResidualBlock, FluxBlock}
     logdet::Bool
     activation::ActivationFunction
+    invertible::Bool
 end
 
 @Flux.functor CouplingLayerGlow
@@ -72,11 +73,11 @@ end
 # Constructor from 1x1 convolution and residual block
 function CouplingLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false, activation::ActivationFunction=SigmoidLayer())
     RB.fan == false && throw("Set ResidualBlock.fan == true")
-    return CouplingLayerGlow(C, RB, logdet, activation)
+    return CouplingLayerGlow(C, RB, logdet, activation, true)
 end
 
 # Constructor from 1x1 convolution and residual Flux block
-CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerGlow(C, RB, logdet, activation)
+CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerGlow(C, RB, logdet, activation, true)
 
 # Constructor from input dimensions
 function CouplingLayerGlow(n_in::Int64, n_hidden::Int64; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
@@ -85,7 +86,7 @@ function CouplingLayerGlow(n_in::Int64, n_hidden::Int64; k1=3, k2=1, p1=1, p2=0,
     C = Conv1x1(n_in)
     RB = ResidualBlock(Int(n_in/2), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
 
-    return CouplingLayerGlow(C, RB, logdet, activation)
+    return CouplingLayerGlow(C, RB, logdet, activation, true)
 end
 
 CouplingLayerGlow3D(args...;kw...) = CouplingLayerGlow(args...; kw..., ndims=3)
