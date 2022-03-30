@@ -44,11 +44,15 @@ include("utils/activation_functions.jl")
 include("utils/test_distributions.jl")
 include("utils/neuralnet.jl")
 include("utils/invertible_network_sequential.jl")
+
+include("utils/test_utils.jl")
+
 # AD rules
 include("utils/chainrules.jl")
 
 # Single network layers (invertible and non-invertible)
 include("conditional_layers/conditional_layer_residual_block.jl")
+include("layers/layer_conv.jl")
 include("layers/layer_residual_block.jl")
 include("layers/layer_flux_block.jl")
 include("layers/layer_resnet.jl")

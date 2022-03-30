@@ -44,36 +44,33 @@ RB = ResidualBlock(W1, W2, W3, b1, b2)   # true weights
 # Observed data
 Y = RB.forward(X)
 
-function loss(RB, X, Y)
-    Y_ = RB.forward(X)
-    ΔY = Y_ - Y
-    f = .5f0*norm(ΔY)^2
-    ΔX = RB.backward(ΔY, X)
-    return f, ΔX, RB.W1.grad, RB.W2.grad, RB.W3.grad, RB.b1.grad, RB.b2.grad
-end
-
-
 ###################################################################################################
 # Gradient tests
+Ts = [Float32, Float64]
+nxs = [16,32,64]
+n_ins = [2,4,8]
+batch_sizes = [1,2,4]
+n_hiddens = [8,16,32]
+ks = [3]
+ps = [1]
+ss = [1,2,3]
+fans = [false]
 
 # Gradient test w.r.t. input
-f0, ΔX = loss(RB, X0, Y)[1:2]
-h = 0.1f0
-maxiter = 5
-err1 = zeros(Float32, maxiter)
-err2 = zeros(Float32, maxiter)
 
-print("\nGradient test convolutions\n")
-for j=1:maxiter
-    f = loss(RB, X0 + h*dX, Y)[1]
-    err1[j] = abs(f - f0)
-    err2[j] = abs(f - f0 - h*dot(dX, ΔX))
-    print(err1[j], "; ", err2[j], "\n")
-    global h = h/2f0
+for T in Ts, nx in nxs, n_in in n_ins, batch_size in batch_sizes
+    for n_hidden in n_hiddens, k1 in ks, k2 in ks, fan in fans
+        for p1 in ps, p2 in ps, s1 in ss, s2 in ss
+            print("\nResidualBlock gradient test wrt input | T=$(T) nx=$(nx) n_in=$(n_in)",
+                " batch_size=$(batch_size) n_hidden=$(n_hidden) k1=$(k1) k2=$(k2)",
+                " p1=$(p1) p2=$(p2) s1=$(s1) s2=$(s2) fan=$(fan) \n")
+    
+            X = randn(T, nx, nx, n_in, batch_size)
+            L = ResidualBlock(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=fan)
+            grad_test_input(L, X, grad_test_input_loss; rtol=T(5f-2))
+        end
+    end
 end
-
-@test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
-@test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
 
 # Gradient test for weights

@@ -45,15 +45,18 @@ mutable struct ActNorm <: NeuralNetLayer
     b::Parameter
     logdet::Bool
     is_reversed::Bool
+    invertible::Bool
 end
 
 @Flux.functor ActNorm
 
 # Constructor: Initialize with nothing
 function ActNorm(k; logdet=false)
+    invertible = true
+
     s = Parameter(nothing)
     b = Parameter(nothing)
-    return ActNorm(k, s, b, logdet, false)
+    return ActNorm(k, s, b, logdet, false, invertible)
 end
 
 # 2-3D Foward pass: Input X, Output Y
