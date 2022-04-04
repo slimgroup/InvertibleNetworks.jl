@@ -97,7 +97,7 @@ function forward(X::AbstractArray{T, 4}, L::CouplingLayerGlow) where T
     k = Int(L.C.k/2)
 
     X_ = L.C.forward(X)
-    X1, X2 = tensor_split(X_)
+    X2, X1 = tensor_split(X_)
 
     Y2 = copy(X2)
     logS_T = L.RB.forward(X2)
@@ -105,7 +105,7 @@ function forward(X::AbstractArray{T, 4}, L::CouplingLayerGlow) where T
     Tm = logS_T[:, :, k+1:end, :]
     Y1 = Sm.*X1 + Tm
 
-    Y = tensor_cat(Y1, Y2)
+    Y = tensor_cat(Y2, Y1)
 
     L.logdet == true ? (return Y, glow_logdet_forward(Sm)) : (return Y)
 end
@@ -115,7 +115,7 @@ function inverse(Y::AbstractArray{T, 4}, L::CouplingLayerGlow; save=false) where
 
     # Get dimensions
     k = Int(L.C.k/2)
-    Y1, Y2 = tensor_split(Y)
+    Y2, Y1 = tensor_split(Y)
 
     X2 = copy(Y2)
     logS_T = L.RB.forward(X2)
@@ -123,7 +123,7 @@ function inverse(Y::AbstractArray{T, 4}, L::CouplingLayerGlow; save=false) where
     Tm = logS_T[:, :, k+1:end, :]
     X1 = (Y1 - Tm) ./ (Sm .+ eps(T)) # add epsilon to avoid division by 0
 
-    X_ = tensor_cat(X1, X2)
+    X_ = tensor_cat(X2, X1)
     X = L.C.inverse(X_)
 
     save == true ? (return X, X1, X2, Sm) : (return X)
@@ -137,7 +137,8 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, L::CouplingL
     X, X1, X2, S = inverse(Y, L; save=true)
 
     # Backpropagate residual
-    ΔY1, ΔY2 = tensor_split(ΔY)
+    #ΔY1, ΔY2 = tensor_split(ΔY)
+    ΔY2, ΔY1 = tensor_split(ΔY)
     ΔT = copy(ΔY1)
     ΔS = ΔY1 .* X1
     if L.logdet
@@ -152,11 +153,14 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, L::CouplingL
         _, ∇logdet = L.RB.backward(cat(L.activation.backward(ΔS_, S), 0f0.*ΔT; dims=3), X2; set_grad=set_grad)
         ΔX2 += ΔY2
     end
-    ΔX_ = tensor_cat(ΔX1, ΔX2)
+    #ΔX_ = tensor_cat(ΔX1, ΔX2)
+    ΔX_ = tensor_cat(ΔX2, ΔX1)
     if set_grad
-        ΔX = L.C.inverse((ΔX_, tensor_cat(X1, X2)))[1]
+        #ΔX = L.C.inverse((ΔX_, tensor_cat(X1, X2)))[1]
+        ΔX = L.C.inverse((ΔX_, tensor_cat(X2, X1)))[1]
     else
-        ΔX, Δθc = L.C.inverse((ΔX_, tensor_cat(X1, X2)); set_grad=set_grad)[1:2]
+        #ΔX, Δθc = L.C.inverse((ΔX_, tensor_cat(X1, X2)); set_grad=set_grad)[1:2]
+        ΔX, Δθc = L.C.inverse((ΔX_, tensor_cat(X2, X1)); set_grad=set_grad)[1:2]
         Δθ = cat(Δθc, Δθrb; dims=1)
     end
 
@@ -166,6 +170,41 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, L::CouplingL
         L.logdet ? (return ΔX, Δθ, X, cat(0*Δθ[1:3], ∇logdet; dims=1)) : (return ΔX, Δθ, X)
     end
 end
+
+# function backward(ΔY::AbstractArray{T,4}, Y::AbstractArray{T,4}, CL::CouplingLayerGlow) where T
+
+# #     #ΔY1, ΔY2 = tensor_split(ΔY); 
+# #     #Y1, Y2 = tensor_split(Y);
+     
+#      ΔY2, ΔY1 = tensor_split(ΔY); 
+#      Y2, Y1 = tensor_split(Y);
+
+#     ΔX2 = ΔY2; 
+#     X2 = Y2
+#     t = CL.RB.forward(X2)
+#     Δt = ΔY1
+    
+#     logs, t = tensor_split(t)
+#     s = CL.activation.forward(logs)
+#     X1 = (Y1-t)./s
+#     ΔX1 = ΔY1.*s
+#     Δs = X1.*ΔY1
+#     #CL.logdet && (Δs .-= dlogdet(CL, s))
+#     CL.logdet && (Δs .-= glow_logdet_backward(s))
+#     #Δlogs = CL.activation.backward(Δs,  nothing, logs)
+#     Δlogs = CL.activation.backward(Δs,  s)
+#     ΔX2 .+= CL.RB.backward(tensor_cat(Δlogs, Δt), X2)
+
+# #     #ΔX_ = tensor_cat(ΔX1, ΔX2)
+# #     #ΔX = CL.C.backward(ΔX_, tensor_cat(X1, X2))[1]
+# #     #X = CL.C.inverse(tensor_cat(X1, X2))
+#      ΔX_ = tensor_cat(ΔX2, ΔX1)
+#      ΔX = CL.C.inverse((ΔX_, tensor_cat(X2, X1)))[1]
+#      X = CL.C.inverse(tensor_cat(X2, X1))
+
+#     return ΔX, X
+
+# end
 
 
 ## Jacobian-related functions
