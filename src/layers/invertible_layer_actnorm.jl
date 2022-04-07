@@ -59,7 +59,7 @@ end
 # 2-3D Foward pass: Input X, Output Y
 function forward(X::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
-    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 
     # Initialize during first pass such that
@@ -79,7 +79,7 @@ end
 # 2-3D Inverse pass: Input Y, Output X
 function inverse(Y::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (AN.logdet && AN.is_reversed) : logdet = logdet
-    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 
     # Initialize during first pass such that
@@ -98,7 +98,7 @@ end
 
 # 2-3D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
 function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, AN::ActNorm; set_grad::Bool = true) where {T, N}
-    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
     nn = size(ΔY)[1:N-2]
 
@@ -125,7 +125,7 @@ end
 ## Reverse-layer functions
 # 2-3D Backward pass (inverse): Input (ΔX, X), Output (ΔX, X)
 function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, AN::ActNorm; set_grad::Bool = true) where {T, N}
-    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
     nn = size(ΔX)[1:N-2]
 
@@ -153,7 +153,7 @@ end
 # 2-£D
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::AbstractArray{Parameter, 1}, X::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
-    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     nn = size(ΔX)[1:N-2]
     Δs = Δθ[1].data
     Δb = Δθ[2].data

@@ -108,7 +108,7 @@ ResidualBlock3D(args...; kw...) = ResidualBlock(args...; kw..., ndims=3)
 
 # Forward
 function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {T, N}
-    inds =[i!=(N-1) ? 1 : (:) for i=1:N]
+    inds =[i!=(N-1) ? 1 : Colon() for i=1:N]
 
     Y1 = conv(X1, RB.W1.data; stride=RB.strides[1], pad=RB.pad[1]) .+ reshape(RB.b1.data, inds...)
     X2 = ReLU(Y1)
@@ -130,7 +130,7 @@ end
 # Backward
 function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
                   RB::ResidualBlock; set_grad::Bool=true) where {T, N}
-    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 
     # Recompute forward states from input X
@@ -174,7 +174,7 @@ end
 ## Jacobian-related functions
 function jacobian(ΔX1::AbstractArray{T, N}, Δθ::Array{Parameter, 1},
                   X1::AbstractArray{T, N}, RB::ResidualBlock) where {T, N}
-    inds = [i!=(N-1) ? 1 : (:) for i=1:N]
+    inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     # Cdims
     cdims1 = DenseConvDims(X1, RB.W1.data; stride=RB.strides[1], padding=RB.pad[1])
 
