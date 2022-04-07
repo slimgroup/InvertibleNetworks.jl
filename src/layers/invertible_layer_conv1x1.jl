@@ -3,7 +3,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 #
-
+using CUDA
 export Conv1x1
 
 """
@@ -105,14 +105,43 @@ function partial_derivative_outer(v::CuArray{T, 1}) where T
     return outer
 end
 
-function mat_tens_i(out::AbstractArray{T, 3}, Mat::AbstractArray{T, 2},
-                    Tens::AbstractArray{T, 3}, Mat2::AbstractArray{T, 2}) where T
-    tmp = cuzeros(out, size(out, 2), size(out, 3))
-    for i=1:size(out, 1)
-        mul!(tmp, Mat, Tens[i, :, :])
-        broadcast!(*, tmp, tmp, Mat2)
-        @views copyto!(out[i, :, :], tmp)
-    end
+# function mat_tens_i(out::AbstractArray{T, 3}, Mat::AbstractArray{T, 2},
+#                     Tens::AbstractArray{T, 3}, Mat2::AbstractArray{T, 2}) where T
+#     tmp = cuzeros(out, size(out, 2), size(out, 3))
+#     for i=1:size(out, 1)
+#         mul!(tmp, Mat, Tens[i, :, :])
+#         broadcast!(*, tmp, tmp, Mat2)
+#         @views copyto!(out[i, :, :], tmp)
+#     end
+#     return out
+# end
+
+
+#function mat_tens_i_sum(out::AbstractArray{T, 1}, Mat::AbstractArray{T, 2},
+#                  Tens::AbstractArray{T, 3}, Mat2::AbstractArray{T, 2}) where T
+#  tmp = cuzeros(out, size(Mat2, 1), size(Mat2, 2))
+#  for i=1:size(out, 1)
+#      mul!(tmp, Mat, Tens[i, :, :])
+#      broadcast!(*, tmp, tmp, Mat2)
+#      CUDA.@allowscalar(out[i] = sum(tmp))
+#  end
+#  return out
+#end
+
+#function mat_tens_i_sum(out::AbstractArray{T, 1}, Mat::AbstractArray{T, 2},
+#                     Tens::AbstractArray{T, 3}, Mat2::AbstractArray{T, 2}) where T
+#    #map!(i ->sum((Mat * Tens[i, :, :]) .* Mat2) , out, 1:size(out, 1))
+#    map!(i ->dot((Mat * Tens[i, :, :]), Mat2), out, 1:size(out, 1))
+#       
+#    #broadcast!(+, out, sum(Mat * Tens[i, :, :]) .* Mat2)
+#    return out
+#end
+
+function mat_tens_i_sum(out::AbstractArray{T, 1}, Mat::AbstractArray{T, 2},
+                     Tens::AbstractArray{T, 3}, Mat2::AbstractArray{T, 2}) where T
+    copyto!(out, map(i ->dot((Mat * Tens[i, :, :]) , Mat2) , 1:size(out, 1)))
+    #map!(i ->dot((Mat * Tens[i, :, :]), Mat2), out, 1:size(out, 1))
+       
     return out
 end
 
@@ -168,15 +197,19 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
         adjoint ? adjoint!(∂V3[i, :, :], tmp) : copyto!(∂V3[i, :, :], tmp)
     end
 
-    prod_res = cuzeros(X, size(∂V1, 1), prod(size(X)[1:N-2]), n_in)
+    #prod_res = cuzeros(X, size(∂V1, 1), prod(size(X)[1:N-2]), n_in)
+    prod_res = cuzeros(X, size(∂V1, 1))
     inds = [i<N ? (:) : 1 for i=1:N]
     for i=1:batchsize
         inds[end] = i
         Xi = -2f0*reshape(view(X, inds...), :, n_in)
         ΔYi = reshape(view(ΔY, inds...), :, n_in)
-        broadcast!(+, dv1, dv1, custom_sum(mat_tens_i(prod_res, Xi, ∂V1, ΔYi), (3, 2)))
-        broadcast!(+, dv2, dv2, custom_sum(mat_tens_i(prod_res, Xi, ∂V2, ΔYi), (3, 2)))
-        broadcast!(+, dv3, dv3, custom_sum(mat_tens_i(prod_res, Xi, ∂V3, ΔYi), (3, 2)))
+        #broadcast!(+, dv1, dv1, custom_sum(mat_tens_i(prod_res, Xi, ∂V1, ΔYi), (3, 2)))
+        #broadcast!(+, dv2, dv2, custom_sum(mat_tens_i(prod_res, Xi, ∂V2, ΔYi), (3, 2)))
+        #broadcast!(+, dv3, dv3, custom_sum(mat_tens_i(prod_res, Xi, ∂V3, ΔYi), (3, 2)))
+        broadcast!(+, dv1, dv1, mat_tens_i_sum(prod_res, Xi, ∂V1, ΔYi))
+        broadcast!(+, dv2, dv2, mat_tens_i_sum(prod_res, Xi, ∂V2, ΔYi))
+        broadcast!(+, dv3, dv3, mat_tens_i_sum(prod_res, Xi, ∂V3, ΔYi))
     end
     return dv1, dv2, dv3
 end

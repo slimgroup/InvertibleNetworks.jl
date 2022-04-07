@@ -126,30 +126,40 @@ end
 # 2D Backward pass: Input (ΔY, Y), Output (ΔX, X)
 function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM; set_grad::Bool=true) where {T, N}
 
-    # Recompute forward state
-    #X, X_, Y1_ = inverse(Y, L; save=true)
-
     num_downsamp = length(L.C)
     for j=num_downsamp:-1:1
 
-        # Recompute forward state
-        Y_ = L.C[j].forward(Y)
-        Y1_, Y2_ = tensor_split(Y_)
-
-        X1_ = Y1_
-        X2_ = Y2_ - L.RB[j].forward(Y1_)
-        X_ = tensor_cat(X1_, X2_)
-        X = L.C[j].inverse(X_)
-
-
-        # Backpropagate residual
-        ΔY_, Y_ = L.C[j].forward((ΔY, Y))
-        ΔYl_, ΔYr_ = tensor_split(ΔY_)
+        print("\n in the $(j)th layer")
+        println("\n In invertible_irim_layer right before backwards of forward 1x1 conv")
+        CUDA.memory_status()
+        println("\n ") 
         
-        ΔY1_ = L.RB[j].backward(ΔYr_, Y1_) + ΔYl_
-        ΔX_ = tensor_cat(ΔY1_, ΔYr_)
+        ΔY_, Y_ = L.C[j].forward((ΔY, Y))
+        Y = nothing
+        ΔY = nothing
+        GC.gc(true)
+        CUDA.reclaim()
 
-        ΔY, Y = L.C[j].inverse((ΔX_, X_))
+        println("\n In invertible_irim_layer right after backwards of forward 1x1 conv")
+        CUDA.memory_status()
+        println("\n ") 
+
+        Y1_, Y2_ = tensor_split(Y_)
+        ΔYl_, ΔYr_ = tensor_split(ΔY_)
+
+        Y_ = nothing
+        ΔY_ = nothing
+        GC.gc(true)
+        CUDA.reclaim()
+
+        println("\n In invertible_irim_layer right before backwards of residual block")
+        CUDA.memory_status()
+        println("\n ") 
+
+        ΔY1_ = L.RB[j].backward(ΔYr_, Y1_) + ΔYl_
+        ΔY, Y = L.C[j].inverse((tensor_cat(ΔY1_, ΔYr_), tensor_cat(Y1_, Y2_ - L.RB[j].forward(Y1_))))
+
+
     end
     
    return ΔY, Y

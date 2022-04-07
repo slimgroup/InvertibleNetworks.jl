@@ -4,7 +4,10 @@ export convert_cu, cuzeros, cuones, array_of_array, chain_lr
 
 convert_cu(in_a, X) =  X isa CuArray ? cu(in_a) : in_a
 cuzeros(::Array{T, N}, a::Vararg{Int, N2}) where {T, N, N2} = zeros(T, a...)
-cuzeros(::CuArray{T, N}, a::Vararg{Int, N2}) where {T, N, N2} = CUDA.zeros(T, a...)
+function cuzeros(::CuArray{T, N}, a::Vararg{Int, N2}) where {T, N, N2} 
+    #println("size: $(a)")
+    CUDA.zeros(T, a...)
+end
 cuzeros(x, a::Tuple) = cuzeros(x, a...)
 cuones(::Array{T, N}, a::Vararg{Int, N2}) where {T, N, N2} = ones(T, a...)
 cuones(::CuArray{T, N}, a::Vararg{Int, N2}) where {T, N, N2} = CUDA.ones(T, a...)
