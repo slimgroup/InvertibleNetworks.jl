@@ -2,8 +2,9 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using InvertibleNetworks, LinearAlgebra, Test
+using InvertibleNetworks, LinearAlgebra, Test, Flux, Random
 
+Random.seed!(11)
 ###################################################################################################
 # Initialize parameters
 
@@ -14,26 +15,26 @@ k = 4
 batchsize = 2
 
 # Variables
-v1 = randn(Float32, k)
-v10 = randn(Float32, k)
+v1 = randn(Float32, k) |> gpu
+v10 = randn(Float32, k) |> gpu
 dv1 = v1 - v10
 
-v2 = randn(Float32, k)
-v20 = randn(Float32, k)
+v2 = randn(Float32, k) |> gpu
+v20 = randn(Float32, k) |> gpu
 dv2 = v2 - v20
 
-v3 = randn(Float32, k)
-v30 = randn(Float32, k)
+v3 = randn(Float32, k) |> gpu
+v30 = randn(Float32, k) |> gpu
 dv3 = v3 - v30
 
 # Input
-X = randn(Float32, nx, ny, k, batchsize)
-X0 = randn(Float32, nx, ny, k, batchsize)
+X = randn(Float32, nx, ny, k, batchsize) |> gpu
+X0 = randn(Float32, nx, ny, k, batchsize) |> gpu
 dX = X - X0
 
 # Operators
-C = Conv1x1(v1, v2, v3)
-C0 = Conv1x1(v10, v20, v30)
+C = Conv1x1(v1, v2, v3) |> gpu
+C0 = Conv1x1(v10, v20, v30) |> gpu
 
 
 ###################################################################################################
@@ -50,7 +51,7 @@ err2 = norm(X - X_)/norm(X)
 @test isapprox(err2, 0f0; atol=1f-6)
 
 Y = C.forward(X)
-ΔY = randn(Float32, nx, ny, k, batchsize)
+ΔY = randn(Float32, nx, ny, k, batchsize) |> gpu
 ΔX_, X_ = C.inverse((ΔY, Y))
 err3 = norm(X - X_)/norm(X)
 
@@ -96,7 +97,7 @@ clear_grad!(C)
 f0, ΔX = objective(C, X0, Y)[1:2]
 h = .01f0
 err1 = zeros(Float32, maxiter)
-err2 = zeros(Float32, maxiter)
+err2 = zeros(Float32, maxiter) 
 for j=1:maxiter
     f = loss(C.forward(X0 + h*dX) - Y)
     err1[j] = abs(f - f0)
@@ -113,6 +114,7 @@ end
 print("\nGradient test Δv1\n")
 clear_grad!(C0)
 f0, ΔX, Δv1, Δv2, Δv3 = objective(C0, X, Y)
+@show dot(Δv1, Δv1), dot(Δv2, Δv2) , dot(Δv3, Δv3)
 h = .01f0
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
@@ -121,6 +123,7 @@ for j=1:maxiter
     C0.v2.data = v20 + h*dv2
     C0.v3.data = v30 + h*dv3
     f = loss(C0.forward(X) - Y)
+    
     err3[j] = abs(f - f0)
     err4[j] = abs(f - f0 - h*dot(dv1, Δv1) - h*dot(dv2, Δv2) - h*dot(dv3, Δv3))
     print(err3[j], "; ", err4[j], "\n")

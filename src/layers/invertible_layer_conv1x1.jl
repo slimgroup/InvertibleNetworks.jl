@@ -105,20 +105,11 @@ function partial_derivative_outer(v::CuArray{T, 1}) where T
     return outer
 end
 
-function mat_tens_i(out::AbstractArray{T, 3}, Mat::AbstractArray{T, 2},
-                    Tens::AbstractArray{T, 3}, Mat2::AbstractArray{T, 2}) where T
-    tmp = cuzeros(out, size(out, 2), size(out, 3))
-    for i=1:size(out, 1)
-        mul!(tmp, Mat, Tens[i, :, :])
-        broadcast!(*, tmp, tmp, Mat2)
-        @views copyto!(out[i, :, :], tmp)
-    end
-    return out
-end
 
-function custom_sum(a::AbstractArray{T, 3}, dims::Tuple{Integer, Integer}) where T
-    summed = sum(a, dims=dims)
-    return dropdims(summed, dims = (findall(size(summed) .== 1)...,))
+function mat_tens_i(out::AbstractVector{T}, Mat::AbstractArray{T, 2},
+                    Tens::AbstractArray{T, 3}, Mat2::AbstractArray{T, 2}) where T
+    copyto!(out, map(i -> dot(Mat * Tens[i, :, :], Mat2) , 1:size(Tens, 1)))
+    return out
 end
 
 function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
@@ -143,38 +134,33 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
     dV2 = partial_derivative_outer(v2)
     dV3 = partial_derivative_outer(v3)
 
-    ∂V1 = deepcopy(dV1)
-    ∂V2 = deepcopy(dV2)
-    ∂V3 = deepcopy(dV3)
-
     M1 = (I - 2 * (V2 + V3) + 4*V2*V3)
     M3 = (I - 2 * (V1 + V2) + 4*V1*V2)
     tmp = cuzeros(X, k, k)
     for i=1:k
-        # ∂V1
-        mul!(tmp, ∂V1[i, :, :], M1)
-        @views adjoint ? adjoint!(∂V1[i, :, :], tmp) : copyto!(∂V1[i, :, :], tmp)
-        # ∂V2
-        v2 = ∂V2[i, :, :]
+        # dV1
+        mul!(tmp, dV1[i, :, :], M1)
+        @views adjoint ? copyto!(dV1[i, :, :], tmp') : copyto!(dV1[i, :, :], tmp)
+        # dV2
+        v2 = dV2[i, :, :]
         broadcast!(+, tmp, v2, 4 * V1 * v2 * V3 - 2 * (V1 * v2 + v2 * V3))
-        @views adjoint ? adjoint!(∂V2[i, :, :], tmp) : copyto!(∂V2[i, :, :], tmp)
-        # ∂V3
-        mul!(tmp, M3, ∂V3[i, :, :])
-        @views adjoint ? adjoint!(∂V3[i, :, :], tmp) : copyto!(∂V3[i, :, :], tmp)
+        @views adjoint ? copyto!(dV2[i, :, :], tmp') : copyto!(dV2[i, :, :], tmp)
+        # dV3
+        mul!(tmp, M3, dV3[i, :, :])
+        @views adjoint ? copyto!(dV3[i, :, :], tmp') : copyto!(dV3[i, :, :], tmp)
     end
 
-    prod_res = cuzeros(X, size(∂V1, 1), prod(size(X)[1:N-2]), n_in)
-    inds = [i<N ? (:) : 1 for i=1:N]
+    prod_res = cuzeros(X, size(dV1, 1))
     for i=1:batchsize
-        inds[end] = i
-        Xi = -2f0*reshape(view(X, inds...), :, n_in)
-        ΔYi = reshape(view(ΔY, inds...), :, n_in)
-        broadcast!(+, dv1, dv1, custom_sum(mat_tens_i(prod_res, Xi, ∂V1, ΔYi), (3, 2)))
-        broadcast!(+, dv2, dv2, custom_sum(mat_tens_i(prod_res, Xi, ∂V2, ΔYi), (3, 2)))
-        broadcast!(+, dv3, dv3, custom_sum(mat_tens_i(prod_res, Xi, ∂V3, ΔYi), (3, 2)))
+        Xi = -2f0*reshape(selectdim(X, N, i), :, n_in)
+        ΔYi = reshape(selectdim(ΔY, N, i), :, n_in)
+        broadcast!(+, dv1, dv1, mat_tens_i(prod_res, Xi, dV1, ΔYi))
+        broadcast!(+, dv2, dv2, mat_tens_i(prod_res, Xi, dV2, ΔYi))
+        broadcast!(+, dv3, dv3, mat_tens_i(prod_res, Xi, dV3, ΔYi))
     end
     return dv1, dv2, dv3
 end
+
 
 # Forward pass
 function forward(X::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N}
@@ -186,12 +172,10 @@ function forward(X::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N
     v2 = C.v2.data
     v3 = C.v3.data
 
-    inds = [i<N ? (:) : 1 for i=1:N]
     for i=1:size(X, N)
-        inds[end] = i
-        Xi = reshape(view(X, inds...), :, n_in)
+        Xi = reshape(selectdim(X, N, i), :, n_in)
         Yi = chain_lr(Xi, v1, v2, v3)
-        view(Y, inds...) .= reshape(Yi, size(view(Y, inds...))...)
+        selectdim(Y, N, i) .= reshape(Yi, size(selectdim(Y, N, i))...)
     end
     logdet == true ? (return Y, 0) : (return Y)   # logdet always 0
 end
@@ -223,12 +207,10 @@ function inverse(Y::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N
     v2 = C.v2.data
     v3 = C.v3.data
 
-    inds = [i<N ? (:) : 1 for i=1:N]
     for i=1:size(Y, N)
-        inds[end] = i
-        Yi = reshape(view(Y, inds...), :, n_in)
+        Yi = reshape(selectdim(Y, N, i), :, n_in)
         Xi = chain_lr(Yi, v3, v2, v1)
-        view(X, inds...) .= reshape(Xi, size(view(X, inds...))...)
+        selectdim(X, N, i) .= reshape(Xi, size(selectdim(X, N, i))...)
     end
     logdet == true ? (return X, 0) : (return X)   # logdet always 0
 end
@@ -265,14 +247,12 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::Abstra
     dv2 = Δθ[2].data
     dv3 = Δθ[3].data
 
-    inds = [i<N ? (:) : 1 for i=1:N]
     for i=1:size(X, N)
-        inds[end] = i
-        Xi = reshape(view(X, inds...), :, n_in)
+        Xi = reshape(selectdim(X, N, i), :, n_in)
         Yi = chain_lr(Xi, v1, v2, v3)
-        view(Y, inds...) .= reshape(Yi, size(view(Y, inds...))...)
+        selectdim(Y, N, i) .= reshape(Yi, size(selectdim(Y, N, i) )...)
 
-        ΔXi = reshape(view(ΔX, inds...), :, n_in)
+        ΔXi = reshape(selectdim(ΔX, N, i), :, n_in)
         ΔYi = chain_lr(Xi, v1, v2, v3)
         # this is a lot of outer products of 1D vecotrs, need to be cleaned up that's overkill computationnaly
         n1 = norm(v1); n2 = norm(v2); n3 = norm(v3);
@@ -281,7 +261,7 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::Abstra
         ΔYi += -2f0*Xi*((dv1*v1'+v1*dv1'-2f0*dot(v1,dv1)*v1*v1'/n1^2f0)/n1^2f0*c2*c3+
                        c1*(dv2*v2'+v2*dv2'-2f0*dot(v2,dv2)*v2*v2'/n2^2f0)/n2^2f0*c3+
                        c1*c2*(dv3*v3'+v3*dv3'-2f0*dot(v3,dv3)*v3*v3'/n3^2f0)/n3^2f0)
-        view(ΔY, inds...) .= reshape(ΔYi, size(view(ΔY, inds...))...)
+        selectdim(ΔY, N, i) .= reshape(ΔYi, size(selectdim(ΔY, N, i))...)
     end
 
     return ΔY, Y
