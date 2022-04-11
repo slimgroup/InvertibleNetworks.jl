@@ -227,9 +227,19 @@ end
 
  See also: [`GaLUgrad`](@ref)
 """
-function GaLU(x::AbstractArray{T, N}) where {T, N}
-    x1, x2 = tensor_split(x)
-    y =  x1 .* Sigmoid(x2)
+function GaLU(X::AbstractArray{T, N}) where {T, N}
+    #x1, x2 = tensor_split(x)
+   
+    d = max(1, N-1)
+  
+    k = Int(round(size(X, d)/2))
+  
+
+    indsl = [i==d ? (1:k) : (:) for i=1:N]
+    indsr = [i==d ? (k+1:size(X, d)) : (:) for i=1:N]
+    
+    #y =  x[] .* Sigmoid(x2)
+    y =  X[indsl...] .* Sigmoid(X[indsr...])
     return y
 end
 

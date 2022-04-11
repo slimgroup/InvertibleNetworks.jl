@@ -3,7 +3,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 #
-using CUDA
+#using CUDA
 export Conv1x1
 
 """
@@ -237,9 +237,9 @@ end
 # Forward pass and update weights
 function forward(X_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     ΔX = X_tuple[1]
-    X = X_tuple[2]
+    X  = X_tuple[2]
     ΔY = forward(ΔX, C; logdet=false)    # forward propagate residual
-    Y = forward(X, C; logdet=false)  # recompute forward state
+    Y  = forward(X, C; logdet=false)  # recompute forward state
     Δv1, Δv2, Δv3 = conv1x1_grad_v(Y, ΔX, C; adjoint=true)  # gradient w.r.t. weights
     if set_grad
         isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)

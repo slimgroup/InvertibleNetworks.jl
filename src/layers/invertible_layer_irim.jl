@@ -157,8 +157,22 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
         println("\n ") 
 
         ΔY1_ = L.RB[j].backward(ΔYr_, Y1_) + ΔYl_
+        ΔYl_ = nothing
+        GC.gc(true)
+        CUDA.reclaim()
+        println("\n In invertible_irim_layer right before backwards of conv")
+        CUDA.memory_status()
+        
         ΔY, Y = L.C[j].inverse((tensor_cat(ΔY1_, ΔYr_), tensor_cat(Y1_, Y2_ - L.RB[j].forward(Y1_))))
-
+        ΔY1_ = nothing
+        ΔYr_ = nothing
+        Y1_ = nothing
+        Y2_ = nothing
+         GC.gc(true)
+        CUDA.reclaim()
+        println("\n In invertible_irim_layer right after backwards of conv")
+        CUDA.memory_status()
+        #5.7
 
     end
     

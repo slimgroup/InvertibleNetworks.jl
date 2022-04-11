@@ -83,7 +83,6 @@ function ResidualBlock(n_in, n_hidden; d=nothing, k1=3, k2=3, p1=1, p2=1, s1=1, 
         p1 = 0
     end
 
-
     k1 = Tuple(k1 for i=1:ndims)
     k2 = Tuple(k2 for i=1:ndims)
     # Initialize weights
@@ -130,7 +129,7 @@ function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {
     if save == false
         return X4
     else
-        return Y1, Y2, Y3, X2, X3
+        return Y1, Y2, Y3
     end
 end
 
@@ -141,20 +140,28 @@ function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
     dims = collect(1:N-1); dims[end] +=1
 
     # Recompute forward states from input X
-    Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
+    Y1, Y2, Y3 = forward(X1, RB; save=true)
+    GC.gc(true)
+    CUDA.reclaim()
+    
+    
 
     # Cdims
-    cdims2 = DenseConvDims(X2, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
+    #cdims2 = DenseConvDims(X2, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
+    cdims2 = DenseConvDims(Y1, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
+    
     cdims3 = DCDims(X1, RB.W3.data; nc=2*size(X1, N-1), stride=RB.strides[1], padding=RB.pad[1])
 
     # Backpropagate residual ΔX4 and compute gradients
     RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
     ΔX3 = conv(ΔY3, RB.W3.data, cdims3)
-    ΔW3 = ∇conv_filter(ΔY3, X3, cdims3)
+    #ΔW3 = ∇conv_filter(ΔY3, X3, cdims3)
+    ΔW3 = ∇conv_filter(ΔY3, ReLU(Y2), cdims3)
 
     ΔY2 = ReLUgrad(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, cdims2) + ΔY2
-    ΔW2 = ∇conv_filter(X2, ΔY2, cdims2)
+    #ΔW2 = ∇conv_filter(X2, ΔY2, cdims2)
+    ΔW2 = ∇conv_filter(ReLU(Y1), ΔY2, cdims2)
     Δb2 = sum(ΔY2, dims=dims)[inds...]
 
     cdims1 = DenseConvDims(X1, RB.W1.data; stride=RB.strides[1], padding=RB.pad[1])

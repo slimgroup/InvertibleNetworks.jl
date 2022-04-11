@@ -192,13 +192,14 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
     nn = size(s)[1:N-2]
     #maxiter = length(UL.L)
   
-    Δs = 0 .* s  # make Δs zero tensor
+    #Δs = 0 .* s  # make Δs zero tensor
                     
     println("\nIn irim network right before zero out")
     CUDA.memory_status()
     println("\n ") 
 
     # Initialize net parameters
+                
     set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
 
     j = 1
@@ -217,13 +218,12 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
 
     η_s_cat   = tensor_cat(η, s) ;  
 	Δη_Δs_cat = tensor_cat(Δη, Δs);
-	#η  = nothing
-	#s  = nothing
-	#Δη = nothing
-	#Δs = nothing
+	η  = nothing
+	s  = nothing
+	Δη = nothing
+	Δs = nothing
                     
-                    
-                    
+    #4.3       
                     
     println("\nIn irim network right before backwards of invertible_irim_layer")
     println("\n ") 
