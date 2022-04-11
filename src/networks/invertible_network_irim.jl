@@ -182,14 +182,21 @@ end
 function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N}, 
     η::AbstractArray{T, N}, s::AbstractArray{T, N}, J, UL::NetworkLoop; g=nothing, set_grad::Bool=true) where {T, N}
 
+    println("\nIn irim network just entered")
+    CUDA.memory_status()
+    println("\n ")  
+                    
     # Dimensions
-    n_in = size(s, N-1) + 1
+    n_in = size(s, N - 1) + 1
     batchsize = size(s)[end]
     nn = size(s)[1:N-2]
-    maxiter = length(UL.L)
-
+    #maxiter = length(UL.L)
   
-    typeof(Δs) == T && (Δs = 0 .* s)  # make Δs zero tensor
+    Δs = 0 .* s  # make Δs zero tensor
+                    
+    println("\nIn irim network right before zero out")
+    CUDA.memory_status()
+    println("\n ") 
 
     # Initialize net parameters
     set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
@@ -197,19 +204,34 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
     j = 1
     #for j = maxiter:-1:1
                     
-    η_s_cat = tensor_cat(η, s)   
-	Δη_Δs_cat = tensor_cat(Δη, Δs)
-	η = nothing
-	s = nothing
-	Δη = nothing
-	Δs = nothing
-	GC.gc(true)
-    CUDA.reclaim()  
-    println("\nIn irim network right before backwards of invertible_irim_layer")
+    println("\nIn irim network right before cats")
+    GC.gc(true)
+    CUDA.reclaim() 
     CUDA.memory_status()
-    println("\n ")                
-    if set_grad
-                        
+    println("\n ") 
+                    
+    println(size(η))
+    println(size(s))
+    println(size(Δs))
+    println(size(Δη))
+
+    η_s_cat   = tensor_cat(η, s) ;  
+	Δη_Δs_cat = tensor_cat(Δη, Δs);
+	#η  = nothing
+	#s  = nothing
+	#Δη = nothing
+	#Δs = nothing
+                    
+                    
+                    
+                    
+    println("\nIn irim network right before backwards of invertible_irim_layer")
+    println("\n ") 
+	GC.gc(true)
+    CUDA.reclaim() 
+    CUDA.memory_status()
+                   
+    if set_grad                       
         Δηs_, ηs_ = UL.L[j].backward(Δη_Δs_cat, η_s_cat)
     else
         Δηs_, Δθ_L, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s); set_grad=set_grad)
