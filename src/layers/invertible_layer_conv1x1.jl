@@ -283,16 +283,3 @@ end
 function inverse(C::Conv1x1)
     return Conv1x1(C.k, C.v3, C.v2, C.v1, C.logdet)
 end
-
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(C::Conv1x1)
-    C.v1.grad = nothing
-    C.v2.grad = nothing
-    C.v3.grad = nothing
-end
-
-# Get parameters
-get_params(C::Conv1x1) = [C.v1, C.v2, C.v3]

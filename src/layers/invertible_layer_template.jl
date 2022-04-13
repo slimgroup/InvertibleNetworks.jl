@@ -102,17 +102,6 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, AL::AffineLa
     return ΔX, X
 end
 
-# For optimization, we need a function that clears all the gradients.
-# I.e. we set the .grad fields of all parameters to nothing.
-function clear_grad!(AL::AffineLayer)
-    AL.S.grad = nothing
-    AL.B.grad = nothing
-end
-
-# Also we define a get_params function that returns an array of all
-# the parameters. In this case, our parameters are S and B
-get_params(AL::AffineLayer) = [AL.S, AL.B]
-
 # Function for the logdet and for computing the gradient of the logdet.
 # For our affine layer consisting of an element-wise multiplication of S
 # and X, the Jacobian is given by S, and the logdet is the sum of the logarithm

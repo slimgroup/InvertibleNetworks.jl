@@ -68,6 +68,8 @@ function get_grads(pvec::Array{Parameter, 1})
     return g
 end
 
+get_params(p::Parameter) = p
+
 function set_params!(pold::Parameter, pnew::Parameter)
     pold.data = pnew.data
     pold.grad = pnew.grad

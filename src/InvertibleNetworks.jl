@@ -11,7 +11,7 @@ using JOLI
 using NNlib, Flux, ChainRulesCore
 
 # Overloads and reexports
-import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!
+import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!, Base.getproperty
 import Base.+, Base.*, Base.-, Base./
 import LinearAlgebra.dot, LinearAlgebra.norm, LinearAlgebra.adjoint
 import Flux.glorot_uniform

@@ -147,10 +147,12 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGl
     end
 
     if ~set_grad
-        Δθ = Array{Parameter, 1}(undef, 10*G.L*G.K)
-        ∇logdet = Array{Parameter, 1}(undef, 10*G.L*G.K)
+        ΔθAN = Vector{Parameter}(undef, 0)
+        ΔθCL = Vector{Parameter}(undef, 0)
+        ∇logdetAN = Vector{Parameter}(undef, 0)
+        ∇logdetCL = Vector{Parameter}(undef, 0)
     end
-    blkidx = 10*G.L*G.K
+
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X  = tensor_cat(X, Z_save[i])
@@ -163,45 +165,48 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGl
             else
                 ΔX, Δθcl_ij, X, ∇logdetcl_ij = G.CL[i, j].backward(ΔX, X; set_grad=set_grad)
                 ΔX, Δθan_ij, X, ∇logdetan_ij = G.AN[i, j].backward(ΔX, X; set_grad=set_grad)
-                Δθ[blkidx-9:blkidx] = cat(Δθan_ij, Δθcl_ij; dims=1)
-                ∇logdet[blkidx-9:blkidx] = cat(∇logdetan_ij, ∇logdetcl_ij; dims=1)
+                prepend!(ΔθAN, Δθan_ij)
+                prepend!(ΔθCL, Δθcl_ij)
+                prepend!(∇logdetAN, ∇logdetan_ij)
+                prepend!(∇logdetCL, ∇logdetcl_ij)
             end
-            blkidx -= 10
         end
 
         if G.split_scales 
-            X = G.squeezer.inverse(X)
+          X = G.squeezer.inverse(X)
           ΔX = G.squeezer.inverse(ΔX)
         end
     end
-    set_grad ? (return ΔX, X) : (return ΔX, Δθ, X, ∇logdet)
+    set_grad ? (return ΔX, X) : (return ΔX, vcat(ΔθAN, ΔθCL), X, vcat(∇logdetAN, ∇logdetCL))
 end
 
 
 ## Jacobian-related utils
-
-function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, G::NetworkGlow) where {T, N}
+function jacobian(ΔX::AbstractArray{T, N}, Δθ::Vector{Parameter}, X, G::NetworkGlow) where {T, N}
 
     if G.split_scales 
         Z_save = array_of_array(ΔX, G.L-1)
         ΔZ_save = array_of_array(ΔX, G.L-1)
     end
     logdet = 0
-    GNΔθ = Array{Parameter, 1}(undef, 10*G.L*G.K)
-    blkidx = 0
+    cls = 2*G.K*G.L
+    ΔθAN = Vector{Parameter}(undef, 0)
+    ΔθCL = Vector{Parameter}(undef, 0)
+
     for i=1:G.L
         if G.split_scales 
             X = G.squeezer.forward(X) 
-            ΔX = G.squeezer.forward(ΔX) 
+            ΔX = G.squeezer.forward(ΔX)
         end
         
         for j=1:G.K
-            Δθ_ij = Δθ[blkidx+1:blkidx+10]
-            ΔX, X, logdet1, GNΔθ1 = G.AN[i, j].jacobian(ΔX, Δθ_ij[1:2], X)
-            ΔX, X, logdet2, GNΔθ2 = G.CL[i, j].jacobian(ΔX, Δθ_ij[3:end], X)
+            as = length(ΔθAN)+1
+            cs = cls + length(ΔθCL) + 1
+            ΔX, X, logdet1, GNΔθ1 = G.AN[i, j].jacobian(ΔX, Δθ[as:as+1], X)
+            ΔX, X, logdet2, GNΔθ2 = G.CL[i, j].jacobian(ΔX, Δθ[cs:cs+7], X)
             logdet += (logdet1 + logdet2)
-            GNΔθ[blkidx+1:blkidx+10] = cat(GNΔθ1,GNΔθ2; dims=1)
-            blkidx += 10
+            append!(ΔθAN, GNΔθ1)
+            append!(ΔθCL, GNΔθ2)
         end
         if G.split_scales && i < G.L    # don't split after last iteration
             X, Z = tensor_split(X)
@@ -216,34 +221,7 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, G::Net
         ΔX = cat_states(ΔZ_save, ΔX)
     end
     
-    return ΔX, X, logdet, GNΔθ
+    return ΔX, X, logdet, vcat(ΔθAN, ΔθCL)
 end
 
 adjointJacobian(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGlow) where {T, N} = backward(ΔX, X, G; set_grad=false)
-
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(G::NetworkGlow)
-    L, K = size(G.AN)
-    for i=1:L
-        for j=1:K
-            clear_grad!(G.AN[i, j])
-            clear_grad!(G.CL[i, j])
-        end
-    end
-end
-
-# Get parameters
-function get_params(G::NetworkGlow)
-    L, K = size(G.AN)
-    p = Array{Parameter, 1}(undef, 0)
-    for i=1:L
-        for j=1:K
-            p = cat(p, get_params(G.AN[i, j]); dims=1)
-            p = cat(p, get_params(G.CL[i, j]); dims=1)
-        end
-    end
-    return p
-end

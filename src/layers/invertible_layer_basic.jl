@@ -212,13 +212,6 @@ end
 coupling_logdet_forward(S) = sum(log.(abs.(S))) / size(S)[end]
 coupling_logdet_backward(S) = 1f0./ S / size(S)[end]
 
-## Other utils
-# Clear gradients
-clear_grad!(L::CouplingLayerBasic) = clear_grad!(L.RB)
-
-# Get parameters
-get_params(L::CouplingLayerBasic) = get_params(L.RB)
-
 # Set is_reversed flag
 function tag_as_reversed!(L::CouplingLayerBasic, tag::Bool)
     L.is_reversed = tag

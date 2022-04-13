@@ -165,8 +165,10 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
     end
 
     if ~set_grad
-        Δθ = Array{Parameter, 1}(undef, 0)
-        ∇logdet = Array{Parameter, 1}(undef, 0)
+        ΔθANX, ΔθANY, ΔθCL = Vector{Parameter}(undef, 0), Vector{Parameter}(undef, 0), Vector{Parameter}(undef, 0)
+        if CH.logdet
+            ∇logdetANX, ∇logdetANY, ∇logdetCL = Vector{Parameter}(undef, 0), Vector{Parameter}(undef, 0), Vector{Parameter}(undef, 0)
+        end
     end
 
     for i=CH.L:-1:1
@@ -186,13 +188,13 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
                     ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdetcl = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
                     ΔZx, Δθx, Zx, ∇logdetx = CH.AN_X[i, j].backward(ΔZx_, Zx_; set_grad=set_grad)
                     ΔZy, Δθy, Zy, ∇logdety = CH.AN_Y[i, j].backward(ΔZy_, Zy_; set_grad=set_grad)
-                    ∇logdet = cat(∇logdetx, ∇logdety, ∇logdetcl, ∇logdet; dims=1)
+                    prepend!(∇logdetANX, ∇logdetx);prepend!(∇logdetANY, ∇logdety);prepend!(∇logdetCL, ∇logdetcl)
                 else
                     ΔZx_, ΔZy_, Δθcl, Zx_, Zy_ = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
                     ΔZx, Δθx, Zx = CH.AN_X[i, j].backward(ΔZx_, Zx_; set_grad=set_grad)
                     ΔZy, Δθy, Zy = CH.AN_Y[i, j].backward(ΔZy_, Zy_; set_grad=set_grad)
                 end
-                Δθ = cat(Δθx, Δθy, Δθcl, Δθ; dims=1)
+                prepend!(ΔθANX, Δθx);prepend!(ΔθANY, Δθy);prepend!(ΔθCL, Δθcl)
             end
         end
         ΔZx = CH.squeezer.inverse(ΔZx)
@@ -203,6 +205,8 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
     if set_grad
         return ΔZx, ΔZy, Zx, Zy
     else
+        CH.logdet && (∇logdet = vcat(∇logdetANX, ∇logdetANY, ∇logdetCL))
+        Δθ = vcat(ΔθANX, ΔθANY, ΔθCL)
         CH.logdet ? (return ΔZx, ΔZy, Δθ, Zx, Zy, ∇logdet) : (return ΔZx, ΔZy, Δθ, Zx, Zy)
     end
 end
@@ -269,7 +273,7 @@ end
 
 ## Jacobian-related utils
 
-function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing) where {T, N}
+function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Vector{Parameter}, X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
 
     if CH.split_scales
@@ -278,9 +282,14 @@ function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Arra
     end
 
     logdet_ = 0f0
-    logdet && (GNΔθ = Array{Parameter, 1}(undef, 0))
+    if logdet
+        cls = 4*CH.K*CH.L
+        ays = 2*CH.K*CH.L
+        ΔθANX = Vector{Parameter}(undef, 0)
+        ΔθANY = Vector{Parameter}(undef, 0)
+        ΔθCL = Vector{Parameter}(undef, 0)
+    end
 
-    idxblk = 0
     for i=1:CH.L
         ΔX = CH.squeezer.forward(ΔX)
         ΔY = CH.squeezer.forward(ΔY)
@@ -288,19 +297,22 @@ function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Arra
         Y = CH.squeezer.forward(Y)
 
         for j=1:CH.K
+            asx = length(ΔθANX)+1
+            asy = ays + length(ΔθANY) + 1
+            cs = cls + length(ΔθCL) + 1
+            ce = cs + length(get_params(CH.CL[i, j])) - 1
     	    if logdet
-                npars_ij = 4+length(get_params(CH.CL[i, j]))
-                Δθij = Δθ[idxblk+1:idxblk+npars_ij]
-                ΔX_, X_, logdet1, GNΔθ1 = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
-                ΔY_, Y_, logdet2, GNΔθ2 = CH.AN_Y[i, j].jacobian(ΔY, Δθij[3:4], Y)
-                ΔX, ΔY, X, Y, logdet3, GNΔθ3 = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθij[5:end], X_, Y_)
+                ΔX_, X_, logdet1, GNΔθ1 = CH.AN_X[i, j].jacobian(ΔX, Δθ[asx:asx+1], X)
+                ΔY_, Y_, logdet2, GNΔθ2 = CH.AN_Y[i, j].jacobian(ΔY, Δθ[asy:asy+1], Y)
+                ΔX, ΔY, X, Y, logdet3, GNΔθ3 = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθ[cs:ce], X_, Y_)
                 logdet_ += (logdet1 + logdet2 + logdet3)
-                GNΔθ = cat(GNΔθ, GNΔθ1, GNΔθ2, GNΔθ3; dims=1)
-                idxblk += npars_ij
+                append!(ΔθANX, GNΔθ1)
+                append!(ΔθANY, GNΔθ2)
+                append!(ΔθCL, GNΔθ3)
     	    else 
-                ΔX_, X_ = CH.AN_X[i, j].jacobian(ΔX, Δθij[1:2], X)
-                ΔY_, Y_ = CH.AN_Y[i, j].jacobian(ΔY, Δθij[3:4], Y)
-                ΔX, ΔY, X, Y = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθj[5:end], X_, Y_)
+                ΔX_, X_ = CH.AN_X[i, j].jacobian(ΔX, Δθij[asx:asx+1], X)
+                ΔY_, Y_ = CH.AN_Y[i, j].jacobian(ΔY, Δθij[asx:asx+1], Y)
+                ΔX, ΔY, X, Y = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθj[cs:ce], X_, Y_)
        	    end
         end
         if CH.split_scales && i < CH.L    # don't split after last iteration
@@ -318,40 +330,10 @@ function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Arra
         ΔX, ΔY = cat_states(ΔXY_save, ΔX, ΔY)
     end
    
-    logdet ? (return ΔX, ΔY, X, Y, logdet_, GNΔθ) : (return ΔX, ΔY, X, Y)
+    logdet ? (return ΔX, ΔY, X, Y, logdet_, vcat(ΔθANX, ΔθANY, ΔθCL)) : (return ΔX, ΔY, X, Y)
 end
 
 adjointJacobian(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N} = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false)
-
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(CH::NetworkMultiScaleConditionalHINT)
-    L, K = size(CH.CL)
-    for i = 1:L
-        for j = 1:K
-            clear_grad!(CH.AN_X[i, j])
-            clear_grad!(CH.AN_Y[i, j])
-            clear_grad!(CH.CL[i, j])
-        end
-    end
-end
-
-# Get parameters
-function get_params(CH::NetworkMultiScaleConditionalHINT)
-    L, K = size(CH.CL)
-    p = Array{Parameter, 1}(undef, 0)
-    for i = 1:L
-        for j = 1:K
-            p = cat(p, get_params(CH.AN_X[i, j]); dims=1)
-            p = cat(p, get_params(CH.AN_Y[i, j]); dims=1)
-            p = cat(p, get_params(CH.CL[i, j]); dims=1)
-        end
-    end
-    return p
-end
-
 
 # Set is_reversed flag in full network tree
 function tag_as_reversed!(CH::NetworkMultiScaleConditionalHINT, tag::Bool)

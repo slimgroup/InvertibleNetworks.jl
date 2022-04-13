@@ -183,28 +183,3 @@ adjointJacobian(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
                 η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop;
                 set_grad::Bool=true) where {T, N} =
             backward(Δη, Δs, η, s, d, J, UL; set_grad=false)
-
-
-## Other utils
-# Clear gradients
-function clear_grad!(UL::NetworkLoop)
-    maxiter = length(UL.L)
-    for j=1:maxiter
-        clear_grad!(UL.L[j])
-        clear_grad!(UL.AN[j])
-        UL.AN[j].s.data = nothing
-        UL.AN[j].b.data = nothing
-    end
-end
-
-# Get parameters (do not update actnorm weights)
-function get_params(UL::NetworkLoop)
-    maxiter = length(UL.L)
-    p = get_params(UL.L[1])
-    if maxiter > 1
-        for j=2:maxiter
-            p = cat(p, get_params(UL.L[j]); dims=1)
-        end
-    end
-    return p
-end

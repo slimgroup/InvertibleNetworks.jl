@@ -124,25 +124,3 @@ function jacobian(ΔX_prev::AbstractArray{T, N}, ΔX_curr::AbstractArray{T, N}, 
 end
 
 adjointJacobian(ΔY_curr::AbstractArray{T, N}, ΔY_new::AbstractArray{T, N}, Y_curr::AbstractArray{T, N}, Y_new::AbstractArray{T, N}, H::NetworkHyperbolic) where {T, N} = backward(ΔY_curr, ΔY_new, Y_curr, Y_new, H; set_grad=false)
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(H::NetworkHyperbolic)
-    depth = length(H.HL)
-    for j=1:depth
-        clear_grad!(H.HL[j])
-    end
-end
-
-# Get parameters
-function get_params(H::NetworkHyperbolic)
-    depth = length(H.HL)
-    p = get_params(H.HL[1])
-    if depth > 1
-        for j=2:depth
-            p = cat(p, get_params(H.HL[j]); dims=1)
-        end
-    end
-    return p
-end

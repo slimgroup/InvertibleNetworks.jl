@@ -190,29 +190,6 @@ logdet_forward(nx, ny, nz, s) = nx*ny*nz*sum(log.(abs.(s.data)))
 logdet_backward(nx, ny, nz, s) = nx*ny*nz ./ s.data
 logdet_hessian(nx, ny, nz, s) = -nx*ny*nz ./ s.data.^2f0
 
-## Other utilities
-# Clear gradients
-function clear_grad!(AN::ActNorm)
-    AN.s.grad = nothing
-    AN.b.grad = nothing
-end
-
-# Reset actnorm layers
-function reset!(AN::ActNorm)
-    AN.s.data = nothing
-    AN.b.data = nothing
-end
-
-function reset!(AN::AbstractArray{ActNorm, 1})
-    for j=1:length(AN)
-        AN[j].s.data = nothing
-        AN[j].b.data = nothing
-    end
-end
-
-# Get parameters
-get_params(AN::ActNorm) = [AN.s, AN.b]
-
 # Reverse
 function tag_as_reversed!(AN::ActNorm, tag::Bool)
     AN.is_reversed = tag
