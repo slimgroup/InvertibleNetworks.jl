@@ -444,6 +444,22 @@ end
 
 tensor_cat(X::Tuple{AbstractArray{T,N}, AbstractArray{T,N}}) where {T, N} = tensor_cat(X[1], X[2])
 
+# In place cat
+function tensor_cat!(out::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}) where {T, N}
+    d = max(1, N-1)
+    if size(X, d) == 0
+        copyto!(out, Y)
+    elseif size(Y, d) == 0
+        copyto!(out, X)
+    else
+        k = size(X, d)
+        indsl = [i==d ? (1:k) : Colon() for i=1:N]
+        indsr = [i==d ? (k+1:size(out, d)) : Colon() for i=1:N]
+        out[indsl...] .= X
+        out[indsr...] .= Y
+    end
+end
+
 @inline xy_dims(dims::Array, ::Val{false}) = tuple(dims...)
 @inline xy_dims(dims::Array, ::Val{true}) = tuple(Int.(dims .* (.5, .5, 4, 1))...)
 

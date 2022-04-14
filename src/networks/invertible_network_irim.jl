@@ -152,11 +152,19 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
     # Initialize net parameters
     set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
 
+    # Init tensors to avoid reallocation
+    Δcat = similar(tensor_cat(Δη, Δs))
+    pcat = similar(tensor_cat(η, s))
+
     for j = maxiter:-1:1
+        # Current cat states
+        tensor_cat!(Δcat, Δη, Δs)
+        tensor_cat!(pcat, η, s)
+    
         if set_grad
-            Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+            Δηs_, ηs_ = UL.L[j].backward(Δcat, pcat)
         else
-            Δηs_, Δθ_L, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s); set_grad=set_grad)
+            Δηs_, Δθ_L, ηs_ = UL.L[j].backward(Δcat, pcat; set_grad=set_grad)
             push!(Δθ, Δθ_L)
         end
 
@@ -165,7 +173,8 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
         g = reshape(g, nn..., 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
-        s = s_ - tensor_cat(gn, N0)
+        tensor_cat!(s, gn, N0)
+        s .= s_ .- s
 
         # Gradients
         Δs2, Δs = tensor_split(Δηs_; split_index=1)
