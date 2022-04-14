@@ -24,9 +24,9 @@ export clear_grad!, glorot_uniform
 # Getters for DenseConvDims fields
 # (need to redefine here as they are not public methods in NNlib)
 input_size(c::DenseConvDims) = c.I
-kernel_size(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = K
-channels_in(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_in
-channels_out(::DenseConvDims{N,K,C_in,C_out,S,P,D,F}) where {N,K,C_in,C_out,S,P,D,F} = C_out
+kernel_size(::DenseConvDims{N,K,S,P,D}) where {N,K,S,P,D} = K
+channels_in(dcd::DenseConvDims{N,K,S,P,D}) where {N,K,S,P,D} = dcd.channels_in
+channels_out(dcd::DenseConvDims{N,K,S,P,D}) where {N,K,S,P,D} = dcd.channels_out
 
 function DCDims(X::AbstractArray{T, N}, W::AbstractArray{T, N}; stride=1, padding=1, nc=nothing) where {T, N}
     sw = size(W)

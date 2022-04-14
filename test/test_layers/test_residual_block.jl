@@ -2,7 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using LinearAlgebra, InvertibleNetworks, Test, Random
+using LinearAlgebra, InvertibleNetworks, Test, Random, BenchmarkTools
 Random.seed!(2)
 
 # Input
