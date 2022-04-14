@@ -118,13 +118,10 @@ function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {
 
     cdims3 = DCDims(X1, RB.W3.data; nc=2*size(X1, N-1), stride=RB.strides[1], padding=RB.pad[1])
     Y3 = ∇conv_data(X3, RB.W3.data, cdims3)
-    RB.fan == true ? (X4 = ReLU(Y3)) : (X4 = GaLU(Y3))
-
-    if save == false
-        return X4
-    else
-        return Y1, Y2, Y3, X2, X3
-    end
+    # Return if only recomputing state
+    save && (return Y1, Y2, Y3)
+    # Finish forward
+    RB.fan == true ? (return ReLU(Y3)) : (return GaLU(Y3))
 end
 
 # Backward
@@ -134,20 +131,20 @@ function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
     dims = collect(1:N-1); dims[end] +=1
 
     # Recompute forward states from input X
-    Y1, Y2, Y3, X2, X3 = forward(X1, RB; save=true)
+    Y1, Y2, Y3 = forward(X1, RB; save=true)
 
     # Cdims
-    cdims2 = DenseConvDims(X2, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
+    cdims2 = DenseConvDims(Y2, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
     cdims3 = DCDims(X1, RB.W3.data; nc=2*size(X1, N-1), stride=RB.strides[1], padding=RB.pad[1])
 
     # Backpropagate residual ΔX4 and compute gradients
     RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
     ΔX3 = conv(ΔY3, RB.W3.data, cdims3)
-    ΔW3 = ∇conv_filter(ΔY3, X3, cdims3)
+    ΔW3 = ∇conv_filter(ΔY3, ReLU(Y2), cdims3)
 
     ΔY2 = ReLUgrad(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, cdims2) + ΔY2
-    ΔW2 = ∇conv_filter(X2, ΔY2, cdims2)
+    ΔW2 = ∇conv_filter(ReLU(Y1), ΔY2, cdims2)
     Δb2 = sum(ΔY2, dims=dims)[inds...]
 
     cdims1 = DenseConvDims(X1, RB.W1.data; stride=RB.strides[1], padding=RB.pad[1])
