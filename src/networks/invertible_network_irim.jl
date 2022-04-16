@@ -95,23 +95,27 @@ NetworkLoop3D(args...; kw...) = NetworkLoop(args...; kw..., ndims=3)
 function forward(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::Union{AbstractArray, Nothing}, J, UL::NetworkLoop; g=nothing) where {T, N}
 
     # Dimensions
-    n_in = size(s, N-1) + 1
+    n_in = size(s, N-1)
     batchsize = size(s)[end]
     nn = size(s)[1:N-2]
-    maxiter = length(UL.L)
-    N0 = cuzeros(η, nn..., n_in-2, batchsize)
 
-    isnothing(g) && (g = 1)
+    N0 = cuzeros(η, nn..., n_in-1, batchsize)
 
-    for j=1:maxiter
-        isnothing(g) && (g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize)))
-        g = reshape(g, nn..., 1, batchsize)
-        gn = UL.AN[j].forward(g)   # normalize
-        s_ = s + tensor_cat(gn, N0)
-
-        ηs = UL.L[j].forward(tensor_cat(η, s_))
-        η, s = tensor_split(ηs; split_index=1)
-    end
+    #g = reshape(g, nn..., 1, batchsize)
+    #gn = UL.AN[1].forward(g)   # normalize
+    s_ = s + tensor_cat(g, N0)
+    #s[:,:,:,1,:] = g
+    cat_res = tensor_cat(η, s_)
+                    
+    N0 = nothing
+    GC.gc(true)
+    CUDA.reclaim()
+        
+                    
+    ηs = UL.L[1].forward(cat_res)
+    η, s = tensor_split_view(ηs; split_index=1)
+                    
+   
     return η, s
 end
 
@@ -179,83 +183,16 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
 end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N}, 
-    η::AbstractArray{T, N}, s::AbstractArray{T, N}, J, UL::NetworkLoop; g=nothing, set_grad::Bool=true) where {T, N}
+function backward(grads::AbstractArray{T, N}, outputs::AbstractArray{T, N},  UL::NetworkLoop; g=nothing, set_grad::Bool=true) where {T, N}
 
     println("\nIn irim network just entered")
     CUDA.memory_status()
     println("\n ")  
                     
-    # Dimensions
-    n_in = size(s, N - 1) + 1
-    batchsize = size(s)[end]
-    nn = size(s)[1:N-2]
-    #maxiter = length(UL.L)
-  
-    #Δs = 0 .* s  # make Δs zero tensor
                     
-    println("\nIn irim network right before zero out")
-    CUDA.memory_status()
-    println("\n ") 
+    Δηs_, ηs_ = UL.L[1].backward(grads, outputs)
 
-    # Initialize net parameters
-                
-    set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
 
-    j = 1
-    #for j = maxiter:-1:1
-                    
-    println("\nIn irim network right before cats")
-    GC.gc(true)
-    CUDA.reclaim() 
-    CUDA.memory_status()
-    println("\n ") 
-                    
-    println(size(η))
-    println(size(s))
-    println(size(Δs))
-    println(size(Δη))
-
-    η_s_cat   = tensor_cat(η, s) ;  
-	Δη_Δs_cat = tensor_cat(Δη, Δs);
-	η  = nothing
-	s  = nothing
-	Δη = nothing
-	Δs = nothing
-                    
-    #4.3       
-                    
-    println("\nIn irim network right before backwards of invertible_irim_layer")
-    println("\n ") 
-	GC.gc(true)
-    CUDA.reclaim() 
-    CUDA.memory_status()
-                   
-    if set_grad                       
-        Δηs_, ηs_ = UL.L[j].backward(Δη_Δs_cat, η_s_cat)
-    else
-        Δηs_, Δθ_L, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s); set_grad=set_grad)
-        push!(Δθ, Δθ_L)
-    end
-
-    # Inverse pass
-    η, s_ = tensor_split(ηs_; split_index=1)
-    #g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-    g = reshape(g, nn..., 1, batchsize)
-    gn = UL.AN[j].forward(g)   # normalize
-                    
-    #N0 = cuzeros(Δη, nn..., n_in-2, batchsize)
-    #N0 = cuzeros(Δη_Δs_cat, nn..., n_in-2, batchsize)
-                    
-    #s = s_ - tensor_cat(gn, N0)
-
-    # Gradients
-    #Δs2, Δs = tensor_split(Δηs_; split_index=1)
-    #Δgn = tensor_split(Δs; split_index=1)[1]
-    #Δg = UL.AN[j].backward(Δgn, gn)[1]
-    #Δη = reshape(J'*J*reshape(Δg, :, batchsize), nn..., 1, batchsize) + Δs2
-#end
-    set_grad ? (return Δη, Δs, η, s) : (Δη, Δs, Δθ, η, s)
 end
 
 ## Jacobian-related utils

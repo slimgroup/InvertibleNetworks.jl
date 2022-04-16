@@ -83,19 +83,40 @@ end
 
 CouplingLayerIRIM3D(args...;kw...) = CouplingLayerIRIM(args...; kw..., ndims=3)
 
+
+function wrap_b(L, X)
+    L.forward(X)
+end
+
 # 2D Forward pass: Input X, Output Y
 function forward(X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
 
     num_downsamp = length(L.C)
     for j=1:num_downsamp
-        X_ = L.C[j].forward(X)
-        X1_, X2_ = tensor_split(X_)
+        println("in forward $(j)")
+        GC.gc(true)
+        CUDA.reclaim()
+        CUDA.memory_status()
+        
+        #X_ = L.C[j].forward(X)
+        X_ = wrap_b(L.C[j], X)
+    
+        GC.gc(true)
+        CUDA.reclaim()
+        
+        #X1_, X2_ = tensor_split(X_)
+        X1_, X2_ = tensor_split_view(X_)
 
-        Y1_ = X1_
-        Y2_ = X2_ + L.RB[j].forward(Y1_)
+        #Y1_ = X1_
+        #Y2_ = X2_ + L.RB[j].forward(Y1_)
+         println("\n In invertible_irim_layer inverse right before forward rb")
+        CUDA.memory_status()
+        X2_ = X2_ + L.RB[j].forward(X1_)
+         println("\n In invertible_irim_layer inverse right after forward rb")
+        CUDA.memory_status()
 
-        Y_ = tensor_cat(Y1_, Y2_)
-        X = L.C[j].inverse(Y_)
+        #Y_ = tensor_cat(Y1_, Y2_)
+        X = L.C[j].inverse(X_)
     end
     
     return X
@@ -107,13 +128,17 @@ function inverse(Y::AbstractArray{T, N}, L::CouplingLayerIRIM; save=false) where
     num_downsamp = length(L.C)
     for j=num_downsamp:-1:1
         Y_ = L.C[j].forward(Y)
-        Y1_, Y2_ = tensor_split(Y_)
+        Y1_, Y2_ = tensor_split_view(Y_)
 
-        X1_ = Y1_
-        X2_ = Y2_ - L.RB[j].forward(Y1_)
+        #X1_ = Y1_
+        println("\n In invertible_irim_layer inverse right before forward rb")
+        CUDA.memory_status()
+        Y2_ = Y2_ - L.RB[j].forward(Y1_)
+          println("\n In invertible_irim_layer inverse right after forward rb")
+        CUDA.memory_status()
 
-        X_ = tensor_cat(X1_, X2_)
-        X = L.C[j].inverse(X_)
+        #X_ = tensor_cat(X1_, X2_)
+        Y = L.C[j].inverse(Y_)
     end
 
     if save == false
@@ -123,6 +148,14 @@ function inverse(Y::AbstractArray{T, N}, L::CouplingLayerIRIM; save=false) where
     end
 end
 
+
+function wrap(L, ΔY, Y)
+    L.forward((ΔY, Y))
+end
+
+function wrap_c(L, ΔYr_, Y1_)
+    L.backward(ΔYr_, Y1_)
+end
 # 2D Backward pass: Input (ΔY, Y), Output (ΔX, X)
 function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM; set_grad::Bool=true) where {T, N}
 
@@ -134,42 +167,68 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
         CUDA.memory_status()
         println("\n ") 
         
-        ΔY_, Y_ = L.C[j].forward((ΔY, Y))
-        Y = nothing
-        ΔY = nothing
+        #ΔY_, Y_ = L.C[j].forward((ΔY, Y))
+        ΔY_, Y_ = wrap(L.C[j], ΔY, Y)
+        #ΔY, Y = wrap(L.C[j], ΔY, Y)
+        #Y = nothing
+        #ΔY = nothing
         GC.gc(true)
         CUDA.reclaim()
 
         println("\n In invertible_irim_layer right after backwards of forward 1x1 conv")
         CUDA.memory_status()
         println("\n ") 
-
-        Y1_, Y2_ = tensor_split(Y_)
-        ΔYl_, ΔYr_ = tensor_split(ΔY_)
-
-        Y_ = nothing
-        ΔY_ = nothing
-        GC.gc(true)
-        CUDA.reclaim()
+        
+        ΔYl_, ΔYr_ = tensor_split_view(ΔY_)
+        Y1_, Y2_   = tensor_split_view(Y_)
+       
 
         println("\n In invertible_irim_layer right before backwards of residual block")
         CUDA.memory_status()
         println("\n ") 
+        
+          # get inds
+        d = max(1, N-1)
+        k = Int(round(size(ΔY_, d)/2))
+        indsl = [i==d ? (1:k) : (:) for i=1:N]
+        indsr = [i==d ? (k+1:size(ΔY_, d)) : (:) for i=1:N]
+        
+        #ΔY_[indsl...] = L.RB[j].backward(ΔYr_, Y1_) + ΔYl_
+        #ΔYl_ = L.RB[j].backward(ΔYr_, Y1_) + ΔYl_ #same thing as above since it is a view
+        ΔYl_ = wrap_c(L.RB[j],ΔYr_, Y1_) + ΔYl_ #same thing as above since it is a view
 
-        ΔY1_ = L.RB[j].backward(ΔYr_, Y1_) + ΔYl_
-        ΔYl_ = nothing
+        #ΔY1_ = L.RB[j].backward(ΔYr_, Y1_) + ΔYl_
+         #cat_ΔY1_ΔYr_ = tensor_cat(ΔY1_, ΔYr_)
+        #ΔY_[indsl...] = ΔY1_
+        #ΔY1_ = nothing
+        
+        #ΔYl_ = nothing
+       
         GC.gc(true)
         CUDA.reclaim()
-        println("\n In invertible_irim_layer right before backwards of conv")
+         println("\n In invertible_irim_layer right before forwards of residual block")
         CUDA.memory_status()
         
-        ΔY, Y = L.C[j].inverse((tensor_cat(ΔY1_, ΔYr_), tensor_cat(Y1_, Y2_ - L.RB[j].forward(Y1_))))
-        ΔY1_ = nothing
-        ΔYr_ = nothing
-        Y1_ = nothing
-        Y2_ = nothing
-         GC.gc(true)
+        Y2_ -= L.RB[j].forward(Y1_)
+        #cat_Y1_Y2_ = tensor_cat(Y1_, Y2_)
+        
+        #Y_[indsr...] = Y2_ #shouldnt need this since Y2_ is a view
+        
+       
+        
+        GC.gc(true)
         CUDA.reclaim()
+        println("\n In invertible_irim_layer right before backwards of conv here im sure")
+        CUDA.memory_status()
+        
+        ΔY, Y = L.C[j].inverse((ΔY_,Y_))
+       
+        #ΔYr_ = nothing
+        #Y1_ = nothing
+        #Y2_ = nothing
+        GC.gc(true)
+        CUDA.reclaim()
+       
         println("\n In invertible_irim_layer right after backwards of conv")
         CUDA.memory_status()
         #5.7

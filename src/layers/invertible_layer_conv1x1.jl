@@ -217,30 +217,26 @@ end
 # Forward pass
 function forward(X::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = C.logdet : logdet = logdet
-    Y = cuzeros(X, size(X)...)
+    #Y = cuzeros(X, size(X)...)
     n_in = size(X, N-1)
 
-    v1 = C.v1.data
-    v2 = C.v2.data
-    v3 = C.v3.data
 
     inds = [i<N ? (:) : 1 for i=1:N]
     for i=1:size(X, N)
         inds[end] = i
         Xi = reshape(view(X, inds...), :, n_in)
-        Yi = chain_lr(Xi, v1, v2, v3)
-        view(Y, inds...) .= reshape(Yi, size(view(Y, inds...))...)
+        Yi = chain_lr(Xi, C.v1.data, C.v2.data, C.v3.data)
+        view(X, inds...) .= reshape(Yi, size(view(X, inds...))...)
     end
-    logdet == true ? (return Y, 0) : (return Y)   # logdet always 0
+    logdet == true ? (return X, 0) : (return X)   # logdet always 0
 end
 
 # Forward pass and update weights
 function forward(X_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     ΔX = X_tuple[1]
     X  = X_tuple[2]
-    ΔY = forward(ΔX, C; logdet=false)    # forward propagate residual
-    Y  = forward(X, C; logdet=false)  # recompute forward state
-    Δv1, Δv2, Δv3 = conv1x1_grad_v(Y, ΔX, C; adjoint=true)  # gradient w.r.t. weights
+    X  = forward(X, C; logdet=false)  # recompute forward state
+    Δv1, Δv2, Δv3 = conv1x1_grad_v(X, ΔX, C; adjoint=true)  # gradient w.r.t. weights
     if set_grad
         isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)
         isnothing(C.v2.grad) ? (C.v2.grad = Δv2) : (C.v2.grad += Δv2)
@@ -248,14 +244,18 @@ function forward(X_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     else
         Δθ = [Parameter(Δv1), Parameter(Δv2), Parameter(Δv3)]
     end
-    set_grad ? (return ΔY, Y) : (return ΔY, Δθ, Y)
+    
+    ΔX = forward(ΔX, C; logdet=false)    # forward propagate residual
+   
+    
+    set_grad ? (return ΔX, X) : (return ΔY, Δθ, Y)
 end
 
 # Inverse pass
 function inverse(Y::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = C.logdet : logdet = logdet
-    X = cuzeros(Y, size(Y)...)
-    n_in = size(X, N-1)
+    #X = cuzeros(Y, size(Y)...)
+    n_in = size(Y, N-1)
 
     v1 = C.v1.data
     v2 = C.v2.data
@@ -266,18 +266,19 @@ function inverse(Y::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N
         inds[end] = i
         Yi = reshape(view(Y, inds...), :, n_in)
         Xi = chain_lr(Yi, v3, v2, v1)
-        view(X, inds...) .= reshape(Xi, size(view(X, inds...))...)
+        view(Y, inds...) .= reshape(Xi, size(view(Y, inds...))...)
     end
-    logdet == true ? (return X, 0) : (return X)   # logdet always 0
+    logdet == true ? (return Y, 0) : (return Y)   # logdet always 0
 end
 
-# Inverse pass and update weights
+# Inverse pass and update weights #note should be ! if these are inplace
 function inverse(Y_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     ΔY = Y_tuple[1]
     Y = Y_tuple[2]
-    ΔX = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
-    X = inverse(Y, C; logdet=false)  # recompute forward state
-    Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C)  # gradient w.r.t. weights
+    println("REALLY HERE ")
+   
+    Y = inverse(Y, C; logdet=false)  # recompute forward state
+    Δv1, Δv2, Δv3 =  conv1x1_grad_v(Y, ΔY, C)  # gradient w.r.t. weights
     if set_grad
         isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)
         isnothing(C.v2.grad) ? (C.v2.grad = Δv2) : (C.v2.grad += Δv2)
@@ -285,7 +286,8 @@ function inverse(Y_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     else
         Δθ = [Parameter(Δv1), Parameter(Δv2), Parameter(Δv3)]
     end
-    set_grad ? (return ΔX, X) : (return ΔX, Δθ, X)
+     ΔY = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
+    set_grad ? (return ΔY, Y) : (return ΔY, Δθ, Y)
 end
 
 

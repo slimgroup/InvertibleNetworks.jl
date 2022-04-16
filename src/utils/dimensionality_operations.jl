@@ -415,6 +415,21 @@ function tensor_split(X::AbstractArray{T, N}; split_index=nothing) where {T, N}
     return X[indsl...], X[indsr...]
 end
 
+function tensor_split_view(X::AbstractArray{T, N}; split_index=nothing) where {T, N}
+    d = max(1, N-1)
+    if isnothing(split_index)
+        k = Int(round(size(X, d)/2))
+    else
+        k = split_index
+    end
+
+    indsl = [i==d ? (1:k) : (:) for i=1:N]
+    indsr = [i==d ? (k+1:size(X, d)) : (:) for i=1:N]
+
+    return view(X, indsl...), view(X, indsr...)
+end
+
+
 """
     X = tensor_cat(Y, Z)
 

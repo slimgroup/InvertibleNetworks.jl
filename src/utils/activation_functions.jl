@@ -230,17 +230,20 @@ end
 function GaLU(X::AbstractArray{T, N}) where {T, N}
     #x1, x2 = tensor_split(x)
    
-    d = max(1, N-1)
+#     d = max(1, N-1)
   
-    k = Int(round(size(X, d)/2))
+#     k = Int(round(size(X, d)/2))
   
 
-    indsl = [i==d ? (1:k) : (:) for i=1:N]
-    indsr = [i==d ? (k+1:size(X, d)) : (:) for i=1:N]
+#     indsl = [i==d ? (1:k) : (:) for i=1:N]
+#     indsr = [i==d ? (k+1:size(X, d)) : (:) for i=1:N]
     
-    #y =  x[] .* Sigmoid(x2)
-    y =  X[indsl...] .* Sigmoid(X[indsr...])
-    return y
+#     #y =  x[] .* Sigmoid(x2)
+#     y =  X[indsl...] .* Sigmoid(X[indsr...])
+#     return y
+    
+    X1, X2 = tensor_split_view(X)
+    return X1 .* Sigmoid(X2)
 end
 
 """
@@ -261,6 +264,12 @@ end
  See also: [`GaLU`](@ref)
 """
 function GaLUgrad(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
+    x1, x2 = tensor_split_view(x)
+    Δy = tensor_cat(Sigmoid(x2) .* Δy, SigmoidGrad(Δy, nothing; x=x2) .* x1)
+    return Δy
+end
+
+function GaLUgrad!(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
     k = Int(size(x, N-1) / 2)
     x1, x2 = tensor_split(x)
     Δx = 0 .*x

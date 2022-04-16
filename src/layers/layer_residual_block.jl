@@ -113,20 +113,38 @@ ResidualBlock3D(args...; kw...) = ResidualBlock(args...; kw..., ndims=3)
 # Functions
 
 # Forward
-function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {T, N}
+function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false, num=0) where {T, N}
     inds =[i!=(N-1) ? 1 : (:) for i=1:N]
 
     Y1 = conv(X1, RB.W1.data; stride=RB.strides[1], pad=RB.pad[1]) .+ reshape(RB.b1.data, inds...)
+    if num == 1
+        println("exit num 1")
+        return Y1
+    end
     X2 = ReLU(Y1)
 
     Y2 = X2 + conv(X2, RB.W2.data; stride=RB.strides[2], pad=RB.pad[2]) .+ reshape(RB.b2.data, inds...)
+    if num == 2
+        return Y2
+    end
     X3 = ReLU(Y2)
 
     cdims3 = DCDims(X1, RB.W3.data; nc=2*size(X1, N-1), stride=RB.strides[1], padding=RB.pad[1])
     Y3 = ∇conv_data(X3, RB.W3.data, cdims3)
-    RB.fan == true ? (X4 = ReLU(Y3)) : (X4 = GaLU(Y3))
-
+    
+    if num == 3
+        return Y3
+    end
+    
     if save == false
+        X2 = 0
+        X3 = 0
+        Y1 = 0
+        Y2 = 0
+        GC.gc(true)
+        CUDA.reclaim()
+    
+        RB.fan == true ? (X4 = ReLU(Y3)) : (X4 = GaLU(Y3))
         return X4
     else
         return Y1, Y2, Y3
@@ -139,28 +157,61 @@ function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
     inds = [i!=(N-1) ? 1 : (:) for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 
+    println("\n In resblock backwards right beofre forwards for regen")
+    CUDA.memory_status()
+    
     # Recompute forward states from input X
-    Y1, Y2, Y3 = forward(X1, RB; save=true)
+    Y3 = forward(X1, RB; save=true, num=3)
     GC.gc(true)
     CUDA.reclaim()
+    
+    println("\n In resblock backwards right after  forwards for regen")
+    CUDA.memory_status()
     
     
 
     # Cdims
     #cdims2 = DenseConvDims(X2, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
-    cdims2 = DenseConvDims(Y1, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
+   
     
     cdims3 = DCDims(X1, RB.W3.data; nc=2*size(X1, N-1), stride=RB.strides[1], padding=RB.pad[1])
 
     # Backpropagate residual ΔX4 and compute gradients
     RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    
+    Y3 = nothing
+    GC.gc(true)
+    CUDA.reclaim()
+    
+    println("\n In resblock backwards before first conv")
+    CUDA.memory_status()
+    
     ΔX3 = conv(ΔY3, RB.W3.data, cdims3)
     #ΔW3 = ∇conv_filter(ΔY3, X3, cdims3)
+    
+    println("\n In resblock backwards after first conv")
+    CUDA.memory_status()
+    
+    Y2 = forward(X1, RB; save=true, num=2)
+    GC.gc(true)
+    CUDA.reclaim()
+    
+    
     ΔW3 = ∇conv_filter(ΔY3, ReLU(Y2), cdims3)
 
     ΔY2 = ReLUgrad(ΔX3, Y2)
+    
+    cdims2 = DenseConvDims(Y2, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, cdims2) + ΔY2
     #ΔW2 = ∇conv_filter(X2, ΔY2, cdims2)
+    
+    Y1 = forward(X1, RB; save=true, num=1)
+       println("\n In resblock backwards after num 1 forward")
+    CUDA.memory_status()
+    
+    GC.gc(true)
+    CUDA.reclaim()
+    
     ΔW2 = ∇conv_filter(ReLU(Y1), ΔY2, cdims2)
     Δb2 = sum(ΔY2, dims=dims)[inds...]
 
