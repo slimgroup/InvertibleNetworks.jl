@@ -125,24 +125,39 @@ function forward(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::Union{Abstr
     n_in = size(s, N-1) + 1
     batchsize = size(s)[end]
     nn = size(s)[1:N-2]
-    maxiter = length(UL.L)
+                    
     N0 = cuzeros(η, nn..., n_in-2, batchsize)
 
-    isnothing(g) && (g = 1)
+    gn = UL.AN[1].forward(g)   # normalize
+    s_ = s + tensor_cat(gn, N0)
+    N0 = nothing 
+    GC.gc(true); CUDA.reclaim()
 
-    #for j=1:maxiter
-        
-     #   g = reshape(g, nn..., 1, batchsize)
-        gn = UL.AN[1].forward(g)   # normalize
-        s_ = s + tensor_cat(gn, N0)
-        N0 = nothing 
-        GC.gc(true)
-        CUDA.reclaim()
-        
+    ηs = UL.L[1].forward(tensor_cat(η, s_))
+    η, s = tensor_split(ηs; split_index=1)
 
-        ηs = UL.L[1].forward(tensor_cat(η, s_))
-        η, s = tensor_split(ηs; split_index=1)
-   # end
+    return η, s
+end
+    
+                
+                
+        
+# 2D Inverse loop: Input (η, s), Output (η, s)
+function inverse(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::Union{AbstractArray, Nothing}, J, UL::NetworkLoop;g=nothing) where {T, N}
+
+    n_in = size(s, N-1) + 1
+    batchsize = size(s)[end]
+    nn = size(s)[1:N-2]
+
+    ηs_ = UL.L[1].inverse(tensor_cat(η, s))
+    η, s_ = tensor_split(ηs_; split_index=1)
+
+       
+    gn = UL.AN[1].forward(g)   # normalize
+                    
+    N0 = cuzeros(η, nn..., n_in-2, batchsize)
+    s = s_ - tensor_cat(gn, N0)
+    
     return η, s
 end
 
