@@ -108,6 +108,7 @@ end
 
 function mat_tens_i(out::AbstractVector{T}, Mat::AbstractArray{T, 2},
                     Tens::AbstractArray{T, 3}, Mat2::AbstractArray{T, 2}) where T
+    # Computes sum( (Mat * tens) .* Mat2) for each element in the batch
     copyto!(out, map(i -> dot(Mat * Tens[i, :, :], Mat2) , 1:size(Tens, 1)))
     return out
 end

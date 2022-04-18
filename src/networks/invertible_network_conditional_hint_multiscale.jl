@@ -188,7 +188,9 @@ function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::Abst
                     ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdetcl = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
                     ΔZx, Δθx, Zx, ∇logdetx = CH.AN_X[i, j].backward(ΔZx_, Zx_; set_grad=set_grad)
                     ΔZy, Δθy, Zy, ∇logdety = CH.AN_Y[i, j].backward(ΔZy_, Zy_; set_grad=set_grad)
-                    prepend!(∇logdetANX, ∇logdetx);prepend!(∇logdetANY, ∇logdety);prepend!(∇logdetCL, ∇logdetcl)
+                    prepend!(∇logdetANX, ∇logdetx)
+                    prepend!(∇logdetANY, ∇logdety)
+                    prepend!(∇logdetCL, ∇logdetcl)
                 else
                     ΔZx_, ΔZy_, Δθcl, Zx_, Zy_ = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
                     ΔZx, Δθx, Zx = CH.AN_X[i, j].backward(ΔZx_, Zx_; set_grad=set_grad)

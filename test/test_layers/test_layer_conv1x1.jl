@@ -3,7 +3,7 @@
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Test, Flux, Random
-
+device = InvertibleNetworks.CUDA.functional() ? gpu : cpu
 Random.seed!(11)
 ###################################################################################################
 # Initialize parameters
@@ -15,26 +15,26 @@ k = 4
 batchsize = 2
 
 # Variables
-v1 = randn(Float32, k) # |> gpu
-v10 = randn(Float32, k) # |> gpu
+v1 = randn(Float32, k) |> device
+v10 = randn(Float32, k) |> device
 dv1 = v1 - v10
 
-v2 = randn(Float32, k) # |> gpu
-v20 = randn(Float32, k) # |> gpu
+v2 = randn(Float32, k) |> device
+v20 = randn(Float32, k) |> device
 dv2 = v2 - v20
 
-v3 = randn(Float32, k) # |> gpu
-v30 = randn(Float32, k) # |> gpu
+v3 = randn(Float32, k) |> device
+v30 = randn(Float32, k) |> device
 dv3 = v3 - v30
 
 # Input
-X = randn(Float32, nx, ny, k, batchsize) # |> gpu
-X0 = randn(Float32, nx, ny, k, batchsize) # |> gpu
+X = randn(Float32, nx, ny, k, batchsize) |> device
+X0 = randn(Float32, nx, ny, k, batchsize) |> device
 dX = X - X0
 
 # Operators
-C = Conv1x1(v1, v2, v3) # |> gpu
-C0 = Conv1x1(v10, v20, v30) # |> gpu
+C = Conv1x1(v1, v2, v3) |> device
+C0 = Conv1x1(v10, v20, v30) |> device
 
 
 ###################################################################################################
@@ -51,7 +51,7 @@ err2 = norm(X - X_)/norm(X)
 @test isapprox(err2, 0f0; atol=1f-6)
 
 Y = C.forward(X)
-ΔY = randn(Float32, nx, ny, k, batchsize) # |> gpu
+ΔY = randn(Float32, nx, ny, k, batchsize) |> device
 ΔX_, X_ = C.inverse((ΔY, Y))
 err3 = norm(X - X_)/norm(X)
 
