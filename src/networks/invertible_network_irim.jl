@@ -226,9 +226,9 @@ end
 
 function backward(grads::AbstractArray{T, N}, outputs::AbstractArray{T, N},  UL::NetworkLoop; g=nothing, set_grad::Bool=true) where {T, N}
 
-    println("\nIn irim network just entered")
-    CUDA.memory_status()
-    println("\n ")  
+    #println("\nIn irim network just entered")
+    #CUDA.memory_status()
+    #println("\n ")  
                                
     Δηs_, ηs_ = UL.L[1].backward(grads, outputs)
                     

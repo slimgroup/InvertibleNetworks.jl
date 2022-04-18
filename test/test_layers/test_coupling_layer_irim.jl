@@ -3,6 +3,7 @@
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Test, Random
+using CUDA
 
 Random.seed!(1);
 
@@ -15,14 +16,20 @@ n_hidden = 8
 batchsize = 2
 
 # Input images
-X = randn(Float32, nx, ny, n_in, batchsize)
-X0 = randn(Float32, nx, ny, n_in, batchsize)
+X = randn(Float32, nx, ny, n_in, batchsize) |> gpu
+X0 = randn(Float32, nx, ny, n_in, batchsize)|> gpu
 dX = X - X0
 
+#n_hiddens = [8,32,128,32,8]
+#ds = [1,2,4,2,1]
+n_hiddens = [8]
+ds = [1]
+
+
 # Invertible layers
-L = CouplingLayerIRIM(n_in, n_hidden)
-L01 = CouplingLayerIRIM(n_in, n_hidden)
-L02 = CouplingLayerIRIM(n_in, n_hidden)
+L = CouplingLayerIRIM(n_in; n_hiddens=n_hiddens, ds=ds)|> gpu
+L01 = CouplingLayerIRIM(n_in; n_hiddens=n_hiddens, ds=ds)|> gpu
+L02 = CouplingLayerIRIM(n_in; n_hiddens=n_hiddens, ds=ds)|> gpu
 
 ###################################################################################################
 # Test invertibility

@@ -61,9 +61,9 @@ ny = 28
 n_in = 4
 batchsize = 2
 
-X = glorot_uniform(nx, ny, n_in, batchsize)
-X0 = glorot_uniform(nx, ny, n_in, batchsize)
-dX = X - X0
+X = glorot_uniform(nx, ny, n_in, batchsize) |> gpu
+X0 = glorot_uniform(nx, ny, n_in, batchsize)|> gpu
+dX = X - X0|> gpu
 
 # Gradient test
 function objective(X, Y)
@@ -198,9 +198,9 @@ ny = 12
 n_in = 4
 batchsize = 2
 
-X = glorot_uniform(nx, ny, n_in, batchsize)
-X0 = glorot_uniform(nx, ny, n_in, batchsize)
-dX = X - X0
+X = glorot_uniform(nx, ny, n_in, batchsize)|>gpu
+X0 = glorot_uniform(nx, ny, n_in, batchsize)|>gpu
+dX = X - X0 |>gpu
 
 # Gradient test GaLU
 function objective(X, Y)

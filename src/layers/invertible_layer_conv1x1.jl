@@ -214,7 +214,7 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
     return dv1, dv2, dv3
 end
 
-# Forward pass
+#Forward pass
 function forward(X::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = C.logdet : logdet = logdet
     #Y = cuzeros(X, size(X)...)
@@ -230,6 +230,23 @@ function forward(X::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N
     end
     logdet == true ? (return X, 0) : (return X)   # logdet always 0
 end
+
+# function forward(X::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N}
+#     isnothing(logdet) ? logdet = C.logdet : logdet = logdet
+#     Y = cuzeros(X, size(X)...)
+#     n_in = size(X, N-1)
+
+#     v1 = C.v1.data
+#     v2 = C.v2.data
+#     v3 = C.v3.data
+
+#     for i=1:size(X, N)
+#         Xi = reshape(selectdim(X, N, i), :, n_in)
+#         Yi = chain_lr(Xi, v1, v2, v3)
+#         selectdim(Y, N, i) .= reshape(Yi, size(selectdim(Y, N, i))...)
+#     end
+#     logdet == true ? (return Y, 0) : (return Y)   # logdet always 0
+# end
 
 # Forward pass and update weights
 function forward(X_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
@@ -271,11 +288,30 @@ function inverse(Y::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N
     logdet == true ? (return Y, 0) : (return Y)   # logdet always 0
 end
 
+# function inverse(Y::AbstractArray{T, N}, C::Conv1x1; logdet=nothing) where {T, N}
+#     isnothing(logdet) ? logdet = C.logdet : logdet = logdet
+#     X = cuzeros(Y, size(Y)...)
+#     n_in = size(Y, N-1)
+
+#     v1 = C.v1.data
+#     v2 = C.v2.data
+#     v3 = C.v3.data
+
+#     inds = [i<N ? (:) : 1 for i=1:N]
+#     for i=1:size(Y, N)
+#         inds[end] = i
+#         Yi = reshape(view(Y, inds...), :, n_in)
+#         Xi = chain_lr(Yi, v3, v2, v1)
+#         view(X, inds...) .= reshape(Xi, size(view(X, inds...))...)
+#     end
+#     logdet == true ? (return X, 0) : (return X)   # logdet always 0
+# end
+
+
 # Inverse pass and update weights #note should be ! if these are inplace
 function inverse(Y_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     ΔY = Y_tuple[1]
     Y = Y_tuple[2]
-    println("REALLY HERE ")
    
     Y = inverse(Y, C; logdet=false)  # recompute forward state
     Δv1, Δv2, Δv3 =  conv1x1_grad_v(Y, ΔY, C)  # gradient w.r.t. weights
