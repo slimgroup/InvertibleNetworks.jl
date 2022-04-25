@@ -88,6 +88,9 @@ CouplingLayerIRIM3D(args...;kw...) = CouplingLayerIRIM(args...; kw..., ndims=3)
 # 2D Forward pass: Input X, Output Y
 function forward(X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
 
+    # Init tensors to avoid reallocation
+    Y_ = similar(X)
+
     num_downsamp = length(L.C)
     for j=1:num_downsamp
         X_ = L.C[j].forward(X)
@@ -96,7 +99,7 @@ function forward(X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
         Y1_ = X1_
         Y2_ = X2_ + L.RB[j].forward(Y1_)
 
-        Y_ = tensor_cat(Y1_, Y2_)
+        tensor_cat!(Y_, Y1_, Y2_)
         X = L.C[j].inverse(Y_)
     end
     
@@ -105,7 +108,10 @@ end
 
 # 2D Inverse pass: Input Y, Output X
 function inverse(Y::AbstractArray{T, N}, L::CouplingLayerIRIM; save=false) where {T, N}
-   
+
+    # Init tensors to avoid reallocation
+    X_ = similar(Y)
+
     num_downsamp = length(L.C)
     for j=num_downsamp:-1:1
         Y_ = L.C[j].forward(Y)
@@ -114,7 +120,7 @@ function inverse(Y::AbstractArray{T, N}, L::CouplingLayerIRIM; save=false) where
         X1_ = Y1_
         X2_ = Y2_ - L.RB[j].forward(Y1_)
 
-        X_ = tensor_cat(X1_, X2_)
+        tensor_cat!(X_, X1_, X2_)
         Y = L.C[j].inverse(X_)
     end
 
@@ -127,6 +133,10 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
     # Initialize layer parameters
     !set_grad && (p1 = Array{Parameter, 1}(undef, 0))
     !set_grad && (p2 = Array{Parameter, 1}(undef, 0))
+
+    # Init tensors to avoid reallocation
+    ΔY_ = similar(ΔY)
+    Y_  = similar(Y)
 
     num_downsamp = length(L.C)
     for j=num_downsamp:-1:1
@@ -148,8 +158,8 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
 
         Y2_ .-= L.RB[j].forward(Y1_)
 
-        ΔY_ = tensor_cat(ΔYl_, ΔYr_)
-        Y_  = tensor_cat(Y1_,  Y2_)
+        tensor_cat!(ΔY_, ΔYl_, ΔYr_)
+        tensor_cat!(Y_, Y1_,  Y2_)
 
         if set_grad
             ΔY, Y = L.C[j].inverse((ΔY_, Y_))
@@ -167,16 +177,13 @@ end
 
 # 2D
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
-
     num_downsamp = length(L.C)
     num_rb = 5
     num_1x1c = 3
     for j=1:num_downsamp
         idx_conv = (j-1)*num_1x1c+1:j*num_1x1c
         idx_rb = (j-1)*num_rb+1+num_downsamp*num_1x1c:(j)*num_rb+num_downsamp*num_1x1c
-        println("\nat j")
-        println("\nidx_conv = $(idx_conv)")
-        println("\nidx_rb = $(idx_rb)")
+
         ΔX_, X_ = L.C[j].jacobian(ΔX, Δθ[idx_conv], X)
         X1_, X2_ = tensor_split(X_)
         ΔX1_, ΔX2_ = tensor_split(ΔX_)
