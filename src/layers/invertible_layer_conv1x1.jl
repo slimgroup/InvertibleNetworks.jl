@@ -139,20 +139,6 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
     M3 = (I - 2 * (V1 + V2) + 4*V1*V2)
     tmp = cuzeros(X, k, k)
     for i=1:k
-# <<<<<<< HEAD
-#         # ∂V1
-#         mul!(tmp, ∂V1[i, :, :], M1)
-#         adjoint ? ∂V1[i, :, :] = tmp' : ∂V1[i, :, :] = tmp
-        
-#         # ∂V2
-#         v2 = ∂V2[i, :, :]
-#         broadcast!(+, tmp, v2, 4 * V1 * v2 * V3 - 2 * (V1 * v2 + v2 * V3))
-#         adjoint ? ∂V2[i, :, :] = tmp' : ∂V2[i, :, :] = tmp
-        
-#         # ∂V3
-#         mul!(tmp, M3, ∂V3[i, :, :])
-#         adjoint ? ∂V3[i, :, :] = tmp' : ∂V3[i, :, :] = tmp
-# =======
         # dV1
         mul!(tmp, dV1[i, :, :], M1)
         @views adjoint ? copyto!(dV1[i, :, :], tmp') : copyto!(dV1[i, :, :], tmp)
@@ -163,7 +149,6 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
         # dV3
         mul!(tmp, M3, dV3[i, :, :])
         @views adjoint ? copyto!(dV3[i, :, :], tmp') : copyto!(dV3[i, :, :], tmp)
-#>>>>>>> master
     end
 
     prod_res = cuzeros(X, size(dV1, 1))
