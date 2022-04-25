@@ -285,28 +285,6 @@ end
 
 adjointJacobian(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=nothing) where {T, N} = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false, logdet=logdet)
 
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(CH::ConditionalLayerHINT)
-    clear_grad!(CH.CL_X)
-    clear_grad!(CH.CL_Y)
-    clear_grad!(CH.CL_YX)
-    ~isnothing(CH.C_X) && clear_grad!(CH.C_X)
-    ~isnothing(CH.C_Y) && clear_grad!(CH.C_Y)
-end
-
-# Get parameters
-function get_params(CH::ConditionalLayerHINT)
-    p = get_params(CH.CL_X)
-    p = cat(p, get_params(CH.CL_Y); dims=1)
-    p = cat(p, get_params(CH.CL_YX); dims=1)
-    ~isnothing(CH.C_X) && (p = cat(p, get_params(CH.C_X); dims=1))
-    ~isnothing(CH.C_Y) && (p = cat(p, get_params(CH.C_Y); dims=1))
-    return p
-end
-
 # Set is_reversed flag in full network tree
 function tag_as_reversed!(H::ConditionalLayerHINT, tag::Bool)
     H.is_reversed = tag

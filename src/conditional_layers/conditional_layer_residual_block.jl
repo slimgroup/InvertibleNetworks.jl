@@ -187,26 +187,3 @@ function jacobian(ΔX0, ΔD, Δθ, X0, D, RB::ConditionalResidualBlock)
 end
 
 adjointJacobian(ΔY, ΔD, X0, D, RB::ConditionalResidualBlock) = backward(ΔY, ΔD, X0, D, RB; set_grad=false)
-
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(RB::ConditionalResidualBlock)
-    RB.W0.grad = nothing
-    RB.W1.grad = nothing
-    RB.W2.grad = nothing
-    RB.W3.grad = nothing
-    RB.b0.grad = nothing
-    RB.b1.grad = nothing
-    RB.b2.grad = nothing
-end
-
-"""
-    P = get_params(NL::NeuralNetLayer)
-
- Returns a cell array of all parameters in the network layer. Each cell
- entry contains a reference to the original parameter; i.e. modifying
- the paramters in `P`, modifies the parameters in `NL`.
-"""
-get_params(RB::ConditionalResidualBlock) = [RB.W0, RB.W1, RB.W2, RB.W3, RB.b0, RB.b1, RB.b2]

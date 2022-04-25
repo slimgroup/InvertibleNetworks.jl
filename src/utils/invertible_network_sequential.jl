@@ -41,7 +41,6 @@ function Composition(layer...)
             logdet_array[i] = false
         end
         npars[i] = length(get_params(layer_i))
-
     end
 
     return ComposedInvertibleNetwork(net_array, logdet_array, logdet, npars)
@@ -142,21 +141,4 @@ end
 
 function adjointJacobian(ΔY::AbstractArray{T, N1}, Y::AbstractArray{T, N1}, N::ComposedInvertibleNetwork) where {T, N1}
     return backward(ΔY, Y, N; set_grad = false)
-end
-
-
-## Other utilities
-
-function clear_grad!(N::ComposedInvertibleNetwork)
-    for i = 1:length(N)
-        clear_grad!(N.layers[i])
-    end
-end
-
-function get_params(N::ComposedInvertibleNetwork)
-    p = Array{Parameter, 1}(undef, 0)
-    for i = 1:length(N)
-        p = cat(p, get_params(N.layers[i]); dims=1)
-    end
-    return p
 end

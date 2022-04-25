@@ -269,15 +269,3 @@ end
 function adjointJacobian(ΔX_curr::AbstractArray{T, N}, ΔX_new::AbstractArray{T, N}, X_curr::AbstractArray{T, N}, X_new::AbstractArray{T, N}, HL::HyperbolicLayer) where {T, N}
     return backward(ΔX_curr, ΔX_new, X_curr, X_new, HL; set_grad=false)
 end
-
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(HL::HyperbolicLayer)
-    HL.W.grad = nothing
-    HL.b.grad = nothing
-end
-
-# Get parameters
-get_params(HL::HyperbolicLayer) = [HL.W, HL.b]

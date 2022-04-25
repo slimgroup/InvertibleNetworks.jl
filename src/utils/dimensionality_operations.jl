@@ -83,7 +83,7 @@ function squeeze(X::AbstractArray{T, N}; pattern="column") where {T, N}
     end
     N_out = Tuple(nn÷2 for nn=size(X)[1:N-2])
     nc_out = size(X, N-1) * 2^(N-2)
-    cinds = Tuple((:) for i=1:N-2)
+    cinds = Tuple(Colon() for i=1:N-2)
 
     if pattern == "column"
         Y = reshape(X, N_out..., nc_out, batchsize)
@@ -142,7 +142,7 @@ function unsqueeze(Y::AbstractArray{T,N}; pattern="column") where {T, N}
     end
     N_out = Tuple(nn*2 for nn=size(Y)[1:N-2])
     nc_out = size(Y, N-1) ÷ 2^(N-2)
-    cinds = Tuple((:) for i=1:N-2)
+    cinds = Tuple(Colon() for i=1:N-2)
 
     if pattern == "column"
         X = reshape(Y, N_out..., nc_out, batchsize)
@@ -202,7 +202,7 @@ function wavelet_squeeze(X::AbstractArray{T, N}; type=WT.db1) where {T, N}
     N_out = Tuple(nn÷2 for nn=size(X)[1:N-2])
     nd = 2^(N-2)
     nc_out = size(X, N-1) * nd
-    cinds = Tuple((:) for i=1:N-2)
+    cinds = Tuple(Colon() for i=1:N-2)
 
     Y = cuzeros(X, N_out..., nc_out, batchsize)
     for i=1:batchsize
@@ -243,7 +243,7 @@ function wavelet_unsqueeze(Y::AbstractArray{T,N}; type=WT.db1) where {T, N}
     N_out = Tuple(nn*2 for nn=size(Y)[1:N-2])
     nd = 2^(N-2)
     nc_out = size(Y, N-1) ÷ nd
-    cinds = Tuple((:) for i=1:N-2)
+    cinds = Tuple(Colon() for i=1:N-2)
 
     X = cuzeros(Y, N_out..., nc_out, size(Y, N))
     for i=1:size(Y, N)
@@ -262,7 +262,7 @@ end
 function HaarLift(x::AbstractArray{T,N}, dim) where {T, N}
     dim > N - 2 && return (x,)
     #Haar lifting
-    inds = [i==dim ? (1:2:size(x, dim)) : (:) for i=1:N];
+    inds = [i==dim ? (1:2:size(x, dim)) : Colon() for i=1:N];
     # Splitting
     H = x[inds...]
     inds[dim] = 2:2:size(x, dim)
@@ -299,7 +299,7 @@ function invHaarLift(L::AbstractArray{T,N}, H::AbstractArray{T,N},dim) where {T,
 
     #allocate output:
     x = cat(cuzeros(L,size(L)...), cuzeros(H,size(H)...), dims=dim)
-    inds = [i==dim ? (1:2:size(x, dim)) : (:) for i=1:N];
+    inds = [i==dim ? (1:2:size(x, dim)) : Colon() for i=1:N];
     x[inds...] .= H
     inds[dim] = 2:2:size(x, dim)
     x[inds...] .= L
@@ -409,8 +409,8 @@ function tensor_split(X::AbstractArray{T, N}; split_index=nothing) where {T, N}
         k = split_index
     end
 
-    indsl = [i==d ? (1:k) : (:) for i=1:N]
-    indsr = [i==d ? (k+1:size(X, d)) : (:) for i=1:N]
+    indsl = [i==d ? (1:k) : Colon() for i=1:N]
+    indsr = [i==d ? (k+1:size(X, d)) : Colon() for i=1:N]
 
     return X[indsl...], X[indsr...]
 end
@@ -443,6 +443,22 @@ function tensor_cat(X::AbstractArray{T, N}, Y::AbstractArray{T, N}) where {T, N}
 end
 
 tensor_cat(X::Tuple{AbstractArray{T,N}, AbstractArray{T,N}}) where {T, N} = tensor_cat(X[1], X[2])
+
+# In place cat
+function tensor_cat!(out::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}) where {T, N}
+    d = max(1, N-1)
+    if size(X, d) == 0
+        copyto!(out, Y)
+    elseif size(Y, d) == 0
+        copyto!(out, X)
+    else
+        k = size(X, d)
+        indsl = [i==d ? (1:k) : Colon() for i=1:N]
+        indsr = [i==d ? (k+1:size(out, d)) : Colon() for i=1:N]
+        out[indsl...] .= X
+        out[indsr...] .= Y
+    end
+end
 
 @inline xy_dims(dims::Array, ::Val{false}) = tuple(dims...)
 @inline xy_dims(dims::Array, ::Val{true}) = tuple(Int.(dims .* (.5, .5, 4, 1))...)

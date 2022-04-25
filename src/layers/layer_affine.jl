@@ -104,18 +104,6 @@ end
 
 adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, AL::AffineLayer) where {T, N} = backward(ΔY, Y, AL; set_grad=false)
 
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(AL::AffineLayer)
-    AL.s.grad = nothing
-    AL.b.grad = nothing
-end
-
-# Get parameters
-get_params(AL::AffineLayer) = [AL.s, AL.b]
-
 # Logdet
 logdet_forward(s) = sum(log.(abs.(s.data)))
 logdet_backward(s) = 1f0 ./ s.data
