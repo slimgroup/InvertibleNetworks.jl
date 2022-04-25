@@ -65,23 +65,13 @@ end
 @Flux.functor CouplingLayerIRIM
 
 # 2D Constructor from input dimensions
-function CouplingLayerIRIM(n_in::Int64, n_hidden::Int64; n_hiddens=nothing, ds=nothing,
+function CouplingLayerIRIM(n_in::Int64, n_hiddens::Array{Int64,1}, ds::Array{Int64,1}; 
                            k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
-
-    # Check if unet structure defined
-    if isnothing(n_hiddens) 
-        num_downsamp = 1 
-        n_hiddens = [n_hidden]
-        ds = [4]
-    else
-        # Use user defined hidden channels and downsampling factors in ds
-        num_downsamp = length(n_hiddens)   
-    end
-
-    if num_downsamp != length(ds)
+    if length(n_hiddens) != length(ds)
         throw("Number of downsampling factors in ds must be the same defined hidden channels in n_hidden")
     end 
 
+    num_downsamp = length(n_hiddens)  
     C = Array{Conv1x1}(undef, num_downsamp)
     RB = Array{ResidualBlock}(undef, num_downsamp)
         
@@ -125,36 +115,55 @@ function inverse(Y::AbstractArray{T, N}, L::CouplingLayerIRIM; save=false) where
         X2_ = Y2_ - L.RB[j].forward(Y1_)
 
         X_ = tensor_cat(X1_, X2_)
-        X = L.C[j].inverse(X_)
+        Y = L.C[j].inverse(X_)
     end
 
-    if save == false
-        return X
-    else
-        return X, X_, Y1_
-    end
+    return Y
 end
 
 # 2D Backward pass: Input (ΔY, Y), Output (ΔX, X)
 function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM; set_grad::Bool=true) where {T, N}
 
+    # Initialize layer parameters
+    #!set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
+    !set_grad && (p1 = Array{Parameter, 1}(undef, 0))
+    !set_grad && (p2 = Array{Parameter, 1}(undef, 0))
+
     num_downsamp = length(L.C)
-    for j=num_downsamp:-1:1ß
-        ΔY_, Y_ = L.C[j].forward((ΔY, Y))
+    for j=num_downsamp:-1:1
+        if set_grad
+            ΔY_, Y_ = L.C[j].forward((ΔY, Y))
+        else
+            ΔY_, Δθ_C1, Y_  = L.C[j].forward((ΔY, Y); set_grad=set_grad)  
+        end
   
         ΔYl_, ΔYr_ = tensor_split(ΔY_)
         Y1_,  Y2_  = tensor_split(Y_)
   
-        ΔYl_ .= L.RB[j].backwards(ΔYr_, Y1_) + ΔYl_ 
+        if set_grad
+            ΔYl_ .= L.RB[j].backward(ΔYr_, Y1_) + ΔYl_ 
+        else
+            ΔY_RB, Δθ_RB = L.RB[j].backward(ΔYr_, Y1_; set_grad=set_grad)
+            ΔYl_ .= ΔY_RB + ΔYl_ 
+        end
+
         Y2_ .-= L.RB[j].forward(Y1_)
 
         ΔY_ = tensor_cat(ΔYl_, ΔYr_)
         Y_  = tensor_cat(Y1_,  Y2_)
- 
-        ΔY, Y = L.C[j].inverse((ΔY_,Y_))
+
+        if set_grad
+            ΔY, Y = L.C[j].inverse((ΔY_, Y_))
+        else
+            ΔY, Δθ_C2, Y = L.C[j].inverse((ΔY_, Y_); set_grad=set_grad)  
+            #append!(Δθ, cat(Δθ_C1+Δθ_C2, Δθ_RB; dims=1))
+            #push!(p1, cat(Δθ_C1+Δθ_C2, Δθ_RB; dims=1))
+            p1 = cat(p1, Δθ_C1+Δθ_C2; dims=1)
+            p2 = cat(p2, Δθ_RB; dims=1)
+        end
     end
     
-   return ΔY, Y
+    set_grad ? (return ΔY, Y) : (ΔY, cat(p1, p2; dims=1), Y)
 end
 
 ## Jacobian utilities
@@ -163,22 +172,28 @@ end
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
 
     num_downsamp = length(L.C)
-    for j=num_downsamp:-1:1
-        ΔX_, X_ = L.C[j].jacobian(ΔX, Δθ[1:3], X)
+    num_rb = 5
+    num_1x1c = 3
+    for j=1:num_downsamp
+        idx_conv = (j-1)*num_1x1c+1:j*num_1x1c
+        idx_rb = (j-1)*num_rb+1+num_downsamp*num_1x1c:(j)*num_rb+num_downsamp*num_1x1c
+        println("\nat j")
+        println("\nidx_conv = $(idx_conv)")
+        println("\nidx_rb = $(idx_rb)")
+        ΔX_, X_ = L.C[j].jacobian(ΔX, Δθ[idx_conv], X)
         X1_, X2_ = tensor_split(X_)
         ΔX1_, ΔX2_ = tensor_split(ΔX_)
 
-        ΔY1_, Y1__ = L.RB[j].jacobian(ΔX1_, Δθ[4:end], X1_)
+        ΔY1_, Y1__ = L.RB[j].jacobian(ΔX1_, Δθ[idx_rb], X1_)
         Y2_ = X2_ + Y1__
         ΔY2_ = ΔX2_ + ΔY1_
         
         Y_ = tensor_cat(X1_, Y2_)
         ΔY_ = tensor_cat(ΔX1_, ΔY2_)
-        ΔY, Y = L.C[j].jacobianInverse(ΔY_, Δθ[1:3], Y_)
+        ΔX, X = L.C[j].jacobianInverse(ΔY_, Δθ[idx_conv], Y_)
     end
     
-    return ΔY, Y
-
+    return ΔX, X
 end
 
 # 2D/3D
