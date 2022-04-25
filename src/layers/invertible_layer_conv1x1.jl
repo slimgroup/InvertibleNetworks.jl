@@ -153,18 +153,15 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
     for i=1:k
         # ∂V1
         mul!(tmp, ∂V1[i, :, :], M1)
-        #@views adjoint ? adjoint!(∂V1[i, :, :], tmp) : copyto!(∂V1[i, :, :], tmp)
         adjoint ? adjoint!(∂V1[i, :, :], tmp) : copyto!(∂V1[i, :, :], tmp)
         
         # ∂V2
         v2 = ∂V2[i, :, :]
         broadcast!(+, tmp, v2, 4 * V1 * v2 * V3 - 2 * (V1 * v2 + v2 * V3))
-        #@views adjoint ? adjoint!(∂V2[i, :, :], tmp) : copyto!(∂V2[i, :, :], tmp)
         adjoint ? adjoint!(∂V2[i, :, :], tmp) : copyto!(∂V2[i, :, :], tmp)
         
         # ∂V3
         mul!(tmp, M3, ∂V3[i, :, :])
-        #@views adjoint ? adjoint!(∂V3[i, :, :], tmp) : copyto!(∂V3[i, :, :], tmp)
         adjoint ? adjoint!(∂V3[i, :, :], tmp) : copyto!(∂V3[i, :, :], tmp)
     end
 
@@ -255,9 +252,7 @@ function inverse(Y_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     set_grad ? (return ΔX, X) : (return ΔX, Δθ, X)
 end
 
-
 ## Jacobian-related functions
-
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{T, N}, C::Conv1x1) where {T, N}
     Y = cuzeros(X, size(X)...)
     ΔY = cuzeros(ΔX, size(ΔX)...)

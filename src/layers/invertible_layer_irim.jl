@@ -65,11 +65,23 @@ end
 @Flux.functor CouplingLayerIRIM
 
 # 2D Constructor from input dimensions
-function CouplingLayerIRIM(n_in::Int64;n_hiddens=nothing, ds=nothing,
+function CouplingLayerIRIM(n_in::Int64, n_hidden::Int64; n_hiddens=nothing, ds=nothing,
                            k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
 
+    # Check if unet structure defined
+    if isnothing(n_hiddens) 
+        num_downsamp = 1 
+        n_hiddens = [n_hidden]
+        ds = [4]
+    else
+        # Use user defined hidden channels and downsampling factors in ds
+        num_downsamp = length(n_hiddens)   
+    end
 
-    num_downsamp = length(ds)
+    if num_downsamp != length(ds)
+        throw("Number of downsampling factors in ds must be the same defined hidden channels in n_hidden")
+    end 
+
     C = Array{Conv1x1}(undef, num_downsamp)
     RB = Array{ResidualBlock}(undef, num_downsamp)
         
@@ -126,30 +138,20 @@ end
 # 2D Backward pass: Input (ΔY, Y), Output (ΔX, X)
 function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM; set_grad::Bool=true) where {T, N}
 
-    # Recompute forward state
-    #X, X_, Y1_ = inverse(Y, L; save=true)
-
     num_downsamp = length(L.C)
-    for j=num_downsamp:-1:1
-
-        # Recompute forward state
-        Y_ = L.C[j].forward(Y)
-        Y1_, Y2_ = tensor_split(Y_)
-
-        X1_ = Y1_
-        X2_ = Y2_ - L.RB[j].forward(Y1_)
-        X_ = tensor_cat(X1_, X2_)
-        X = L.C[j].inverse(X_)
-
-
-        # Backpropagate residual
+    for j=num_downsamp:-1:1ß
         ΔY_, Y_ = L.C[j].forward((ΔY, Y))
+  
         ΔYl_, ΔYr_ = tensor_split(ΔY_)
-        
-        ΔY1_ = L.RB[j].backward(ΔYr_, Y1_) + ΔYl_
-        ΔX_ = tensor_cat(ΔY1_, ΔYr_)
+        Y1_,  Y2_  = tensor_split(Y_)
+  
+        ΔYl_ .= L.RB[j].backwards(ΔYr_, Y1_) + ΔYl_ 
+        Y2_ .-= L.RB[j].forward(Y1_)
 
-        ΔY, Y = L.C[j].inverse((ΔX_, X_))
+        ΔY_ = tensor_cat(ΔYl_, ΔYr_)
+        Y_  = tensor_cat(Y1_,  Y2_)
+ 
+        ΔY, Y = L.C[j].inverse((ΔY_,Y_))
     end
     
    return ΔY, Y
@@ -160,20 +162,20 @@ end
 # 2D
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
 
-    # Get dimensions
-    k = Int(L.C.k/2)
-    
-    ΔX_, X_ = L.C.jacobian(ΔX, Δθ[1:3], X)
-    X1_, X2_ = tensor_split(X_)
-    ΔX1_, ΔX2_ = tensor_split(ΔX_)
+    num_downsamp = length(L.C)
+    for j=num_downsamp:-1:1
+        ΔX_, X_ = L.C[j].jacobian(ΔX, Δθ[1:3], X)
+        X1_, X2_ = tensor_split(X_)
+        ΔX1_, ΔX2_ = tensor_split(ΔX_)
 
-    ΔY1_, Y1__ = L.RB.jacobian(ΔX1_, Δθ[4:end], X1_)
-    Y2_ = X2_ + Y1__
-    ΔY2_ = ΔX2_ + ΔY1_
-    
-    Y_ = tensor_cat(X1_, Y2_)
-    ΔY_ = tensor_cat(ΔX1_, ΔY2_)
-    ΔY, Y = L.C.jacobianInverse(ΔY_, Δθ[1:3], Y_)
+        ΔY1_, Y1__ = L.RB[j].jacobian(ΔX1_, Δθ[4:end], X1_)
+        Y2_ = X2_ + Y1__
+        ΔY2_ = ΔX2_ + ΔY1_
+        
+        Y_ = tensor_cat(X1_, Y2_)
+        ΔY_ = tensor_cat(ΔX1_, ΔY2_)
+        ΔY, Y = L.C[j].jacobianInverse(ΔY_, Δθ[1:3], Y_)
+    end
     
     return ΔY, Y
 
@@ -190,9 +192,9 @@ end
 # Clear gradients
 function clear_grad!(L::CouplingLayerIRIM)
 
-    maxiter = length(L.C)
+    num_downsamp = length(L.C)
 
-    for j=1:maxiter
+    for j=1:num_downsamp
         clear_grad!(L.C[j])
         clear_grad!(L.RB[j])
     end
@@ -200,15 +202,14 @@ end
 
 # Get parameters
 function get_params(L::CouplingLayerIRIM)
-    maxiter = length(L.C)
+    num_downsamp = length(L.C)
 
-    p1 = get_params(L.C[1])
-    p2 = get_params(L.RB[1])
-    if maxiter > 1
-        for j=2:maxiter
-            p1 = cat(p1, get_params(L.C[j]); dims=1)
-            p2 = cat(p2, get_params(L.RB[j]); dims=1)
-        end
+    p1 = Array{Parameter, 1}(undef, 0)
+    p2 = Array{Parameter, 1}(undef, 0)
+
+    for j=1:num_downsamp
+        p1 = cat(p1, get_params(L.C[j]); dims=1)
+        p2 = cat(p2, get_params(L.RB[j]); dims=1)
     end
 
     return cat(p1, p2; dims=1)

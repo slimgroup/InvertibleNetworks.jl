@@ -66,7 +66,7 @@ end
 @Flux.functor NetworkLoop
 
 # 2D Constructor
-function NetworkLoop(n_in, maxiter, Ψ; n_hiddens=nothing, ds=nothing, k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive", ndims=2)
+function NetworkLoop(n_in, n_hidden, maxiter, Ψ; n_hiddens=nothing, ds=nothing, k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive", ndims=2)
     
     if type == "additive"
         L = Array{CouplingLayerIRIM}(undef, maxiter)
@@ -77,7 +77,7 @@ function NetworkLoop(n_in, maxiter, Ψ; n_hiddens=nothing, ds=nothing, k1=4, k2=
     AN = Array{ActNorm}(undef, maxiter)
     for j=1:maxiter
         if type == "additive"
-            L[j] = CouplingLayerIRIM(n_in; n_hiddens=n_hiddens, ds=ds, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
+            L[j] = CouplingLayerIRIM(n_in, n_hidden; n_hiddens=n_hiddens, ds=ds, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
         elseif type == "HINT"
             L[j] = CouplingLayerHINT(n_in, n_hidden; logdet=false, permute="both", k1=k1, k2=k2, p1=p1, p2=p2,
                                      s1=s1, s2=s2, ndims=ndims)
@@ -92,7 +92,7 @@ end
 NetworkLoop3D(args...; kw...) = NetworkLoop(args...; kw..., ndims=3)
 
 # 2D Forward loop: Input (η, s), Output (η, s)
-function forward(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::Union{AbstractArray, Nothing}, J, UL::NetworkLoop; g=nothing) where {T, N}
+function forward(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop) where {T, N}
 
     # Dimensions
     n_in = size(s, N-1) + 1
@@ -101,10 +101,8 @@ function forward(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::Union{Abstr
     maxiter = length(UL.L)
     N0 = cuzeros(η, nn..., n_in-2, batchsize)
 
-    isnothing(g) && (g = 1)
-
     for j=1:maxiter
-        isnothing(g) && (g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize)))
+        g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
         g = reshape(g, nn..., 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
         s_ = s + tensor_cat(gn, N0)
@@ -175,47 +173,6 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
         Δg = UL.AN[j].backward(Δgn, gn)[1]
         Δη = reshape(J'*J*reshape(Δg, :, batchsize), nn..., 1, batchsize) + Δs2
     end
-    set_grad ? (return Δη, Δs, η, s) : (Δη, Δs, Δθ, η, s)
-end
-
-# 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N}, 
-    η::AbstractArray{T, N}, s::AbstractArray{T, N}, J, UL::NetworkLoop; g=nothing, set_grad::Bool=true) where {T, N}
-
-    # Dimensions
-    n_in = size(s, N-1) + 1
-    batchsize = size(s)[end]
-    nn = size(s)[1:N-2]
-    maxiter = length(UL.L)
-
-    N0 = cuzeros(Δη, nn..., n_in-2, batchsize)
-    typeof(Δs) == T && (Δs = 0 .* s)  # make Δs zero tensor
-
-    # Initialize net parameters
-    set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
-
-    j = 1
-    #for j = maxiter:-1:1
-    if set_grad
-        Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
-    else
-        Δηs_, Δθ_L, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s); set_grad=set_grad)
-        push!(Δθ, Δθ_L)
-    end
-
-    # Inverse pass
-    η, s_ = tensor_split(ηs_; split_index=1)
-    #g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-    g = reshape(g, nn..., 1, batchsize)
-    gn = UL.AN[j].forward(g)   # normalize
-    s = s_ - tensor_cat(gn, N0)
-
-    # Gradients
-    #Δs2, Δs = tensor_split(Δηs_; split_index=1)
-    #Δgn = tensor_split(Δs; split_index=1)[1]
-    #Δg = UL.AN[j].backward(Δgn, gn)[1]
-    #Δη = reshape(J'*J*reshape(Δg, :, batchsize), nn..., 1, batchsize) + Δs2
-#end
     set_grad ? (return Δη, Δs, η, s) : (Δη, Δs, Δθ, η, s)
 end
 
