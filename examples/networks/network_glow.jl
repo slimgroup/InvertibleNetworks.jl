@@ -3,9 +3,9 @@
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Flux
-
 import Flux.Optimise.update!
 
+device = InvertibleNetworks.CUDA.functional() ? gpu : cpu
 # Define network
 nx = 64     # must be multiple of 2
 ny = 64
@@ -16,10 +16,10 @@ L = 2   # number of scales
 K = 2   # number of flow steps per scale
 
 # Input
-X = rand(Float32, nx, ny, n_in, batchsize) #|> gpu
+X = rand(Float32, nx, ny, n_in, batchsize) |> device
 
 # Glow network
-G = NetworkGlow(n_in, n_hidden, L, K) #|>gpu
+G = NetworkGlow(n_in, n_hidden, L, K)  |> device
 
 # Objective function
 function loss(X)

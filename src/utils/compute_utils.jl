@@ -18,8 +18,7 @@ gemm_outer!(out::Matrix{T}, tmp::Vector{T}, v::Vector{T}) where T = LinearAlgebr
 gemm_outer!(out::CuMatrix{T}, tmp::CuVector{T}, v::CuVector{T}) where T = CUDA.CUBLAS.gemm!('N', 'T', T(1), tmp, v, T(1), out)
 
 function chain_lr(x::AbstractMatrix{T}, vi::Vararg{AbstractVector{T}, N}) where {T, N}
-    out = similar(x)
-    copyto!(out, x)
+    out = T(1) .* x
     tmp = cuzeros(vi[1], size(x, 1))
     for v=vi
         n = -2/norm(v)^2

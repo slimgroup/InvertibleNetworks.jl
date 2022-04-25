@@ -125,7 +125,6 @@ end
 function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM; set_grad::Bool=true) where {T, N}
 
     # Initialize layer parameters
-    #!set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
     !set_grad && (p1 = Array{Parameter, 1}(undef, 0))
     !set_grad && (p2 = Array{Parameter, 1}(undef, 0))
 
@@ -156,8 +155,6 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
             ΔY, Y = L.C[j].inverse((ΔY_, Y_))
         else
             ΔY, Δθ_C2, Y = L.C[j].inverse((ΔY_, Y_); set_grad=set_grad)  
-            #append!(Δθ, cat(Δθ_C1+Δθ_C2, Δθ_RB; dims=1))
-            #push!(p1, cat(Δθ_C1+Δθ_C2, Δθ_RB; dims=1))
             p1 = cat(p1, Δθ_C1+Δθ_C2; dims=1)
             p2 = cat(p2, Δθ_RB; dims=1)
         end
@@ -199,33 +196,4 @@ end
 # 2D/3D
 function adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
     return backward(ΔY, Y, L; set_grad=false)
-end
-
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(L::CouplingLayerIRIM)
-
-    num_downsamp = length(L.C)
-
-    for j=1:num_downsamp
-        clear_grad!(L.C[j])
-        clear_grad!(L.RB[j])
-    end
-end
-
-# Get parameters
-function get_params(L::CouplingLayerIRIM)
-    num_downsamp = length(L.C)
-
-    p1 = Array{Parameter, 1}(undef, 0)
-    p2 = Array{Parameter, 1}(undef, 0)
-
-    for j=1:num_downsamp
-        p1 = cat(p1, get_params(L.C[j]); dims=1)
-        p2 = cat(p2, get_params(L.RB[j]); dims=1)
-    end
-
-    return cat(p1, p2; dims=1)
 end

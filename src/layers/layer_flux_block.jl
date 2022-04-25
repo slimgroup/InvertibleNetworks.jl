@@ -109,11 +109,9 @@ function clear_grad!(FB::FluxBlock)
 end
 
 """
-    P = get_params(NL::NeuralNetLayer)
+    P = get_params(NL::FluxBlock)
 
- Returns a cell array of all parameters in the network layer. Each cell
- entry contains a reference to the original parameter; i.e. modifying
- the paramters in `P`, modifies the parameters in `NL`.
+ Returns directly the Flux params array
 """
 function get_params(FB::FluxBlock)
     return FB.params

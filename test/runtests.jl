@@ -3,6 +3,12 @@
 # Date: January 2020
 using InvertibleNetworks, Test
 
+using TimerOutputs: TimerOutputs, @timeit
+
+# Collect timing and allocations information to show in a clear way.
+const TIMEROUTPUT = TimerOutputs.TimerOutput()
+timeit_include(path::AbstractString) = @timeit TIMEROUTPUT path include(path)
+
 const test_suite = get(ENV, "test_suite", "all") # "all", "basics", "layers" or "networks"
 
 basics = ["test_utils/test_objectives.jl",
@@ -38,20 +44,20 @@ networks = ["test_networks/test_unrolled_loop.jl",
 
 
 if test_suite == "all" || test_suite == "basics"
-    @testset "Basics" begin
+    @testset verbose = true "Basics" begin
         for t=basics
-            @testset "Test $t" begin
-                @time include(t)
+            @testset  "Test $t" begin
+                @timeit TIMEROUTPUT "$t" begin include(t) end
             end
         end
     end
 end
 
 if test_suite == "all" || test_suite == "layers"
-    @testset "Layers" begin
+    @testset verbose = true "Layers" begin
         for t=layers
             @testset  "Test $t" begin
-                @time include(t)
+                @timeit TIMEROUTPUT "$t" begin include(t) end
             end
         end
     end
@@ -59,11 +65,13 @@ end
 
 # Networks
 if test_suite == "all" || test_suite == "networks"
-    @testset "Networks" begin
+    @testset verbose = true "Networks" begin
         for t=networks
             @testset  "Test $t" begin
-                @time include(t)
+                @timeit TIMEROUTPUT "$t" begin include(t) end
             end
         end
     end
 end
+
+show(TIMEROUTPUT; compact=true, sortby=:firstexec)

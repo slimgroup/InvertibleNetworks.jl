@@ -409,30 +409,6 @@ end
 
 adjointJacobian(ΔY, Y, H::CouplingLayerHINT; scale=1, permute=nothing) = backward(ΔY, Y, H; scale=scale, permute=permute, set_grad=false)
 
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(H::CouplingLayerHINT)
-    for j=1:length(H.CL)
-        clear_grad!(H.CL[j])
-    end
-    ~isnothing(H.C) && clear_grad!(H.C)
-end
-
-# Get parameters
-function get_params(H::CouplingLayerHINT)
-    nlayers = length(H.CL)
-    p = get_params(H.CL[1])
-    if nlayers > 1
-        for j=2:nlayers
-            p = cat(p, get_params(H.CL[j]); dims=1)
-        end
-    end
-    ~isnothing(H.C) && (p = cat(p, get_params(H.C); dims=1))
-    return p
-end
-
 # Set is_reversed flag in full network tree
 function tag_as_reversed!(H::CouplingLayerHINT, tag::Bool)
     H.is_reversed = tag

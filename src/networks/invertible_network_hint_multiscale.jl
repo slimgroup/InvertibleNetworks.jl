@@ -141,8 +141,10 @@ function backward(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, H::NetworkMu
     end
 
     if ~set_grad
-        Δθ = Array{Parameter, 1}(undef, 0)
-        ∇logdet = Array{Parameter, 1}(undef, 0)
+        ΔθAN = Vector{Parameter}(undef, 0)
+        ΔθCL = Vector{Parameter}(undef, 0)
+        ∇logdetAN = Vector{Parameter}(undef, 0)
+        ∇logdetCL = Vector{Parameter}(undef, 0)
     end
 
     for i=H.L:-1:1
@@ -157,38 +159,42 @@ function backward(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, H::NetworkMu
             else
                 ΔZ_, Δθcl, Z_, ∇logdet_cl = H.CL[i, j].backward(ΔZ, Z; set_grad=set_grad)
                 ΔZ, Δθx, Z, ∇logdet_x = H.AN[i, j].backward(ΔZ_, Z_; set_grad=set_grad)
-                Δθ = cat(Δθx, Δθcl, Δθ; dims=1)
-                ∇logdet = cat(∇logdet_x, ∇logdet_cl, ∇logdet; dims=1)
+                prepend!(ΔθAN, Δθx)
+                prepend!(ΔθCL, Δθcl)
+                prepend!(∇logdetAN, ∇logdet_x)
+                prepend!(∇logdetCL, ∇logdet_cl)
             end
         end
         ΔZ = wavelet_unsqueeze(ΔZ)
         Z = wavelet_unsqueeze(Z)
     end
-    set_grad ? (return ΔZ, Z) : (return ΔZ, Δθ, Z, ∇logdet)
+    set_grad ? (return ΔZ, Z) : (return ΔZ, vcat(ΔθAN, ΔθCL), Z, vcat(∇logdetAN, ∇logdetCL))
 end
 
 
 ## Jacobian-related utils
-
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, H::NetworkMultiScaleHINT) where {T, N}
     if H.split_scales
         X_save = array_of_array(ΔX, H.L-1, 2)
         ΔX_save = array_of_array(ΔX, H.L-1, 2)
     end
     logdet = 0
-    GNΔθ = Array{Parameter, 1}(undef, 0)
-    idxblk = 0
+    cls = 2*H.K*H.L
+    ΔθAN = Vector{Parameter}(undef, 0)
+    ΔθCL = Vector{Parameter}(undef, 0)
+
     for i=1:H.L
         X = wavelet_squeeze(X)
         ΔX = wavelet_squeeze(ΔX)
         for j=1:H.K
-            npars_ij = 2+length(get_params(H.CL[i, j]))
-            Δθij = Δθ[idxblk+1:idxblk+npars_ij]
-            ΔX_, X_, logdet1, GNΔθ1 = H.AN[i, j].jacobian(ΔX, Δθij[1:2], X)
-            ΔX, X, logdet2, GNΔθ2 = H.CL[i, j].jacobian(ΔX_, Δθij[3:end], X_)
+            as = length(ΔθAN) + 1
+            cs = cls + length(ΔθCL) + 1
+            ce = cs + length(get_params(H.CL[i, j])) - 1
+            ΔX_, X_, logdet1, GNΔθ1 = H.AN[i, j].jacobian(ΔX, Δθ[as:as+1], X)
+            ΔX, X, logdet2, GNΔθ2 = H.CL[i, j].jacobian(ΔX_, Δθ[cs:ce], X_)
             logdet += (logdet1 + logdet2)
-            GNΔθ = cat(GNΔθ, GNΔθ1, GNΔθ2; dims=1)
-            idxblk += npars_ij
+            append!(ΔθAN, GNΔθ1)
+            append!(ΔθCL, GNΔθ2)
         end
         if H.split_scales && i < H.L    # don't split after last iteration
             X, Z = tensor_split(X)
@@ -202,32 +208,7 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, H::Net
         X = cat_states(X_save, X)
         ΔX = cat_states(ΔX_save, ΔX)
     end
-    return ΔX, X, logdet, GNΔθ
+    return ΔX, X, logdet, vcat(ΔθAN, ΔθCL)
 end
 
 adjointJacobian(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N} = backward(ΔZ, Z, H; set_grad=false)
-
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(H::NetworkMultiScaleHINT)
-    depth = length(H.CL)
-    for j=1:depth
-        clear_grad!(H.AN[j])
-        clear_grad!(H.CL[j])
-    end
-end
-
-# Get parameters
-function get_params(H::NetworkMultiScaleHINT)
-    L, K = size(H.CL)
-    p = Array{Parameter, 1}(undef, 0)
-    for i = 1:L
-        for j = 1:K
-            p = cat(p, get_params(H.AN[i, j]); dims=1)
-            p = cat(p, get_params(H.CL[i, j]); dims=1)
-        end
-    end
-    return p
-end

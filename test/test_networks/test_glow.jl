@@ -127,7 +127,8 @@ G0 = NetworkGlow(n_in, n_hidden, L, K); G0.forward(randn(Float32, nx, ny, n_in, 
 X = randn(Float32, nx, ny, n_in, batchsize)
 
 # Perturbation (normalized)
-dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
+dθ = θ-θ0
+dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
 dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
 
 # Jacobian eval
@@ -158,7 +159,7 @@ dY, Y, _, _ = G.jacobian(dX, dθ, X)
 dY_ = randn(Float32, size(dY))
 dX_, dθ_, _, _ = G.adjointJacobian(dY_, Y)
 a = dot(dY, dY_)
-b = dot(dX, dX_)+dot(dθ, dθ_)
+b = dot(dX, dX_) + dot(dθ, dθ_)
 @test isapprox(a, b; rtol=1f-3)
 
 

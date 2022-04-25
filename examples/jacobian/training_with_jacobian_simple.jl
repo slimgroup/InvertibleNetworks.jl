@@ -4,9 +4,8 @@
 
 using InvertibleNetworks, LinearAlgebra, Statistics, Flux, PyPlot, Images, TestImages
 using Random; Random.seed!(123)
-flag_gpu = true
-# flag_gpu = false
-flag_gpu && (using CUDA)
+
+device = InvertibleNetworks.CUDA.functional() ? gpu : cpu
 
 # Load image
 Y = Float32.(testimage("mandril_gray")); Y = (Y.-mean(Y))./sqrt(var(Y))
@@ -16,7 +15,7 @@ for i = 1:2
     global Y = wavelet_squeeze(Y)
 end
 nx, ny, n_ch = size(Y)[1:3]
-flag_gpu && (Y = Y |> gpu)
+Y = Y |> device
 
 # Initialize HINT layer
 n_hidden = 2*n_ch
@@ -24,11 +23,10 @@ batchsize = 1
 N = CouplingLayerHINT(n_ch, n_hidden; logdet=false, permute="full")∘
     CouplingLayerHINT(n_ch, n_hidden; logdet=false, permute="full")∘
     CouplingLayerHINT(n_ch, n_hidden; logdet=false, permute="full")
-flag_gpu && (N = N |> gpu)
+N = N |> device
 
 # Fixed input
-X = randn(Float32, nx, ny, n_ch, batchsize)
-flag_gpu && (X = X |> gpu)
+X = randn(Float32, nx, ny, n_ch, batchsize) |> device
 
 # Loss function
 loss(Y_) = 0.5f0*norm(Y-Y_)^2f0
@@ -66,4 +64,5 @@ for i = 1:2
     global Y_ = wavelet_unsqueeze(Y_)
     global Y = wavelet_unsqueeze(Y)
 end
-flag_gpu && (Y = Y |> cpu; Y_ = Y_ |> cpu)
+Y = Y |> cpu
+Y_ = Y_ |> cpu

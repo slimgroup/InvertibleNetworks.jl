@@ -202,22 +202,6 @@ function adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::Co
     return backward(ΔY, Y, L; set_grad=false)
 end
 
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(L::CouplingLayerGlow)
-    clear_grad!(L.C)
-    clear_grad!(L.RB)
-end
-
-# Get parameters
-function get_params(L::CouplingLayerGlow)
-    p1 = get_params(L.C)
-    p2 = get_params(L.RB)
-    return cat(p1, p2; dims=1)
-end
-
 # Logdet (correct?)
 glow_logdet_forward(S) = sum(log.(abs.(S))) / size(S, 4)
 glow_logdet_backward(S) = 1f0./ S / size(S, 4)

@@ -152,11 +152,19 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
     # Initialize net parameters
     set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
 
+    # Init tensors to avoid reallocation
+    Δcat = similar(tensor_cat(Δη, Δs))
+    pcat = similar(tensor_cat(η, s))
+
     for j = maxiter:-1:1
+        # Current cat states
+        tensor_cat!(Δcat, Δη, Δs)
+        tensor_cat!(pcat, η, s)
+    
         if set_grad
-            Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+            Δηs_, ηs_ = UL.L[j].backward(Δcat, pcat)
         else
-            Δηs_, Δθ_L, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s); set_grad=set_grad)
+            Δηs_, Δθ_L, ηs_ = UL.L[j].backward(Δcat, pcat; set_grad=set_grad)
             push!(Δθ, Δθ_L)
         end
 
@@ -165,7 +173,8 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
         g = reshape(g, nn..., 1, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
-        s = s_ - tensor_cat(gn, N0)
+        tensor_cat!(s, gn, N0)
+        s .= s_ .- s
 
         # Gradients
         Δs2, Δs = tensor_split(Δηs_; split_index=1)
@@ -183,28 +192,3 @@ adjointJacobian(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
                 η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop;
                 set_grad::Bool=true) where {T, N} =
             backward(Δη, Δs, η, s, d, J, UL; set_grad=false)
-
-
-## Other utils
-# Clear gradients
-function clear_grad!(UL::NetworkLoop)
-    maxiter = length(UL.L)
-    for j=1:maxiter
-        clear_grad!(UL.L[j])
-        clear_grad!(UL.AN[j])
-        UL.AN[j].s.data = nothing
-        UL.AN[j].b.data = nothing
-    end
-end
-
-# Get parameters (do not update actnorm weights)
-function get_params(UL::NetworkLoop)
-    maxiter = length(UL.L)
-    p = get_params(UL.L[1])
-    if maxiter > 1
-        for j=2:maxiter
-            p = cat(p, get_params(UL.L[j]); dims=1)
-        end
-    end
-    return p
-end
