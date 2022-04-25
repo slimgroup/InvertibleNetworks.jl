@@ -1,7 +1,7 @@
 name = "InvertibleNetworks"
 uuid = "b7115f24-5f92-4794-81e8-23b0ddb121d3"
 authors = ["Philipp Witte <p.witte@ymail.com>", "Ali Siahkoohi <alisk@gatech.edu>", "Mathias Louboutin <mlouboutin3@gatech.edu>", "Gabrio Rizzuti <g.rizzuti@umcutrecht.nl>", "Rafael Orozco <rorozco@gatech.edu>", "Felix J. herrmann <fherrmann@gatech.edu>"]
-version = "2.1.0"
+version = "2.1.1"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -19,7 +19,7 @@ Wavelets = "29a6e085-ba6d-5f35-a997-948ac2efa89a"
 CUDA = "1, 2, 3"
 ChainRulesCore = "0.8, 0.9, 0.10, 1"
 Flux = "0.11, 0.12"
-JOLI = "0.7"
+JOLI = "0.7, 0.8"
 NNlib = "0.7"
 Wavelets = "0.9"
 julia = "1"

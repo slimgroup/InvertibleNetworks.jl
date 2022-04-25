@@ -9,7 +9,7 @@ import Flux.Optimise.update!
 # Define network
 nx = 64     # must be multiple of 2
 ny = 64
-n_in = 3
+n_in = 4
 n_hidden = 32
 batchsize = 10
 L = 2   # number of scales
