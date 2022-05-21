@@ -70,7 +70,7 @@ function CouplingLayerIRIM(n_in::Int64, n_hidden::Int64;
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
-    RB = ResidualBlock(n_in÷2, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
+    RB = ResidualBlock(n_in÷2, n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, GALU=true,  ndims=ndims)
 
     return CouplingLayerIRIM(C, RB)
 end
@@ -167,20 +167,4 @@ end
 # 2D/3D
 function adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
     return backward(ΔY, Y, L; set_grad=false)
-end
-
-
-## Other utils
-
-# Clear gradients
-function clear_grad!(L::CouplingLayerIRIM)
-    clear_grad!(L.C)
-    clear_grad!(L.RB)
-end
-
-# Get parameters
-function get_params(L::CouplingLayerIRIM)
-    p1 = get_params(L.C)
-    p2 = get_params(L.RB)
-    return cat(p1, p2; dims=1)
 end
