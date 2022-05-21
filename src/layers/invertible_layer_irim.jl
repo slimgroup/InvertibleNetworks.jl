@@ -168,3 +168,17 @@ end
 function adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
     return backward(ΔY, Y, L; set_grad=false)
 end
+
+
+# Clear gradients
+function clear_grad!(L::CouplingLayerIRIM)
+    clear_grad!(L.C)
+    clear_grad!(L.RB)
+end
+
+# Get parameters
+function get_params(L::CouplingLayerIRIM)
+    p1 = get_params(L.C)
+    p2 = get_params(L.RB)
+    return cat(p1, p2; dims=1)
+end

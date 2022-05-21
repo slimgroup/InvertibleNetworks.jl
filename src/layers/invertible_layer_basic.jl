@@ -79,7 +79,7 @@ CouplingLayerBasic(RB::FluxBlock; logdet=false, activation::ActivationFunction=S
 function CouplingLayerBasic(n_in_1::Int64, n_in_2::Int64, n_hidden::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # 1x1 Convolution and residual block for invertible layer
-    RB = ResidualBlock(n_in_1, n_in_2, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+    RB = ResidualBlock(n_in_1, n_in_2, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, GALU=false, ndims=ndims)
 
     return CouplingLayerBasic(RB, logdet, activation, false)
 end

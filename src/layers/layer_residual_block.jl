@@ -206,3 +206,13 @@ end
 function adjointJacobian(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N}, RB::ResidualBlock) where {T, N}
     return backward(ΔX4, X1, RB; set_grad=false)
 end
+
+function clear_grad!(RB::ResidualBlock)
+    RB.W1.grad = nothing
+    RB.W2.grad = nothing
+    RB.W3.grad = nothing
+    RB.b1.grad = nothing
+    RB.b2.grad = nothing
+end
+
+get_params(RB::ResidualBlock) = [RB.W1, RB.W2, RB.W3, RB.b1, RB.b2]

@@ -3,7 +3,7 @@
 # Date: January 2020
 
 export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze 
-export tensor_split, tensor_cat
+export tensor_split, tensor_cat, tensor_cat!
 export cat_states, split_states
 export ShuffleLayer, WaveletLayer, HaarLayer
 ###############################################################################
@@ -439,6 +439,22 @@ function tensor_cat(X::AbstractArray{T, N}, Y::AbstractArray{T, N}) where {T, N}
         return X
     else
         return cat(X, Y; dims=d)
+    end
+end
+
+# In place cat
+function tensor_cat!(out::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}) where {T, N}
+    d = max(1, N-1)
+    if size(X, d) == 0
+        copyto!(out, Y)
+    elseif size(Y, d) == 0
+        copyto!(out, X)
+    else
+        k = size(X, d)
+        indsl = [i==d ? (1:k) : Colon() for i=1:N]
+        indsr = [i==d ? (k+1:size(out, d)) : Colon() for i=1:N]
+        out[indsl...] .= X
+        out[indsr...] .= Y
     end
 end
 
