@@ -61,12 +61,13 @@ struct NetworkLoop <: InvertibleNetwork
     L::Union{AbstractArray{CouplingLayerIRIM, 1}, AbstractArray{CouplingLayerHINT}}
     AN::AbstractArray{ActNorm, 1}
     Ψ::Function
+    n_chan::Int64
 end
 
 @Flux.functor NetworkLoop
 
 # 2D Constructor
-function NetworkLoop(n_in, n_hidden, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive", ndims=2)
+function NetworkLoop(n_in, n_hidden, maxiter, Ψ, n_chan; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive", ndims=2)
     
     if type == "additive"
         L = Array{CouplingLayerIRIM}(undef, maxiter)
@@ -82,10 +83,10 @@ function NetworkLoop(n_in, n_hidden, maxiter, Ψ; k1=4, k2=3, p1=0, p2=1, s1=4, 
             L[j] = CouplingLayerHINT(n_in, n_hidden; logdet=false, permute="both", k1=k1, k2=k2, p1=p1, p2=p2,
                                      s1=s1, s2=s2, ndims=ndims)
         end
-        AN[j] = ActNorm(1)
+        AN[j] = ActNorm(n_chan)
     end
     
-    return NetworkLoop(L, AN, Ψ)
+    return NetworkLoop(L, AN, Ψ,n_chan)
 end
 
 # 3D Constructor
@@ -95,20 +96,21 @@ NetworkLoop3D(args...; kw...) = NetworkLoop(args...; kw..., ndims=3)
 function forward(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop) where {T, N}
 
     # Dimensions
-    n_in = size(s, N-1) + 1
+    n_in = size(s, N-1) 
     batchsize = size(s)[end]
     nn = size(s)[1:N-2]
     maxiter = length(UL.L)
-    N0 = cuzeros(η, nn..., n_in-2, batchsize)
+    N0 = cuzeros(η, nn..., n_in-UL.n_chan, batchsize)
 
     for j=1:maxiter
+        #println("\n NOW AT j=$(j)")
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-        g = reshape(g, nn..., 1, batchsize)
+        g = reshape(g, nn..., UL.n_chan, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
         s_ = s + tensor_cat(gn, N0)
 
         ηs = UL.L[j].forward(tensor_cat(η, s_))
-        η, s = tensor_split(ηs; split_index=1)
+        η, s = tensor_split(ηs; split_index=UL.n_chan)
     end
     return η, s
 end
@@ -129,7 +131,7 @@ function inverse(η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArr
         η, s_ = tensor_split(ηs_; split_index=1)
 
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-        g = reshape(g, nn..., 1, batchsize)
+        g = reshape(g, nn..., UL.n_chan, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
         s = s_ - tensor_cat(gn, N0)
     end
@@ -141,37 +143,50 @@ function backward(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
     η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop; set_grad::Bool=true) where {T, N}
 
     # Dimensions
-    n_in = size(s, N-1) + 1
+    n_in = size(s, N-1) 
     batchsize = size(s)[end]
     nn = size(s)[1:N-2]
     maxiter = length(UL.L)
 
-    N0 = cuzeros(Δη, nn..., n_in-2, batchsize)
+    N0 = cuzeros(Δη, nn..., n_in-UL.n_chan, batchsize)
     typeof(Δs) == T && (Δs = 0 .* s)  # make Δs zero tensor
 
     # Initialize net parameters
     set_grad && (Δθ = Array{Parameter, 1}(undef, 0))
 
+    # Init tensors to avoid reallocation
+    Δcat = similar(tensor_cat(Δη, Δs))
+    pcat = similar(tensor_cat(η, s))
+
     for j = maxiter:-1:1
+        #println("\n here at j=$(j)")
+        # Current cat states
+        tensor_cat!(Δcat, Δη, Δs)
+        tensor_cat!(pcat, η, s)
+
+        #println(size(Δcat))
+        #println(size(pcat))
+    
         if set_grad
-            Δηs_, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+            Δηs_, ηs_ = UL.L[j].backward(Δcat, pcat)
         else
-            Δηs_, Δθ_L, ηs_ = UL.L[j].backward(tensor_cat(Δη, Δs), tensor_cat(η, s); set_grad=set_grad)
+            Δηs_, Δθ_L, ηs_ = UL.L[j].backward(Δcat, pcat; set_grad=set_grad)
             push!(Δθ, Δθ_L)
         end
 
         # Inverse pass
-        η, s_ = tensor_split(ηs_; split_index=1)
+        η, s_ = tensor_split(ηs_; split_index=UL.n_chan)
         g = J'*(J*reshape(UL.Ψ(η), :, batchsize) - reshape(d, :, batchsize))
-        g = reshape(g, nn..., 1, batchsize)
+        g = reshape(g, nn..., UL.n_chan, batchsize)
         gn = UL.AN[j].forward(g)   # normalize
-        s = s_ - tensor_cat(gn, N0)
+        tensor_cat!(s, gn, N0)
+        s .= s_ .- s
 
         # Gradients
-        Δs2, Δs = tensor_split(Δηs_; split_index=1)
-        Δgn = tensor_split(Δs; split_index=1)[1]
+        Δs2, Δs = tensor_split(Δηs_; split_index=UL.n_chan)
+        Δgn = tensor_split(Δs; split_index=UL.n_chan)[1]
         Δg = UL.AN[j].backward(Δgn, gn)[1]
-        Δη = reshape(J'*J*reshape(Δg, :, batchsize), nn..., 1, batchsize) + Δs2
+        Δη = reshape(J'*J*reshape(Δg, :, batchsize), nn..., UL.n_chan, batchsize) + Δs2
     end
     set_grad ? (return Δη, Δs, η, s) : (Δη, Δs, Δθ, η, s)
 end
@@ -183,28 +198,3 @@ adjointJacobian(Δη::AbstractArray{T, N}, Δs::AbstractArray{T, N},
                 η::AbstractArray{T, N}, s::AbstractArray{T, N}, d::AbstractArray, J, UL::NetworkLoop;
                 set_grad::Bool=true) where {T, N} =
             backward(Δη, Δs, η, s, d, J, UL; set_grad=false)
-
-
-## Other utils
-# Clear gradients
-function clear_grad!(UL::NetworkLoop)
-    maxiter = length(UL.L)
-    for j=1:maxiter
-        clear_grad!(UL.L[j])
-        clear_grad!(UL.AN[j])
-        UL.AN[j].s.data = nothing
-        UL.AN[j].b.data = nothing
-    end
-end
-
-# Get parameters (do not update actnorm weights)
-function get_params(UL::NetworkLoop)
-    maxiter = length(UL.L)
-    p = get_params(UL.L[1])
-    if maxiter > 1
-        for j=2:maxiter
-            p = cat(p, get_params(UL.L[j]); dims=1)
-        end
-    end
-    return p
-end
