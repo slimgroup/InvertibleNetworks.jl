@@ -251,7 +251,6 @@ end
  See also: [`GaLU`](@ref)
 """
 function GaLUgrad(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
-    k = Int(size(x, N-1) / 2)
     x1, x2 = tensor_split(x)
     Δx = 0 .*x
     Δx = tensor_cat(Sigmoid(x2) .* Δy, SigmoidGrad(Δy, nothing; x=x2) .* x1)
@@ -259,7 +258,6 @@ function GaLUgrad(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
 end
 
 function GaLUjacobian(Δx::AbstractArray{T, N}, x::AbstractArray{T, N}) where {T, N}
-    k = Int(size(x, 3) / 2)
     x1, x2 = tensor_split(x)
     Δx1, Δx2 = tensor_split(Δx)
     s = Sigmoid(x2)

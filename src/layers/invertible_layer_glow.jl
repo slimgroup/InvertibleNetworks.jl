@@ -83,7 +83,7 @@ function CouplingLayerGlow(n_in::Int64, n_hidden::Int64; k1=3, k2=1, p1=1, p2=0,
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
-    RB = ResidualBlock(Int(round(n_in/2)), Int(round(n_in/2)), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, GALU=false, ndims=ndims)
+    RB = ResidualBlock(Int(round(n_in/2)), Int(round(n_in)), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, GALU=false, ndims=ndims)
 
     return CouplingLayerGlow(C, RB, logdet, activation)
 end

@@ -14,7 +14,7 @@ export NetworkLoop, NetworkLoop3D
 
  *Input*: 
  
- - 'n_in': number of input channels
+ - 'n_in': number of total channels in state variable. Needs to be even for couplying layer splits and also at least 2
 
  - `n_hidden`: number of hidden units in residual blocks
 
@@ -86,7 +86,7 @@ function NetworkLoop(n_in, n_hidden, maxiter, Ψ, n_chan; k1=4, k2=3, p1=0, p2=1
         AN[j] = ActNorm(n_chan)
     end
     
-    return NetworkLoop(L, AN, Ψ,n_chan)
+    return NetworkLoop(L, AN, Ψ, n_chan)
 end
 
 # 3D Constructor

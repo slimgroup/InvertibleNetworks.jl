@@ -70,6 +70,8 @@ function CouplingLayerIRIM(n_in::Int64, n_hidden::Int64;
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
+    #Int(round(size(X, d)/2))
+
     RB = ResidualBlock(n_in÷2, n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, GALU=true,  ndims=ndims)
 
     return CouplingLayerIRIM(C, RB)
@@ -113,7 +115,7 @@ end
 function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerIRIM; set_grad::Bool=true) where {T, N}
 
     # Recompute forward state
-    k = Int(L.C.k/2)
+    #k = Int(L.C.k/2)
     X, X_, Y1_ = inverse(Y, L; save=true)
 
     # Backpropagate residual
@@ -146,7 +148,7 @@ end
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
 
     # Get dimensions
-    k = Int(L.C.k/2)
+    #k = Int(L.C.k/2)
     
     ΔX_, X_ = L.C.jacobian(ΔX, Δθ[1:3], X)
     X1_, X2_ = tensor_split(X_)

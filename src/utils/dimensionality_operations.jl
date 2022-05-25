@@ -404,7 +404,8 @@ end
 function tensor_split(X::AbstractArray{T, N}; split_index=nothing) where {T, N}
     d = max(1, N-1)
     if isnothing(split_index)
-        k = Int(round(size(X, d)/2))
+        #k = Int(round(size(X, d)/2))
+        k = size(X, d)÷2
     else
         k = split_index
     end
