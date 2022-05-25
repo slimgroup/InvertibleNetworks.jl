@@ -65,14 +65,15 @@ end
 @Flux.functor CouplingLayerIRIM
 
 # 2D Constructor from input dimensions
-function CouplingLayerIRIM(n_in::Int64, n_hidden::Int64; 
+function CouplingLayerIRIM(n_in::Int64, n_hidden::Int64; GALU=true,
                            k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in)
     #Int(round(size(X, d)/2))
 
-    RB = ResidualBlock(n_in÷2, n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, GALU=true,  ndims=ndims)
+
+    RB = ResidualBlock(n_in÷2, n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, GALU=GALU,  ndims=ndims)
 
     return CouplingLayerIRIM(C, RB)
 end

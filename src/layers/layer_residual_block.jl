@@ -79,6 +79,9 @@ function ResidualBlock(n_in, n_out,  n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=
 
     k1 = Tuple(k1 for i=1:ndims)
     k2 = Tuple(k2 for i=1:ndims)
+    #if GALU
+    #    n_out *= 2
+    #end
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1..., n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2..., n_hidden, n_hidden))

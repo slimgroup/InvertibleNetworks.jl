@@ -67,7 +67,7 @@ end
 @Flux.functor NetworkLoop
 
 # 2D Constructor
-function NetworkLoop(n_in, n_hidden, maxiter, Ψ, n_chan; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive", ndims=2)
+function NetworkLoop(n_in, n_hidden, maxiter, Ψ, n_chan; GALU=true, k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, type="additive", ndims=2)
     
     if type == "additive"
         L = Array{CouplingLayerIRIM}(undef, maxiter)
@@ -78,7 +78,7 @@ function NetworkLoop(n_in, n_hidden, maxiter, Ψ, n_chan; k1=4, k2=3, p1=0, p2=1
     AN = Array{ActNorm}(undef, maxiter)
     for j=1:maxiter
         if type == "additive"
-            L[j] = CouplingLayerIRIM(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
+            L[j] = CouplingLayerIRIM(n_in, n_hidden; GALU=true, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
         elseif type == "HINT"
             L[j] = CouplingLayerHINT(n_in, n_hidden; logdet=false, permute="both", k1=k1, k2=k2, p1=p1, p2=p2,
                                      s1=s1, s2=s2, ndims=ndims)
