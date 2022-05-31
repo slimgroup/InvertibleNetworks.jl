@@ -124,11 +124,42 @@ function forward(X, H::NetworkMultiScaleHINT; logdet=nothing)
     logdet ? (return X,  logdet_) : (return X)
 end
 
+# Backward reverse pass and compute gradients
+function backward_inv(ΔX, X, H::NetworkMultiScaleHINT)
+    original_shape = size(X)
+
+    H.split_scales && (X_save = array_of_array(X, H.L-1))
+    H.split_scales && (ΔX_save = array_of_array(ΔX, H.L-1))
+
+    for i=1:H.L
+        ΔX = H.squeezer.forward(ΔX)
+        X  = H.squeezer.forward(X)
+        for j=1:H.K
+            ΔX_, X_ = backward_inv(ΔX,   X, H.AN[i, j])
+            ΔX,  X, = backward_inv(ΔX_,  X_, H.CL[i, j])
+        end
+        if H.split_scales && i < H.L    # don't split after last iteration
+            X, Zx = tensor_split(X)
+            X_save[i] = Zx
+
+            ΔX, ΔZ = tensor_split(ΔX)
+            ΔX_save[i] = ΔZ
+            H.Z_dims[i] = collect(size(ΔZ))
+        end
+    end
+
+    H.split_scales && (X =  reshape(cat_states(X_save, X), original_shape))
+    H.split_scales && (ΔX = reshape(cat_states(ΔX_save, ΔX), original_shape))
+
+    return ΔX, X
+end
+
+
 # Inverse pass and compute gradients
 function inverse(Z, H::NetworkMultiScaleHINT; logdet=nothing)
     isnothing(logdet) ? logdet = (H.logdet && H.is_reversed) : logdet = logdet
 
-    H.split_scales && ((X_save, Z) = split_states(Z, H.Z_dims))
+    H.split_scales && ((X_save, Z) = split_states(Z[:], H.Z_dims))
     logdet_ = 0f0
     for i=H.L:-1:1
         if H.split_scales && i < H.L
@@ -149,8 +180,8 @@ function backward(ΔZ, Z, H::NetworkMultiScaleHINT; set_grad::Bool=true)
 
     # Split data and gradients
     if H.split_scales
-        ΔX_save, ΔZ = split_states(ΔZ, H.Z_dims)
-        X_save, Z = split_states(Z, H.Z_dims)
+        ΔX_save, ΔZ = split_states(ΔZ[:], H.Z_dims)
+        X_save, Z = split_states(Z[:], H.Z_dims)
     end
 
     if ~set_grad
@@ -192,34 +223,6 @@ function backward(ΔZ, Z, H::NetworkMultiScaleHINT; set_grad::Bool=true)
     end
 end
 
-# Backward reverse pass and compute gradients
-function backward_inv(ΔX, X, H::NetworkMultiScaleHINT)
-
-    H.split_scales && (X_save = array_of_array(X, H.L-1))
-    H.split_scales && (ΔX_save = array_of_array(ΔX, H.L-1))
-
-    for i=1:H.L
-        ΔX = H.squeezer.forward(ΔX)
-        X  = H.squeezer.forward(X)
-        for j=1:H.K
-            ΔX_, X_ = backward_inv(ΔX, X, H.AN[i, j])
-            ΔX,  X, = backward_inv(ΔX_,  X_, H.CL[i, j])
-        end
-        if H.split_scales && i < H.L    # don't split after last iteration
-            X, Zx = tensor_split(X)
-            X_save[i] = Zx
-
-            ΔX, ΔZ = tensor_split(ΔX)
-            ΔX_save[i] = ΔZ
-            H.Z_dims[i] = collect(size(ΔZ))
-        end
-    end
-
-    H.split_scales && (X = cat_states(X_save, X))
-    H.split_scales && (ΔX = cat_states(ΔX_save, ΔX))
-
-    return ΔX, X
-end
 
 
 ## Jacobian-related utils
