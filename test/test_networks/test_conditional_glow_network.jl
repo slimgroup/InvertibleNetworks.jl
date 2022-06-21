@@ -5,7 +5,7 @@
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
 # Random seed
-Random.seed!(1);
+Random.seed!(2);
 
 # Define network
 nx = 32
@@ -53,10 +53,10 @@ end
 # Gradient test
 
 function loss(G, X, Cond)
-    Y, logdet = G.forward(X, Cond)
+    Y, ZC, logdet = G.forward(X, Cond)
     f = -log_likelihood(Y) - logdet
     ΔY = -∇log_likelihood(Y)
-    ΔX, X_ = G.backward(ΔY, Y, Cond)
+    ΔX, X_ = G.backward(ΔY, Y, ZC)
     return f, ΔX, G.CL[1,1].RB.W1.grad, G.CL[1,1].C.v1.grad
 end
 

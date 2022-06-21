@@ -26,7 +26,7 @@ dX = X - X0
 
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
-RB = ResidualBlock(Int(k/2)+n_cond, k, n_hidden; k1=3, k2=3, p1=1, p2=1, fan=true)
+RB = ResidualBlock(Int(k/2)+n_cond, n_hidden; n_out=k, k1=3, k2=3, p1=1, p2=1, fan=true)
 L = ConditionalLayerGlow(C, RB; logdet=true)
 
 X_ = L.inverse(L.forward(X, Cond)[1], Cond)
@@ -51,7 +51,7 @@ end
 
 # Invertible layers
 C0 = Conv1x1(k)
-RB0 = ResidualBlock(Int(k/2)+n_cond, k, n_hidden; k1=3, k2=3, p1=1, p2=1, fan=true)
+RB0 = ResidualBlock(Int(k/2)+n_cond, n_hidden; n_out=k, k1=3, k2=3, p1=1, p2=1, fan=true)
 L01 = ConditionalLayerGlow(C0, RB; logdet=true)
 L02 = ConditionalLayerGlow(C, RB0; logdet=true)
 

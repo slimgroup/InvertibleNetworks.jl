@@ -1,23 +1,21 @@
-# Affine coupling layer from Dinh et al. (2017)
-# Includes 1x1 convolution from in Putzky and Welling (2019)
-# Author: Philipp Witte, pwitte3@gatech.edu
-# Date: January 2020
+# Conditional coupling layer based on GLOW and cIIN
+# Date: January 2022
 
 export ConditionalLayerGlow, ConditionalLayerGlow3D
 
 
 """
-    CL = CouplingLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false)
+    CL = ConditionalLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false)
 
 or
 
-    CL = CouplingLayerGlow(n_in, n_hidden; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, ndims=2) (2D)
+    CL = ConditionalLayerGlow(n_in, n_cond, n_hidden; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, ndims=2) (2D)
 
-    CL = CouplingLayerGlow(n_in, n_hidden; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, ndims=3) (3D)
+    CL = ConditionalLayerGlow(n_in, n_cond, n_hidden; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, ndims=3) (3D)
     
-    CL = CouplingLayerGlow3D(n_in, n_hidden; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false) (3D)
+    CL = ConditionalLayerGlowGlow3D(n_in, n_cond, n_hidden; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false) (3D)
 
- Create a Real NVP-style invertible coupling layer based on 1x1 convolutions and a residual block.
+ Create a Real NVP-style invertible conditional coupling layer based on 1x1 convolutions and a residual block.
 
  *Input*:
 
@@ -29,7 +27,7 @@ or
 
  or
 
- - `n_in`, `n_hidden`: number of input and hidden channels
+ - `n_in`,`n_out`, `n_hidden`: number of channels for: passive input, conditioned input and hidden layer
 
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third
     operator, `k2` is the kernel size of the second operator.
@@ -42,15 +40,15 @@ or
 
  *Output*:
 
- - `CL`: Invertible Real NVP coupling layer.
+ - `CL`: Invertible Real NVP conditional coupling layer.
 
  *Usage:*
 
- - Forward mode: `Y, logdet = CL.forward(X)`    (if constructed with `logdet=true`)
+ - Forward mode: `Y, logdet = CL.forward(X, C)`    (if constructed with `logdet=true`)
 
- - Inverse mode: `X = CL.inverse(Y)`
+ - Inverse mode: `X = CL.inverse(Y, C)`
 
- - Backward mode: `ΔX, X = CL.backward(ΔY, Y)`
+ - Backward mode: `ΔX, X = CL.backward(ΔY, Y, C)`
 
  *Trainable parameters:*
 
@@ -62,7 +60,7 @@ or
 """
 struct ConditionalLayerGlow <: NeuralNetLayer
     C::Conv1x1
-    RB::Union{ResidualBlock, FluxBlock}
+    RB::ResidualBlock
     logdet::Bool
     activation::ActivationFunction
 end
@@ -75,15 +73,12 @@ function ConditionalLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false, activ
     return ConditionalLayerGlow(C, RB, logdet, activation)
 end
 
-# Constructor from 1x1 convolution and residual Flux block
-ConditionalLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerGlow(C, RB, logdet, activation)
-
 # Constructor from input dimensions
 function ConditionalLayerGlow(n_in::Int64, n_cond::Int64, n_hidden::Int64; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # 1x1 Convolution and residual block for invertible layer
     C  = Conv1x1(n_in)
-    RB = ResidualBlock(Int(n_in/2)+n_cond,n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+    RB = ResidualBlock(Int(n_in/2)+n_cond, n_hidden;n_out=n_in, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
 
     return ConditionalLayerGlow(C, RB, logdet, activation)
 end
@@ -91,12 +86,14 @@ end
 ConditionalLayerGlow3D(args...;kw...) = ConditionalLayerGlow(args...; kw..., ndims=3)
 
 # Forward pass: Input X, Output Y
-function forward(X::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::ConditionalLayerGlow) where T
+function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalLayerGlow) where {T,N}
 
     X_ = L.C.forward(X)
     X1, X2 = tensor_split(X_)
 
     Y2 = copy(X2)
+
+    # Cat conditioning variable C into network input
     logS_T = L.RB.forward(tensor_cat(X2,C))
     logS, log_T = tensor_split(logS_T)
 
@@ -110,10 +107,8 @@ function forward(X::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::ConditionalL
 end
 
 # Inverse pass: Input Y, Output X
-function inverse(Y::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::ConditionalLayerGlow; save=false) where T
+function inverse(Y::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalLayerGlow; save=false) where {T,N}
 
-    # Get dimensions
-    k = Int(L.C.k/2)
     Y1, Y2 = tensor_split(Y)
 
     X2 = copy(Y2)
@@ -131,7 +126,7 @@ function inverse(Y::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::ConditionalL
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, C::AbstractArray{T, 4}, L::ConditionalLayerGlow;) where T
+function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalLayerGlow;) where {T,N}
 
     # Recompute forward state
     X, X1, X2, S = inverse(Y, C, L; save=true)
@@ -148,7 +143,7 @@ function backward(ΔY::AbstractArray{T, 4}, Y::AbstractArray{T, 4}, C::AbstractA
     ΔX1 = ΔY1 .* S
 
     ΔX2_ΔC = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), (tensor_cat(X2, C)))
-    ΔX2 = tensor_split(ΔX2_ΔC; split_index=Int(size(ΔY)[4-1]/2))[1] # should be N-dim array
+    ΔX2 = tensor_split(ΔX2_ΔC; split_index=Int(size(ΔY)[N-1]/2))[1]
     ΔX2 += ΔY2
   
     ΔX = L.C.inverse((tensor_cat(ΔX1, ΔX2), tensor_cat(X1, X2)))[1]

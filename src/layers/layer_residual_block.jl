@@ -75,7 +75,8 @@ end
 #  Constructors
 
 # Constructor
-function ResidualBlock(n_in, n_out, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
+function ResidualBlock(n_in, n_hidden; n_out=nothing, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
+    isnothing(n_out) && (n_out = 2*n_in)
 
     k1 = Tuple(k1 for i=1:ndims)
     k2 = Tuple(k2 for i=1:ndims)

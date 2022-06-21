@@ -14,7 +14,6 @@ Random.seed!(11)
 nx = 24
 ny = 24
 k = 4
-n_in = 2
 n_hidden = 4
 batchsize = 1
 
@@ -25,7 +24,7 @@ dX = X - X0
 
 # 1x1 convolution and residual blocks
 C = Conv1x1(k)
-RB = ResidualBlock(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, fan=true)
+RB = ResidualBlock(div(k,2), n_hidden; n_out=k, k1=3, k2=3, p1=1, p2=1, fan=true)
 L = CouplingLayerGlow(C, RB; logdet=true)
 
 X_ = L.inverse(L.forward(X)[1])
@@ -50,7 +49,7 @@ end
 
 # Invertible layers
 C0 = Conv1x1(k)
-RB0 = ResidualBlock(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, fan=true)
+RB0 = ResidualBlock(div(k,2), n_hidden;n_out=k, k1=3, k2=3, p1=1, p2=1, fan=true)
 L01 = CouplingLayerGlow(C0, RB; logdet=true)
 L02 = CouplingLayerGlow(C, RB0; logdet=true)
 
@@ -71,8 +70,8 @@ for j=1:maxiter
     global h = h/2f0
 end
 
-@test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
-@test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f0)
+@test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f0)
 
 
 # Gradient test w.r.t. weights of residual block
@@ -100,8 +99,8 @@ for j=1:maxiter
     global h = h/2f0
 end
 
-@test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
-@test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f0)
+@test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f0)
 
 # Gradient test w.r.t. 1x1 conv weights
 Y = L.forward(X)[1]
@@ -128,8 +127,8 @@ for j=1:maxiter
     global h = h/2f0
 end
 
-@test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f1)
-@test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f0)
+@test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f0)
 
 
 ###################################################################################################
@@ -138,15 +137,15 @@ end
 # Gradient test
 
 # Initialization
-L = CouplingLayerGlow(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
+L = CouplingLayerGlow(k, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
 θ = deepcopy(get_params(L))
-L0 = CouplingLayerGlow(n_in, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
+L0 = CouplingLayerGlow(k, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
 θ0 = deepcopy(get_params(L0))
-X = randn(Float32, nx, ny, n_in, batchsize)
+X = randn(Float32, nx, ny, k, batchsize)
 
 # Perturbation (normalized)
 dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
-dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
+dX = randn(Float32, nx, ny, k, batchsize); dX *= norm(X)/norm(dX)
 
 # Jacobian eval
 dY, Y, _, _ = L.jacobian(dX, dθ, X)
