@@ -233,9 +233,7 @@ function inverse(Y_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     set_grad ? (return ΔX, X) : (return ΔX, Δθ, X)
 end
 
-
 ## Jacobian-related functions
-
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{T, N}, C::Conv1x1) where {T, N}
     Y = cuzeros(X, size(X)...)
     ΔY = cuzeros(ΔX, size(ΔX)...)

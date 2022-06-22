@@ -75,11 +75,19 @@ end
 #  Constructors
 
 # Constructor
-function ResidualBlock(n_in, n_hidden; n_out=nothing, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
+function ResidualBlock(n_in, n_hidden; n_out=nothing,d=nothing, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
     isnothing(n_out) && (n_out = 2*n_in)
+
+    # Check if downsampling factor d is defined
+    if !isnothing(d)
+        k1 = d
+        s1 = d
+        p1 = 0
+    end
 
     k1 = Tuple(k1 for i=1:ndims)
     k2 = Tuple(k2 for i=1:ndims)
+
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1..., n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2..., n_hidden, n_hidden))
