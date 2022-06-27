@@ -70,7 +70,7 @@ function NetworkUNET(n_in::Int64, n_hiddens::Array{Int64,1}, ds::Array{Int64,1};
 
     L = CouplingLayerIRIM(n_in, n_hiddens, ds; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
     AN = ActNorm(1) # Only for 1 channel gradient
-    n_mem = n_in - 1
+    n_mem = n_in 
     return NetworkUNET(L, AN, n_mem)
 end
 
@@ -78,22 +78,21 @@ end
 NetworkUNET3D(args...; kw...) = NetworkUNET(args...; kw..., ndims=3)
 
 # 2D Forward loop: Input (η), Output (η)
-function forward(η::AbstractArray{T, N}, g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
+function forward(g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
 
     # Dimensions
-    batchsize = size(η)[end]
-    nn = size(η)[1:N-2]
+    batchsize = size(g)[end]
+    nn = size(g)[1:N-2]
     inds_c = [i!=(N-1) ? Colon() : 1 for i=1:N]
 
     # Forward pass
-    s = cuzeros(η, nn..., UL.n_mem, batchsize)
+    sg = cuzeros(g, nn..., UL.n_mem, batchsize)
     gn = UL.AN.forward(g)   # normalize
-    s[inds_c...] = gn # gradient in first channel
+    sg[inds_c...] = gn # gradient in first channel
 
-    ηs = UL.L.forward(tensor_cat(η, s))
-    η, s = tensor_split(ηs; split_index=1)
+    sg_ = UL.L.forward(sg)
 
-    return η, s
+    return sg_
 end
 
 # 2D Inverse loop: Input (η), Output (η)
@@ -107,22 +106,20 @@ function inverse(η::AbstractArray{T, N}, s::AbstractArray{T, N}, g::AbstractArr
 end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function backward(Δη::AbstractArray{T, N}, 
-    η::AbstractArray{T, N}, s::AbstractArray{T, N}, g::AbstractArray{T, N}, UL::NetworkUNET; set_grad::Bool=true) where {T, N}
-
-    Δs = 0 .* s  # make Δs zero tensor
+function backward(Δsg::AbstractArray{T, N}, 
+    sg::AbstractArray{T, N}, UL::NetworkUNET; set_grad::Bool=true) where {T, N}
 
     # Backwards pass
-    Δηs_, ηs_ = UL.L.backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+    Δηs_, ηs_ = UL.L.backward(Δsg, sg)
 
-    η, s_  = tensor_split(ηs_; split_index=1)
-    Δη, Δs = tensor_split(Δηs_; split_index=1)
+    s, g  = tensor_split(ηs_; split_index=1)
+    Δs, Δg = tensor_split(Δηs_; split_index=1)
 
     gn  = UL.AN.forward(g)   # normalize
     Δgn = tensor_split(Δs; split_index=1)[1]
     Δg  = UL.AN.backward(Δgn, gn)[1]
 
-    return Δη, η
+    return Δg, g
 end
 
 ## Jacobian-related utils
