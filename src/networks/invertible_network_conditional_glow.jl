@@ -154,7 +154,7 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
     end
 
     ΔC_total = T(0) .* C
-    ΔC = T(0) .* C
+    #ΔC = T(0) .* C
 
     for i=G.L:-1:1
         if G.split_scales && i < G.L
@@ -164,11 +164,11 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
         for j=G.K:-1:1
             ΔX, X, ΔC  = G.CL[i, j].backward(ΔX, X, C)
             ΔX, X = G.AN[i, j].backward(ΔX, X)
+            ΔC_total += ΔC
         end
 
         if G.split_scales 
-            ΔC_total += ΔC
-            ΔC_total = G.squeezer.inverse(ΔC_total)
+          ΔC_total = G.squeezer.inverse(ΔC_total)
          
           
           C = G.squeezer.inverse(C)

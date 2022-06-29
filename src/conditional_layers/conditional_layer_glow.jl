@@ -98,6 +98,7 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalL
     # Cat conditioning variable C into network input
     rb_input = C
     (!L.spade) && (rb_input = tensor_cat(X2,rb_input))
+
     logS_T = L.RB.forward(rb_input)
     logS, log_T = tensor_split(logS_T)
 

@@ -3,7 +3,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: February 2020
 
-export NetworkConditionalGlow, NetworkConditionalGlow3D
+export NetworkConditionalGlowFrank
 
 """
     G = NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
@@ -59,25 +59,37 @@ export NetworkConditionalGlow, NetworkConditionalGlow3D
 
  See also: [`ActNorm`](@ref), [`CouplingLayerGlow!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct NetworkConditionalGlow <: InvertibleNetwork
+struct NetworkConditionalGlowFrank <: InvertibleNetwork
     AN::AbstractArray{ActNorm, 2}
-    CL::AbstractArray{ConditionalLayerGlow, 2}
+    NCL::AbstractArray{CouplingLayerGlow, 2}
+
+    AN_c::Union{AbstractArray{ActNorm, 2},Nothing}
+    CL::Union{AbstractArray{ConditionalLayerGlow, 2},Nothing}
+    
     Z_dims::Union{Array{Array, 1}, Nothing}
+
     L::Int64
     K::Int64
     squeezer::Squeezer
     split_scales::Bool
     summary_net::Union{InvertibleNetwork, Nothing}
+    cond::Bool
 end
 
-@Flux.functor NetworkConditionalGlow
+@Flux.functor NetworkConditionalGlowFrank
 
 # Constructor
-function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; summary_net = nothing, spade=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
+function NetworkConditionalGlowFrank(n_in, n_cond, n_hidden, L, K; cond=false, summary_net = nothing, spade=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
-    CL = Array{ConditionalLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
+    NCL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
  
-    
+    AN_c = nothing 
+    CL   = nothing
+    if cond
+        AN_c = Array{ActNorm}(undef, L, K)    # activation normalization
+        CL = Array{ConditionalLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
+    end
+
     if split_scales
         Z_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it   # save dimensions for inverse/backward pass
         channel_factor = 4
@@ -91,18 +103,21 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; summary_net = noth
         n_cond *= channel_factor # squeeze if split_scales is turned on
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = ConditionalLayerGlow(n_in, n_cond, n_hidden; spade=spade, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
+            NCL[i, j]  = CouplingLayerGlow(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
+            if cond
+                AN_c[i, j] = ActNorm(n_in; logdet=true)
+                CL[i, j]   = ConditionalLayerGlow(n_in, n_cond, n_hidden; spade=spade, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
+            end
         end
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkConditionalGlow(AN, CL, Z_dims, L, K, squeezer, split_scales, summary_net)
+    return NetworkConditionalGlowFrank(AN, NCL, AN_c, CL, Z_dims, L, K, squeezer, split_scales, summary_net,cond)
 end
 
-NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet
-function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
+function forward(X::AbstractArray{T, N}, G::NetworkConditionalGlowFrank; C=nothing) where {T, N}
     !isnothing(G.summary_net) && (C = G.summary_net.forward(C))
     G.split_scales && (Z_save = array_of_array(X, G.L-1))
     orig_shape = size(X)
@@ -110,11 +125,18 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
     logdet = 0
     for i=1:G.L
         (G.split_scales) && (X = G.squeezer.forward(X))
-        (G.split_scales) && (C = G.squeezer.forward(C))
+        (G.split_scales && G.cond) && (C = G.squeezer.forward(C))
         for j=1:G.K            
             X, logdet1 = G.AN[i, j].forward(X)
-            X, logdet2 = G.CL[i, j].forward(X, C)
+            X, logdet2 = G.NCL[i, j].forward(X)
             logdet += (logdet1 + logdet2)
+            if G.cond
+                X, logdet3 = G.AN_c[i, j].forward(X)
+                println(size(X))
+                println(size(C))
+                X, logdet4 = G.CL[i, j].forward(X, C)
+                logdet += (logdet3 + logdet4)
+            end
         end
         if G.split_scales && i < G.L    # don't split after last iteration
             X, Z = tensor_split(X)
@@ -123,29 +145,38 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
         end
     end
     G.split_scales && (X = reshape(cat_states(Z_save, X),orig_shape))
-    return X, C, logdet
+    if G.cond 
+        return X, C, logdet
+    else 
+        return X, logdet 
+    end
 end
 
 # Inverse pass 
-function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
+function inverse(X::AbstractArray{T, N}, G::NetworkConditionalGlowFrank; C=nothing) where {T, N}
     G.split_scales && ((Z_save, X) = split_states(X[:], G.Z_dims))
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X = tensor_cat(X, Z_save[i])
         end
         for j=G.K:-1:1
-            X = G.CL[i, j].inverse(X,C)
+            if G.cond
+                X = G.CL[i, j].inverse(X, C)
+                X = G.AN_c[i, j].inverse(X)
+            end
+
+            X = G.NCL[i, j].inverse(X)
             X = G.AN[i, j].inverse(X)
         end
 
         (G.split_scales) && (X = G.squeezer.inverse(X))
-        (G.split_scales) && (C = G.squeezer.inverse(C))
+        (G.split_scales && G.cond) && (C = G.squeezer.inverse(C))
     end
     return X
 end
 
 # Backward pass and compute gradients
-function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
+function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N},G::NetworkConditionalGlowFrank; C=nothing) where {T, N}
     
     # Split data and gradients
     if G.split_scales
@@ -153,8 +184,7 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
         Z_save, X = split_states(X[:], G.Z_dims)
     end
 
-    ΔC_total = T(0) .* C
-    ΔC = T(0) .* C
+    !isnothing(C) && (ΔC_total = T(0) .* C)
 
     for i=G.L:-1:1
         if G.split_scales && i < G.L
@@ -162,16 +192,22 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
             ΔX = tensor_cat(ΔX, ΔZ_save[i])
         end
         for j=G.K:-1:1
-            ΔX, X, ΔC  = G.CL[i, j].backward(ΔX, X, C)
+            ΔX, X =  G.NCL[i, j].backward(ΔX, X)
             ΔX, X = G.AN[i, j].backward(ΔX, X)
+
+            if G.cond
+                ΔX, X, ΔC = G.CL[i, j].backward(ΔX, X, C)
+                ΔX, X     = G.AN_c[i, j].backward(ΔX, X)
+                ΔC_total += ΔC
+            end
+
         end
 
         if G.split_scales 
-            ΔC_total += ΔC
-            ΔC_total = G.squeezer.inverse(ΔC_total)
-         
-          
-          C = G.squeezer.inverse(C)
+            if G.cond 
+              ΔC_total = G.squeezer.inverse(ΔC_total)
+              C = G.squeezer.inverse(C)
+            end
           X = G.squeezer.inverse(X)
           ΔX = G.squeezer.inverse(ΔX)
         end
@@ -180,4 +216,26 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
     !isnothing(G.summary_net) && (G.summary_net.backward(ΔC_total, C))
 
     return ΔX, X
+end
+
+# Get parameters
+function get_params(G::NetworkConditionalGlowFrank)
+    L, K = size(G.AN)
+    p = Array{Parameter, 1}(undef, 0)
+    if G.cond
+        for i=1:L
+            for j=1:K
+                p = cat(p, get_params(G.AN_c[i, j]); dims=1)
+                p = cat(p, get_params(G.CL[i, j]); dims=1)
+            end
+        end
+    else 
+        for i=1:L
+            for j=1:K
+                p = cat(p, get_params(G.AN[i, j]); dims=1)
+                p = cat(p, get_params(G.NCL[i, j]); dims=1)
+            end
+        end
+    end
+    return p
 end
