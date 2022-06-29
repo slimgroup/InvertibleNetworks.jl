@@ -78,7 +78,7 @@ function NetworkGlow(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=1, p1=1,
  
     if split_scales
         Z_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it   # save dimensions for inverse/backward pass
-        channel_factor = 4
+        channel_factor = 2^(ndims)
     else
         Z_dims = nothing
         channel_factor = 1
