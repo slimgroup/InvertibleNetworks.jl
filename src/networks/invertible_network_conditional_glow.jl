@@ -68,15 +68,21 @@ struct NetworkConditionalGlow <: InvertibleNetwork
     squeezer::Squeezer
     split_scales::Bool
     summary_net::Union{InvertibleNetwork, Nothing}
+    down_sampler::Union{FluxBlock, Nothing}
 end
 
 @Flux.functor NetworkConditionalGlow
 
 # Constructor
-function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; summary_net = nothing,spade=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
+function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;down_sample=false, summary_net = nothing,spade=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{ConditionalLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
  
+    down_sampler = nothing
+
+    if down_sample
+        down_sampler = FluxBlock(Chain(MaxPool((1,8))))
+    end
     
     if split_scales
         Z_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it   # save dimensions for inverse/backward pass
@@ -96,7 +102,7 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; summary_net = noth
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkConditionalGlow(AN, CL, Z_dims, L, K, squeezer, split_scales, summary_net)
+    return NetworkConditionalGlow(AN, CL, Z_dims, L, K, squeezer, split_scales, summary_net, down_sampler)
 end
 
 NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., ndims=3)
@@ -104,6 +110,7 @@ NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., n
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
     !isnothing(G.summary_net) && (C = G.summary_net.forward(C))
+    !isnothing(G.down_sampler) && (C = G.down_sampler(C))
     G.split_scales && (Z_save = array_of_array(X, G.L-1))
     orig_shape = size(X)
 
@@ -145,7 +152,7 @@ function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
 end
 
 # Backward pass and compute gradients
-function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
+function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow;C_save=nothing) where {T, N}
     
     # Split data and gradients
     if G.split_scales
@@ -176,7 +183,11 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
           ΔX = G.squeezer.inverse(ΔX)
         end
     end
-
+    
+    if !isnothing(G.down_sampler) 
+        !isnothing(G.summary_net) && (C = G.summary_net.forward(C_save))
+        ΔC_total = G.down_sampler.backward(ΔC_total,C)
+    end
     !isnothing(G.summary_net) && (G.summary_net.backward(ΔC_total, C))
 
     return ΔX, X
