@@ -45,24 +45,25 @@ struct Conv1x1 <: NeuralNetLayer
     v2::Parameter
     v3::Parameter
     logdet::Bool
+    learnable::Bool
 end
 
 @Flux.functor Conv1x1
 
 # Constructor with random initializations
-function Conv1x1(k; logdet=false)
+function Conv1x1(k;learnable=true, logdet=false)
     v1 = Parameter(glorot_uniform(k))
     v2 = Parameter(glorot_uniform(k))
     v3 = Parameter(glorot_uniform(k))
-    return Conv1x1(k, v1, v2, v3, logdet)
+    return Conv1x1(k, v1, v2, v3, logdet,learnable)
 end
 
-function Conv1x1(v1, v2, v3; logdet=false)
+function Conv1x1(v1, v2, v3;learnable=true, logdet=false)
     k = length(v1)
     v1 = Parameter(v1)
     v2 = Parameter(v2)
     v3 = Parameter(v3)
-    return Conv1x1(k, v1, v2, v3, logdet)
+    return Conv1x1(k, v1, v2, v3, logdet,learnable)
 end
 
 function partial_derivative_outer(v::AbstractArray{T, 1}) where T
@@ -117,7 +118,6 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
                         C::Conv1x1; adjoint=false) where {T, N}
 
     # Reshape input
-    n_in, batchsize = size(X)[N-1:N]
     v1 = C.v1.data
     v2 = C.v2.data
     v3 = C.v3.data
@@ -126,6 +126,11 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
     dv1 = cuzeros(X, k)
     dv2 = cuzeros(X, k)
     dv3 = cuzeros(X, k)
+
+    # Do not calculate gradients if layer is not learnable
+    if !C.learnable 
+        return dv1, dv2, dv3 
+    end
 
     V1 = v1*v1'/(v1'*v1)
     V2 = v2*v2'/(v2'*v2)
@@ -151,6 +156,7 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
         @views adjoint ? copyto!(dV3[i, :, :], tmp') : copyto!(dV3[i, :, :], tmp)
     end
 
+    n_in, batchsize = size(X)[N-1:N]
     prod_res = cuzeros(X, size(dV1, 1))
     for i=1:batchsize
         Xi = -2f0*reshape(selectdim(X, N, i), :, n_in)
@@ -222,7 +228,10 @@ function inverse(Y_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     Y = Y_tuple[2]
     ΔX = inverse(ΔY, C; logdet=false)    # derivative w.r.t. input
     X = inverse(Y, C; logdet=false)  # recompute forward state
-    Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C)  # gradient w.r.t. weights
+
+    # Gradient w.r.t. weights
+    # Will be zeros if layer is not learnable
+    Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C) 
     if set_grad
         isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)
         isnothing(C.v2.grad) ? (C.v2.grad = Δv2) : (C.v2.grad += Δv2)
@@ -230,6 +239,7 @@ function inverse(Y_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     else
         Δθ = [Parameter(Δv1), Parameter(Δv2), Parameter(Δv3)]
     end
+
     set_grad ? (return ΔX, X) : (return ΔX, Δθ, X)
 end
 
