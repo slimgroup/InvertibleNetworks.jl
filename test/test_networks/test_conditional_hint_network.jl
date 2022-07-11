@@ -9,24 +9,25 @@ Random.seed!(11)
 nx = 16
 ny = 16
 n_in = 2
+n_cond = 2
 n_hidden = 4
 batchsize = 2
 L = 2
 K = 2
 
 # single scale network
-CH0  = NetworkConditionalHINT(n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
-CH1  = NetworkConditionalHINT(n_in, n_hidden, L*K; logdet=false, k1=3, k2=1, p1=1, p2=0)
+CH0  = NetworkConditionalHINT(n_in,n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
+CH1  = NetworkConditionalHINT(n_in,n_in, n_hidden, L*K; logdet=false, k1=3, k2=1, p1=1, p2=0)
 
 nets = [CH0, CH1, reverse(CH0), reverse(CH1)]
 
 
-function test_inv(CH, nx, ny, n_in)
+function test_inv(CH, nx, ny, n_in, n_cond)
     print("\nInvertibility test HINT network\n")
     # Test layers
     test_size = 10
     X = randn(Float32, nx, ny, n_in, test_size)
-    Y = X + .1f0*randn(Float32, nx, ny, n_in, test_size)
+    Y = X + .1f0*randn(Float32, nx, ny, n_cond, test_size)
 
     # Forward-backward
     Zx, Zy = CH.forward(X, Y)[1:2]
@@ -62,12 +63,12 @@ function loss(CH, X, Y)
     return f, ΔX, ΔY
 end
 
-function test_grad(CH, nx, ny, n_in)
+function test_grad(CH, nx, ny, n_in, n_cond)
     test_size = 10
     X = randn(Float32, nx, ny, n_in, test_size)
-    Y = X + .1f0*randn(Float32, nx, ny, n_in, test_size)
+    Y = X + .1f0*randn(Float32, nx, ny, n_cond, test_size)
     X0 = randn(Float32, nx, ny, n_in, test_size)
-    Y0 = X0 + .1f0*randn(Float32, nx, ny, n_in, test_size)
+    Y0 = X0 + .1f0*randn(Float32, nx, ny, n_cond, test_size)
     dX = X - X0
     dY = Y - Y0
 
@@ -92,8 +93,8 @@ end
 
 # Loop over networks and reversed counterpart
 for CH in nets
-    test_inv(CH, nx, ny, n_in)
-    test_grad(CH, nx, ny, n_in)
+    test_inv(CH, nx, ny, n_in, n_cond)
+    test_grad(CH, nx, ny, n_in, n_cond)
 end
 
 ###################################################################################################
@@ -102,12 +103,12 @@ end
 # Gradient test
 
 # Initialization
-CH = NetworkConditionalHINT(n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+CH = NetworkConditionalHINT(n_in,n_cond, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ = deepcopy(get_params(CH))
-CH0 = NetworkConditionalHINT(n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+CH0 = NetworkConditionalHINT(n_in,n_cond, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
 θ0 = deepcopy(get_params(CH0))
 X = randn(Float32, nx, ny, n_in, batchsize)
-Y = randn(Float32, nx, ny, n_in, batchsize)
+Y = randn(Float32, nx, ny, n_cond, batchsize)
 
 # Perturbation (normalized)
 dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)

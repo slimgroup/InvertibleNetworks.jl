@@ -58,7 +58,7 @@ end
 @Flux.functor NetworkConditionalHINT
 
 # Constructor
-function NetworkConditionalHINT(n_in, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2)
+function NetworkConditionalHINT(n_in, n_cond, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2)
 
     AN_X = Array{ActNorm}(undef, depth)
     AN_Y = Array{ActNorm}(undef, depth)
@@ -67,8 +67,8 @@ function NetworkConditionalHINT(n_in, n_hidden, depth; k1=3, k2=3, p1=1, p2=1, s
     # Create layers
     for j=1:depth
         AN_X[j] = ActNorm(n_in; logdet=logdet)
-        AN_Y[j] = ActNorm(n_in; logdet=logdet)
-        CL[j] = ConditionalLayerHINT(n_in, n_hidden; permute=true, k1=k1, k2=k2, p1=p1, p2=p2,
+        AN_Y[j] = ActNorm(n_cond; logdet=logdet)
+        CL[j] = ConditionalLayerHINT(n_in, n_cond, n_hidden; permute=true, k1=k1, k2=k2, p1=p1, p2=p2,
                                      s1=s1, s2=s2, logdet=logdet, ndims=ndims)
     end
 

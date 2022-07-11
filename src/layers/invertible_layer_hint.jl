@@ -56,6 +56,7 @@ mutable struct CouplingLayerHINT <: NeuralNetLayer
     logdet::Bool
     permute::String
     is_reversed::Bool
+    recursion_depth::Int64
 end
 
 @Flux.functor CouplingLayerHINT
@@ -80,10 +81,10 @@ function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; logdet=false, permute="
                            k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2)
 
     # Create basic coupling layers
-    n = get_depth(n_in)
-    CL = Array{CouplingLayerBasic}(undef, n)
-    for j=1:n
-        CL[j] = CouplingLayerBasic(Int(n_in/2^j), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2,
+    recursion_depth = get_depth(n_in)
+    CL = Array{CouplingLayerBasic}(undef, recursion_depth)
+    for j=1:recursion_depth
+        CL[j] = CouplingLayerBasic(Int(n_in/2^j),Int(n_in/2^j), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2,
                                    s1=s1, s2=s2, logdet=logdet, ndims=ndims)
     end
 
@@ -96,7 +97,7 @@ function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; logdet=false, permute="
         C = nothing
     end
 
-    return CouplingLayerHINT(CL, C, logdet, permute, false)
+    return CouplingLayerHINT(CL, C, logdet, permute, false, recursion_depth)
 end
 
 CouplingLayerHINT3D(args...;kw...) = CouplingLayerHINT(args...; kw..., ndims=3)
@@ -311,7 +312,7 @@ function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, H::Coupl
     permute == "lower" && ((ΔXb, Xb) = H.C.forward((ΔXb, Xb)))
 
     # Check whether to continue recursion
-    recursive = (size(X, N-1) > 4)
+    recursive = scale < H.recursion_depth
 
     # Coupling layer backprop
     if recursive
