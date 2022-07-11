@@ -45,25 +45,25 @@ struct Conv1x1 <: NeuralNetLayer
     v2::Parameter
     v3::Parameter
     logdet::Bool
-    learnable::Bool
+    freeze::Bool
 end
 
 @Flux.functor Conv1x1
 
 # Constructor with random initializations
-function Conv1x1(k;learnable=true, logdet=false)
+function Conv1x1(k;freeze=false, logdet=false)
     v1 = Parameter(glorot_uniform(k))
     v2 = Parameter(glorot_uniform(k))
     v3 = Parameter(glorot_uniform(k))
-    return Conv1x1(k, v1, v2, v3, logdet,learnable)
+    return Conv1x1(k, v1, v2, v3, logdet, freeze)
 end
 
-function Conv1x1(v1, v2, v3;learnable=true, logdet=false)
+function Conv1x1(v1, v2, v3;freeze=false, logdet=false)
     k = length(v1)
     v1 = Parameter(v1)
     v2 = Parameter(v2)
     v3 = Parameter(v3)
-    return Conv1x1(k, v1, v2, v3, logdet,learnable)
+    return Conv1x1(k, v1, v2, v3, logdet, freeze)
 end
 
 function partial_derivative_outer(v::AbstractArray{T, 1}) where T
@@ -127,8 +127,8 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
     dv2 = cuzeros(X, k)
     dv3 = cuzeros(X, k)
 
-    # Do not calculate gradients if layer is not learnable
-    if !C.learnable 
+    # Do not calculate gradients if layer is frozen
+    if C.freeze 
         return dv1, dv2, dv3 
     end
 
@@ -230,7 +230,7 @@ function inverse(Y_tuple::Tuple, C::Conv1x1; set_grad::Bool=true)
     X = inverse(Y, C; logdet=false)  # recompute forward state
 
     # Gradient w.r.t. weights
-    # Will be zeros if layer is not learnable
+    # Will be zeros if layer is frozen (not learnable)
     Δv1, Δv2, Δv3 =  conv1x1_grad_v(X, ΔY, C) 
     if set_grad
         isnothing(C.v1.grad) ? (C.v1.grad = Δv1) : (C.v1.grad += Δv1)
@@ -292,5 +292,5 @@ function adjointJacobianInverse(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}
 end
 
 function inverse(C::Conv1x1)
-    return Conv1x1(C.k, C.v3, C.v2, C.v1, C.logdet)
+    return Conv1x1(C.k, C.v3, C.v2, C.v1, C.logdet, C.freeze)
 end

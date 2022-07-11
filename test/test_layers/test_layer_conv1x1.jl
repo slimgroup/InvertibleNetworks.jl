@@ -73,6 +73,21 @@ Y_ = C0.forward(X)
 @test ~isnothing(C0.v1.grad)
 
 
+# Test gradients are zero in inverse pass if freeze =true
+C_frozen = Conv1x1(v10, v20, v30;freeze=true) |> device
+
+# Predicted data and misfit
+C_frozen.v1.grad = nothing
+Y_ = C_frozen.forward(X)
+@test isnothing(C_frozen.v1.grad)
+
+ΔY = Y_ - Y
+
+# Compute gradients w.r.t. v
+ΔX, X_ = C_frozen.inverse((ΔY, Y_))
+@test iszero(C_frozen.v1.grad)
+
+
 ###################################################################################################
 # Gradient test
 
