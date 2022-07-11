@@ -463,12 +463,6 @@ end
 @inline xy_dims(dims::Array, ::Val{false}, ::Any) = tuple(dims...)
 @inline xy_dims(dims::Array, ::Val{true}, ::Val{4}) = tuple(Int.(dims .* (.5, .5, 4, 1))...)
 @inline xy_dims(dims::Array, ::Val{true}, ::Val{5}) = tuple(Int.(dims .* (.5, .5, .5, 8, 1))...)
-#function xy_dims(dims::Array, ::Val{true}) 
-#    if length(dims) ==5 
-#        return tuple(Int.(dims .* (.5, .5, .5, 8, 1))...)
-#    end
-#    tuple(Int.(dims .* (.5, .5, 4, 1))...)
-#end
 
 # Concatenate states Zi and final output
 function cat_states(XY_save::AbstractMatrix{<:AbstractArray}, X::AbstractArray{T, 4}, Y::AbstractArray{T, 4}) where T

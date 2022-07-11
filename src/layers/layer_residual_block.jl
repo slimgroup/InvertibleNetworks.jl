@@ -111,17 +111,17 @@ function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {
     inds =[i!=(N-1) ? 1 : Colon() for i=1:N]
 
     Y1 = conv(X1, RB.W1.data; stride=RB.strides[1], pad=RB.pad[1]) .+ reshape(RB.b1.data, inds...)
-    X2 = LeakyReLU(Y1)
+    X2 = ReLU(Y1)
 
     Y2 = X2 + conv(X2, RB.W2.data; stride=RB.strides[2], pad=RB.pad[2]) .+ reshape(RB.b2.data, inds...)
-    X3 = LeakyReLU(Y2)
+    X3 = ReLU(Y2)
 
     cdims3 = DCDims(X1, RB.W3.data; nc=2*size(X1, N-1), stride=RB.strides[1], padding=RB.pad[1])
     Y3 = ∇conv_data(X3, RB.W3.data, cdims3)
     # Return if only recomputing state
     save && (return Y1, Y2, Y3)
     # Finish forward
-    RB.fan == true ? (return LeakyReLU(Y3)) : (return GaLU(Y3))
+    RB.fan == true ? (return ReLU(Y3)) : (return GaLU(Y3))
 end
 
 # Backward
@@ -138,18 +138,18 @@ function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
     cdims3 = DCDims(X1, RB.W3.data; nc=2*size(X1, N-1), stride=RB.strides[1], padding=RB.pad[1])
 
     # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = LeakyReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
     ΔX3 = conv(ΔY3, RB.W3.data, cdims3)
-    ΔW3 = ∇conv_filter(ΔY3, LeakyReLU(Y2), cdims3)
+    ΔW3 = ∇conv_filter(ΔY3, ReLU(Y2), cdims3)
 
-    ΔY2 = LeakyReLUgrad(ΔX3, Y2)
+    ΔY2 = ReLUgrad(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, cdims2) + ΔY2
-    ΔW2 = ∇conv_filter(LeakyReLU(Y1), ΔY2, cdims2)
+    ΔW2 = ∇conv_filter(ReLU(Y1), ΔY2, cdims2)
     Δb2 = sum(ΔY2, dims=dims)[inds...]
 
     cdims1 = DenseConvDims(X1, RB.W1.data; stride=RB.strides[1], padding=RB.pad[1])
 
-    ΔY1 = LeakyReLUgrad(ΔX2, Y1)
+    ΔY1 = ReLUgrad(ΔX2, Y1)
     ΔX1 = ∇conv_data(ΔY1, RB.W1.data, cdims1)
     ΔW1 = ∇conv_filter(X1, ΔY1, cdims1)
     Δb1 = sum(ΔY1, dims=dims)[inds...]
