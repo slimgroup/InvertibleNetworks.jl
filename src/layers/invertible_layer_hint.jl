@@ -65,7 +65,7 @@ end
 function get_depth(n_in)
     count = 0
     nc = n_in
-    while nc > 4
+    while nc > 4 && mod(nc,2) == 0
         nc /= 2
         count += 1
     end
@@ -84,7 +84,7 @@ function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; logdet=false, permute="
     recursion_depth = get_depth(n_in)
     CL = Array{CouplingLayerBasic}(undef, recursion_depth)
     for j=1:recursion_depth
-        CL[j] = CouplingLayerBasic(Int(n_in/2^j),Int(n_in/2^j), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2,
+        CL[j] = CouplingLayerBasic(Int(n_in/2^j), Int(n_in/2^j), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2,
                                    s1=s1, s2=s2, logdet=logdet, ndims=ndims)
     end
 

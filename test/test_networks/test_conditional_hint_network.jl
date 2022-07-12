@@ -10,14 +10,14 @@ nx = 16
 ny = 16
 n_in = 2
 n_cond = 2
-n_hidden = 4
+n_hidden = 6
 batchsize = 2
 L = 2
 K = 2
 
 # single scale network
-CH0  = NetworkConditionalHINT(n_in,n_in, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
-CH1  = NetworkConditionalHINT(n_in,n_in, n_hidden, L*K; logdet=false, k1=3, k2=1, p1=1, p2=0)
+CH0  = NetworkConditionalHINT(n_in, n_cond, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0)
+CH1  = NetworkConditionalHINT(n_in, n_cond, n_hidden, L*K; logdet=false, k1=3, k2=1, p1=1, p2=0)
 
 nets = [CH0, CH1, reverse(CH0), reverse(CH1)]
 
