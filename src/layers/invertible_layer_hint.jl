@@ -65,11 +65,11 @@ end
 function get_depth(n_in)
     count = 0
     nc = n_in
-    while nc > 4 && mod(nc,2) == 0
+    while nc > 1 && mod(nc,2) == 0
         nc /= 2
         count += 1
     end
-    return count +1
+    return count 
 end
 
 # Constructor for given coupling layer and 1 x 1 convolution
@@ -115,15 +115,7 @@ function forward(X::AbstractArray{T, N}, H::CouplingLayerHINT; scale=1, permute=
     permute == "lower" && (Xb = H.C.forward(Xb))
 
     # Determine whether to continue recursion
-    recursive = false
-    if N == 4 && size(X, 3) > 4
-        recursive = true
-    elseif N == 5 && size(X, 4) > 4
-        recursive = true
-    end
-
-    # HINT coupling
-    if recursive
+    if scale < H.recursion_depth
         # Call function recursively
         Ya, logdet1 = forward(Xa, H; scale=scale+1, permute="none")
         Y_temp, logdet2 = forward(Xb, H; scale=scale+1, permute="none")
@@ -163,11 +155,8 @@ function inverse(Y::AbstractArray{T, N} , H::CouplingLayerHINT; scale=1, permute
     permute == "both" && (Y = H.C.forward(Y))
     Ya, Yb = tensor_split(Y)
 
-    # Check for recursion
-    recursive = (size(Y, N-1) > 4)
-
-    # Coupling layer
-    if recursive
+    # Determine whether to continue recursion
+    if scale < H.recursion_depth
         Xa, logdet1 = inverse(Ya, H; scale=scale+1, permute="none")
         if logdet
             Y_temp, logdet2 = H.CL[scale].inverse(Xa, Yb; logdet=true)[[2,3]]
@@ -227,10 +216,7 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, H::CouplingL
     ΔYa, ΔYb = tensor_split(ΔY)
 
     # Determine whether to continue recursion
-    recursive = (size(Y, N-1) > 4)
-
-    # HINT coupling
-    if recursive
+    if scale < H.recursion_depth
         if set_grad
             ΔXa, Xa = backward(ΔYa, Ya, H; scale=scale+1, permute="none")
             ΔXa_temp, ΔXb_temp, X_temp = H.CL[scale].backward(ΔXa.*0, ΔYb, Xa, Yb)[[1,2,4]]
@@ -311,11 +297,8 @@ function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, H::Coupl
     Xa, Xb = tensor_split(X)
     permute == "lower" && ((ΔXb, Xb) = H.C.forward((ΔXb, Xb)))
 
-    # Check whether to continue recursion
-    recursive = scale < H.recursion_depth
-
-    # Coupling layer backprop
-    if recursive
+    # Determine whether to continue recursion
+    if scale < H.recursion_depth
         ΔY_temp, Y_temp = backward_inv(ΔXb, Xb, H; scale=scale+1, permute="none")
         ΔYa_temp, ΔYb, Yb = backward_inv(0 .*ΔXa, ΔY_temp, Xa, Y_temp, H.CL[scale])[[1,2,4]]
         ΔYa, Ya = backward_inv(ΔXa+ΔYa_temp, Xa, H; scale=scale+1, permute="none")
@@ -368,12 +351,11 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::Abstra
         (permute != "none") && (GNΔθ_full[end-2:end] = [Parameter(cuzeros(X, size(H.C.v1))), Parameter(cuzeros(X, size(H.C.v2))), Parameter(cuzeros(X, size(H.C.v3)))])
     end
 
-    # Determine whether to continue recursion
-    recursive = (size(X, N-1) > 4)
 
     # HINT coupling
     # idx_Δθ_scale = (scale-1)*5+1:scale*5
-    if recursive
+    # Determine whether to continue recursion
+    if scale < H.recursion_depth
         # Call function recursively
         if logdet
             ΔYa, Ya, logdet1, GNΔθ1 = jacobian(ΔXa, Δθ, Xa, H; scale=scale+1, permute="none")

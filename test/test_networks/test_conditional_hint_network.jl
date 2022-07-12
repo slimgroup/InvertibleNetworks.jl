@@ -9,7 +9,7 @@ Random.seed!(11)
 nx = 16
 ny = 16
 n_in = 2
-n_cond = 2
+n_cond = 6
 n_hidden = 6
 batchsize = 2
 L = 2
@@ -26,12 +26,12 @@ function test_inv(CH, nx, ny, n_in, n_cond)
     print("\nInvertibility test HINT network\n")
     # Test layers
     test_size = 10
-    X = randn(Float32, nx, ny, n_in, test_size)
-    Y = X + .1f0*randn(Float32, nx, ny, n_cond, test_size)
+    X = randn(Float32, nx, ny, n_in, test_size);
+    Y = randn(Float32, nx, ny, n_cond, test_size) + .1f0*randn(Float32, nx, ny, n_cond, test_size);
 
     # Forward-backward
-    Zx, Zy = CH.forward(X, Y)[1:2]
-    X_, Y_ = CH.backward(0f0.*Zx, 0f0.*Zy, Zx, Zy)[3:4]
+    Zx, Zy = CH.forward(X, Y)[1:2];
+    X_, Y_ = CH.backward(0f0.*Zx, 0f0.*Zy, Zx, Zy)[3:4];
     @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-3)
     @test isapprox(norm(Y - Y_)/norm(Y), 0f0; atol=1f-3)
 
@@ -58,7 +58,7 @@ function loss(CH, X, Y)
     end    
 
     ΔZ = -∇log_likelihood(tensor_cat(Zx, Zy))
-    ΔZx, ΔZy = tensor_split(ΔZ)
+    ΔZx, ΔZy = tensor_split(ΔZ; split_index=size(Zx)[end-1])
     ΔX, ΔY = CH.backward(ΔZx, ΔZy, Zx, Zy)[1:2]
     return f, ΔX, ΔY
 end
@@ -66,9 +66,9 @@ end
 function test_grad(CH, nx, ny, n_in, n_cond)
     test_size = 10
     X = randn(Float32, nx, ny, n_in, test_size)
-    Y = X + .1f0*randn(Float32, nx, ny, n_cond, test_size)
+    Y = randn(Float32, nx, ny, n_cond, test_size) + .1f0*randn(Float32, nx, ny, n_cond, test_size)
     X0 = randn(Float32, nx, ny, n_in, test_size)
-    Y0 = X0 + .1f0*randn(Float32, nx, ny, n_cond, test_size)
+    Y0 = randn(Float32, nx, ny, n_cond, test_size) + .1f0*randn(Float32, nx, ny, n_cond, test_size)
     dX = X - X0
     dY = Y - Y0
 
@@ -103,9 +103,9 @@ end
 # Gradient test
 
 # Initialization
-CH = NetworkConditionalHINT(n_in,n_cond, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+CH = NetworkConditionalHINT(n_in,n_cond, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_cond, batchsize))
 θ = deepcopy(get_params(CH))
-CH0 = NetworkConditionalHINT(n_in,n_cond, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_in, batchsize))
+CH0 = NetworkConditionalHINT(n_in,n_cond, n_hidden, L*K; k1=3, k2=1, p1=1, p2=0, logdet=true); CH0.forward(randn(Float32, nx, ny, n_in, batchsize), randn(Float32, nx, ny, n_cond, batchsize))
 θ0 = deepcopy(get_params(CH0))
 X = randn(Float32, nx, ny, n_in, batchsize)
 Y = randn(Float32, nx, ny, n_cond, batchsize)
@@ -113,7 +113,7 @@ Y = randn(Float32, nx, ny, n_cond, batchsize)
 # Perturbation (normalized)
 dθ = θ-θ0; dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
 dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
-dY = randn(Float32, nx, ny, n_in, batchsize); dY *= norm(Y)/norm(dY)
+dY = randn(Float32, nx, ny, n_cond, batchsize); dY *= norm(Y)/norm(dY)
 
 # Jacobian eval
 dZx, dZy, Zx, Zy, _, _ = CH.jacobian(dX, dY, dθ, X, Y)
