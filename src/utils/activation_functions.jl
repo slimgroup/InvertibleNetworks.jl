@@ -23,8 +23,11 @@ function ReLUlayer()
     return ActivationFunction(ReLU, nothing, ReLUgrad)
 end
 
-function LeakyReLUlayer()
-    return ActivationFunction(LeakyReLU, LeakyReLUinv, LeakyReLUgrad)
+function LeakyReLUlayer(;slope=0.1f0)
+    fwd_a(x) = LeakyReLU(x;slope=slope)
+    inv_a(y) = LeakyReLUinv(y; slope=slope)
+    grad_a(Δy, y) = LeakyReLUgrad(Δy, y; slope=slope)
+    return ActivationFunction(fwd_a, inv_a, grad_a)
 end
 
 function SigmoidLayer(;low=0f0, high=1f0)

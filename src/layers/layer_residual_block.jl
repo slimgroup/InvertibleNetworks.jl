@@ -67,15 +67,15 @@ struct ResidualBlock <: NeuralNetLayer
     fan::Bool
     strides
     pad
+    activation::ActivationFunction
 end
 
 @Flux.functor ResidualBlock
 
 #######################################################################################################################
 #  Constructors
-
 # Constructor
-function ResidualBlock(n_in, n_hidden; n_out=nothing,d=nothing, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
+function ResidualBlock(n_in, n_hidden;  activation::ActivationFunction=ReLUlayer(), init_id=false, n_out=nothing,d=nothing, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
     isnothing(n_out) && (n_out = 2*n_in)
 
     # Check if downsampling factor d is defined
@@ -92,10 +92,11 @@ function ResidualBlock(n_in, n_hidden; n_out=nothing,d=nothing, k1=3, k2=3, p1=1
     W1 = Parameter(glorot_uniform(k1..., n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2..., n_hidden, n_hidden))
     W3 = Parameter(glorot_uniform(k1..., n_out, n_hidden))
+
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
-    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2))
+    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2), activation)
 end
 
 # Constructor for given weights
@@ -107,7 +108,7 @@ function ResidualBlock(W1, W2, W3, b1, b2; p1=1, p2=1, s1=1, s2=1, fan=false, nd
     W3 = Parameter(W3)
     b1 = Parameter(b1)
     b2 = Parameter(b2)
-
+    
     return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2))
 end
 
@@ -120,17 +121,21 @@ function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {
     inds =[i!=(N-1) ? 1 : Colon() for i=1:N]
 
     Y1 = conv(X1, RB.W1.data; stride=RB.strides[1], pad=RB.pad[1]) .+ reshape(RB.b1.data, inds...)
-    X2 = LeakyReLU(Y1; slope = 0.1f0)
+    #X2 = LeakyReLU(Y1; slope = 0.1f0)
+    X2 = RB.activation.forward(Y1;)
 
     Y2 = X2 + conv(X2, RB.W2.data; stride=RB.strides[2], pad=RB.pad[2]) .+ reshape(RB.b2.data, inds...)
-    X3 = LeakyReLU(Y2; slope = 0.1f0)
+    #X3 = LeakyReLU(Y2; slope = 0.1f0)
+    X3 = RB.activation.forward(Y2)
 
     cdims3 = DCDims(X1, RB.W3.data; stride=RB.strides[1], padding=RB.pad[1])
     Y3 = ∇conv_data(X3, RB.W3.data, cdims3)
     # Return if only recomputing state
     save && (return Y1, Y2, Y3)
     # Finish forward
-    RB.fan == true ? (return LeakyReLU(Y3; slope = 0.1f0)) : (return GaLU(Y3))
+    #RB.fan == true ? (return LeakyReLU(Y3; slope = 0.1f0)) : (return GaLU(Y3))
+    RB.fan == true ? (return RB.activation.forward(Y3;)) : (return GaLU(Y3))
+
 end
 
 # Backward
@@ -147,18 +152,27 @@ function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
     cdims3 = DCDims(X1, RB.W3.data;  stride=RB.strides[1], padding=RB.pad[1])
 
     # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = LeakyReLUgrad(ΔX4, Y3; slope = 0.1f0)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    #RB.fan == true ? (ΔY3 = LeakyReLUgrad(ΔX4, Y3; slope = 0.1f0)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    RB.fan == true ? (ΔY3 = RB.activation.backward(ΔX4, Y3;)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    
     ΔX3 = conv(ΔY3, RB.W3.data, cdims3)
-    ΔW3 = ∇conv_filter(ΔY3, LeakyReLU(Y2; slope = 0.1f0), cdims3)
+    #ΔW3 = ∇conv_filter(ΔY3, LeakyReLU(Y2; slope = 0.1f0), cdims3)
+    ΔW3 = ∇conv_filter(ΔY3, RB.activation.forward(Y2), cdims3)
 
-    ΔY2 = LeakyReLUgrad(ΔX3, Y2; slope = 0.1f0)
+    #ΔY2 = LeakyReLUgrad(ΔX3, Y2; slope = 0.1f0)
+    ΔY2 = RB.activation.backward(ΔX3, Y2;)
+    
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, cdims2) + ΔY2
-    ΔW2 = ∇conv_filter(LeakyReLU(Y1; slope = 0.1f0), ΔY2, cdims2)
+    #ΔW2 = ∇conv_filter(LeakyReLU(Y1; slope = 0.1f0), ΔY2, cdims2)
+    ΔW2 = ∇conv_filter(RB.activation.forward(Y1;), ΔY2, cdims2)
+    
     Δb2 = sum(ΔY2, dims=dims)[inds...]
 
     cdims1 = DenseConvDims(X1, RB.W1.data; stride=RB.strides[1], padding=RB.pad[1])
 
-    ΔY1 = LeakyReLUgrad(ΔX2, Y1; slope = 0.1f0)
+    #ΔY1 = LeakyReLUgrad(ΔX2, Y1; slope = 0.1f0)
+    ΔY1 = RB.activation.backward(ΔX2, Y1;)
+    
     ΔX1 = ∇conv_data(ΔY1, RB.W1.data, cdims1)
     ΔW1 = ∇conv_filter(X1, ΔY1, cdims1)
     Δb1 = sum(ΔY1, dims=dims)[inds...]

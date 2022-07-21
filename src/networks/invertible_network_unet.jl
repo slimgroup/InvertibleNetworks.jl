@@ -61,17 +61,18 @@ struct NetworkUNET <: InvertibleNetwork
     L::CouplingLayerIRIM
     AN::ActNorm
     n_mem::Int64
+    n_grad::Int64
 end
 
 @Flux.functor NetworkUNET
 
 # 2D Constructor
-function NetworkUNET(n_in::Int64, n_hiddens::Array{Int64,1}, ds::Array{Int64,1}; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
+function NetworkUNET(n_in::Int64, n_hiddens::Array{Int64,1}, ds::Array{Int64,1};n_grad=1, k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
 
     L = CouplingLayerIRIM(n_in, n_hiddens, ds; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
-    AN = ActNorm(1) # Only for 1 channel gradient
+    AN = ActNorm(n_grad) # Only for 1 channel gradient
     n_mem = n_in 
-    return NetworkUNET(L, AN, n_mem)
+    return NetworkUNET(L, AN, n_mem, n_grad)
 end
 
 # 3D Constructor
@@ -83,16 +84,16 @@ function forward(g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
     # Dimensions
     batchsize = size(g)[end]
     nn = size(g)[1:N-2]
-    inds_c = [i!=(N-1) ? Colon() : 1 for i=1:N]
+    #inds_c = [i!=(N-1) ? Colon() : 1:UL.n_grad for i=1:N]
 
     # Forward pass
-    sg = cuzeros(g, nn..., UL.n_mem, batchsize)
-    gn = UL.AN.forward(g)   # normalize
-    sg[inds_c...] = gn # gradient in first channel
+    gs = cuzeros(g, nn..., UL.n_mem, batchsize)
+    gn = UL.AN.forward(g)[1]   # normalize
+    gs[:,:,1:UL.n_grad,:] = gn # gradient in first channel
 
-    sg_ = UL.L.forward(sg)
+    gs_ = UL.L.forward(gs)
 
-    return sg_
+    return gs_
 end
 
 # 2D Inverse loop: Input (η), Output (η)
@@ -100,23 +101,23 @@ function inverse(η::AbstractArray{T, N}, s::AbstractArray{T, N}, g::AbstractArr
 
     # Inverse pass
     ηs_ = UL.L.inverse(tensor_cat(η, s))
-    η, s_ = tensor_split(ηs_; split_index=1)
+    η, s_ = tensor_split(ηs_; split_index=UL.n_grad)
     
     return η
 end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function backward(Δsg::AbstractArray{T, N}, 
-    sg::AbstractArray{T, N}, UL::NetworkUNET; set_grad::Bool=true) where {T, N}
+function backward(Δgs::AbstractArray{T, N}, 
+    _gs::AbstractArray{T, N}, UL::NetworkUNET; set_grad::Bool=true) where {T, N}
 
     # Backwards pass
-    Δηs_, ηs_ = UL.L.backward(Δsg, sg)
+    Δgs, gs = UL.L.backward(Δgs, _gs)
 
-    s, g  = tensor_split(ηs_; split_index=1)
-    Δs, Δg = tensor_split(Δηs_; split_index=1)
+    g, s = tensor_split(gs;    split_index=UL.n_grad)
+    Δgn, Δs = tensor_split(Δgs; split_index=UL.n_grad)
 
-    gn  = UL.AN.forward(g)   # normalize
-    Δgn = tensor_split(Δs; split_index=1)[1]
+    gn  = UL.AN.forward(g)[1]   # normalize
+    #Δgn = tensor_split(Δs; split_index=UL.n_grad)[1]
     Δg  = UL.AN.backward(Δgn, gn)[1]
 
     return Δg, g

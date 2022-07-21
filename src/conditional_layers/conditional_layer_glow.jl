@@ -1,5 +1,6 @@
 # Conditional coupling layer based on GLOW and cIIN
 # Date: January 2022
+#using UNet
 
 export ConditionalLayerGlow, ConditionalLayerGlow3D
 
@@ -58,9 +59,10 @@ or
 
  See also: [`Conv1x1`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
+
 struct ConditionalLayerGlow <: NeuralNetLayer
     C::Conv1x1
-    RB::ResidualBlock
+    RB::Union{ResidualBlock, NetworkUNET, FluxBlock}
     logdet::Bool
     activation::ActivationFunction
     spade::Bool
@@ -75,12 +77,25 @@ function ConditionalLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false, activ
 end
 
 # Constructor from input dimensions
-function ConditionalLayerGlow(n_in::Int64, n_cond::Int64, n_hidden::Int64;spade=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
+function ConditionalLayerGlow(n_in::Int64, n_cond::Int64, n_hidden::Int64;rb_activation::ActivationFunction=RELUlayer(), rb="RB", L_i=1, spade=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
     rb_in = Int(n_in/2)+n_cond
     spade && (rb_in = n_cond)
+    rb_out = n_in
     # 1x1 Convolution and residual block for invertible layer
     C  = Conv1x1(n_in)
-    RB = ResidualBlock(rb_in, n_hidden; n_out=n_in, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+
+    #n_hiddens = [8,32,128,32,8]
+    #ds = [1,2,4,2,1]
+    #RB = NetworkUNET(n_in, n_hiddens, ds; n_grad = n_in, ndims=2);
+    #RB = FluxBlock(Chain( UNet(n_in=rb_in, n_out=rb_out), MaxPool((2^L_i,2^L_i))))
+    
+    #if rb = "unet"
+    #    RB = FluxBlock(Chain(Unet(in_channels = rb_in,
+    #    out_channels = rb_out, num_fmaps = 16, downsample_factors = [(2,2),(2,2),(2,2)]), MaxPool((2^L_i,2^L_i)))) 
+    #else
+    RB = ResidualBlock(rb_in, n_hidden; activation=rb_activation, n_out=n_in, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+    #end
+
 
     return ConditionalLayerGlow(C, RB, logdet, activation,spade)
 end
@@ -98,17 +113,27 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalL
     # Cat conditioning variable C into network input
     rb_input = C
     (!L.spade) && (rb_input = tensor_cat(X2,rb_input))
+ 
 
+    #println(size(rb_input))
+    #println(size(X))
     logS_T = L.RB.forward(rb_input)
     logS, log_T = tensor_split(logS_T)
 
     Sm = L.activation.forward(logS)
     Tm = log_T
+    
+    
+    #println(norm(Sm.*X1 + Tm)^2 / prod(size(X1)))
     Y1 = Sm.*X1 + Tm
 
     Y = tensor_cat(Y1, Y2)
+    #println(norm(Tm)^2 / prod(size(Tm)))
+    #println(norm(X)^2 / prod(size(X)))
+    #println(norm(Y)^2 / prod(size(X)))
+    #println((norm(Y)^2-norm(X)^2) / prod(size(X)))
 
-    L.logdet == true ? (return Y, glow_logdet_forward(Sm)) : (return Y)
+    return Y, glow_logdet_forward(Sm)
 end
 
 # Inverse pass: Input Y, Output X
@@ -120,6 +145,8 @@ function inverse(Y::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalL
     # RB
     rb_input = C
     (!L.spade) && (rb_input = tensor_cat(X2,rb_input))
+   
+
     logS_T = L.RB.forward(rb_input)
     logS, log_T = tensor_split(logS_T)
 
@@ -130,14 +157,14 @@ function inverse(Y::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalL
     X_ = tensor_cat(X1, X2)
     X = L.C.inverse(X_)
 
-    save == true ? (return X, X1, X2, Sm) : (return X)
+    save == true ? (return X, X1, X2, Sm,Tm) : (return X)
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
 function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalLayerGlow;) where {T,N}
 
     # Recompute forward state
-    X, X1, X2, S = inverse(Y, C, L; save=true)
+    X, X1, X2, S,Tm = inverse(Y, C, L; save=true)
 
     # Backpropagate residual
     ΔY1, ΔY2 = tensor_split(ΔY)
@@ -154,7 +181,9 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::AbstractA
     rb_input = C
     (!L.spade) && (rb_input = tensor_cat(X2,rb_input))
 
+
     ΔX2_ΔC = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), rb_input)
+    #ΔX2_ΔC = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), cat(S, Tm; dims=3))[1]
 
     if !L.spade
         ΔX2, ΔC = tensor_split(ΔX2_ΔC; split_index=Int(size(ΔY)[N-1]/2))
