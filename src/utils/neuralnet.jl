@@ -108,7 +108,6 @@ reset!(AI::Array{<:Invertible}) = for I ∈ AI reset!(I) end
  Resets the gradient of all the parameters in NL
 """
 clear_grad!(I::Invertible) = clear_grad!(get_params(I))
-clear_grad!(RL::Reversed) = clear_grad!(RL.I)
 
 # Get gradients
 """
@@ -124,12 +123,9 @@ get_grads(RL::Reversed)= get_grads(RL.I)
 get_grads(::Nothing) = []
 
 # Set parameters
-function set_params!(N::Union{NeuralNetLayer, InvertibleNetwork}, θnew::Array{Parameter, 1})
+function set_params!(N::Invertible, θnew::Array{Parameter, 1})
     set_params!(get_params(N), θnew)
 end
-
-# Set params for reversed layers/networks
-set_params!(RL::Reversed, θ::Array{Parameter, 1}) = set_params!(RL.I, θ)
 
 # Make invertible nets callable objects
 (N::Invertible)(X::AbstractArray{T,N} where {T, N}) = N.forward(X)

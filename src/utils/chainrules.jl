@@ -56,7 +56,7 @@ isa_newblock(state::InvertibleOperationsTape, X) = (state.counter_block == 0) ||
 """
 Error if mismatch between state and network
 """
-function check_coherence(state::InvertibleOperationsTape, net::Union{NeuralNetLayer,InvertibleNetwork})
+function check_coherence(state::InvertibleOperationsTape, net::Invertible)
     if state.counter_block != 0 && state.counter_layer != 0 && state.layer_blocks[state.counter_block][state.counter_layer] != net
         reset!(state)
         throw(ArgumentError("Current state does not correspond to current layer, resetting state..."))
@@ -66,7 +66,7 @@ end
 """
 Update state in the forward pass.
 """
-function forward_update!(state::InvertibleOperationsTape, X::AbstractArray{T,N}, Y::AbstractArray{T,N}, logdet::Union{Nothing,T}, net::Union{NeuralNetLayer,InvertibleNetwork}) where {T, N}
+function forward_update!(state::InvertibleOperationsTape, X::AbstractArray{T,N}, Y::AbstractArray{T,N}, logdet::Union{Nothing,T}, net::Invertible) where {T, N}
 
     if isa_newblock(state, X)
         push!(state.Y, Y)
@@ -104,7 +104,7 @@ end
 
 ## Chain rules for invertible networks
 # General pullback function
-function pullback(net::Union{NeuralNetLayer,InvertibleNetwork}, ΔY::AbstractArray{T,N};
+function pullback(net::Invertible, ΔY::AbstractArray{T,N};
                  state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
 
     # Check state coherency
@@ -124,7 +124,7 @@ end
 
 
 # Reverse-mode AD rule
-function ChainRulesCore.rrule(net::Union{NeuralNetLayer,InvertibleNetwork}, X::AbstractArray{T, N};
+function ChainRulesCore.rrule(net::Invertible, X::AbstractArray{T, N};
                               state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
    
     # Forward pass
