@@ -74,11 +74,11 @@ function ConditionalLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false, activ
 end
 
 # Constructor from input dimensions
-function ConditionalLayerGlow(n_in::Int64, n_cond::Int64, n_hidden::Int64; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
+function ConditionalLayerGlow(n_in::Int64, n_cond::Int64, n_hidden::Int64; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), rb_activation::ActivationFunction=RELUlayer(), ndims=2)
 
-    # 1x1 Convolution and residual block for invertible layer
+    # 1x1 Convolution and residual block for invertible layers
     C  = Conv1x1(n_in)
-    RB = ResidualBlock(Int(n_in/2)+n_cond, n_hidden;n_out=n_in, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+    RB = ResidualBlock(Int(n_in/2)+n_cond, n_hidden; n_out=n_in, activation=rb_activation, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
 
     return ConditionalLayerGlow(C, RB, logdet, activation)
 end
@@ -135,18 +135,19 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::AbstractA
     ΔY1, ΔY2 = tensor_split(ΔY)
     ΔT = copy(ΔY1)
     ΔS = ΔY1 .* X1
+    ΔX1 = ΔY1 .* S
 
     if L.logdet
         ΔS -= glow_logdet_backward(S)
     end
 
-    ΔX1 = ΔY1 .* S
-
+    # Backpropagate RB
     ΔX2_ΔC = L.RB.backward(cat(L.activation.backward(ΔS, S), ΔT; dims=3), (tensor_cat(X2, C)))
-    ΔX2 = tensor_split(ΔX2_ΔC; split_index=Int(size(ΔY)[N-1]/2))[1]
+    ΔX2, ΔC = tensor_split(ΔX2_ΔC; split_index=Int(size(ΔY)[N-1]/2))
     ΔX2 += ΔY2
-  
+
+    # Backpropagate 1x1 conv
     ΔX = L.C.inverse((tensor_cat(ΔX1, ΔX2), tensor_cat(X1, X2)))[1]
 
-    return ΔX, X
+    return ΔX, X, ΔC
 end

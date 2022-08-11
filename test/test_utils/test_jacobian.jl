@@ -1,7 +1,10 @@
 # Author: Gabrio Rizzuti, grizzuti33@gatech.edu
 # Date: September 2020
 
-using InvertibleNetworks, LinearAlgebra, Test, Statistics
+using InvertibleNetworks, Random, LinearAlgebra, Test, Statistics
+
+# Random seed
+Random.seed!(11)
 
 # Input
 nx = 28
