@@ -20,7 +20,13 @@ or
 
  *Input*:
 
- - `n_in`, `n_hidden`: number of input and hidden channels
+ - `n_in`: number of input channels
+
+ - `n_hidden`: number of hidden channels
+
+ - `n_out`: number of ouput channels
+
+ - `activation`: activation type between conv layers and final output
 
  - `k1`, `k2`: kernel size of convolutions in residual block. `k1` is the kernel of the first and third
     operator, `k2` is the kernel size of the second operator.
@@ -67,6 +73,7 @@ struct ResidualBlock <: NeuralNetLayer
     fan::Bool
     strides
     pad
+    activation::ActivationFunction
 end
 
 @Flux.functor ResidualBlock
@@ -75,7 +82,8 @@ end
 #  Constructors
 
 # Constructor
-function ResidualBlock(n_in, n_hidden; n_out=nothing, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
+function ResidualBlock(n_in, n_hidden; n_out=nothing, activation::ActivationFunction=ReLUlayer(), k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
+    # default/legacy behaviour
     isnothing(n_out) && (n_out = 2*n_in)
 
     k1 = Tuple(k1 for i=1:ndims)
@@ -87,11 +95,11 @@ function ResidualBlock(n_in, n_hidden; n_out=nothing, k1=3, k2=3, p1=1, p2=1, s1
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
-    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2))
+    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2), activation)
 end
 
 # Constructor for given weights
-function ResidualBlock(W1, W2, W3, b1, b2; p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
+function ResidualBlock(W1, W2, W3, b1, b2; activation::ActivationFunction=ReLUlayer(), p1=1, p2=1, s1=1, s2=1, fan=false, ndims=2)
 
     # Make weights parameters
     W1 = Parameter(W1)
@@ -100,7 +108,7 @@ function ResidualBlock(W1, W2, W3, b1, b2; p1=1, p2=1, s1=1, s2=1, fan=false, nd
     b1 = Parameter(b1)
     b2 = Parameter(b2)
 
-    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2))
+    return ResidualBlock(W1, W2, W3, b1, b2, fan, (s1, s2), (p1, p2),activation)
 end
 
 ResidualBlock3D(args...; kw...) = ResidualBlock(args...; kw..., ndims=3)
@@ -112,17 +120,17 @@ function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {
     inds =[i!=(N-1) ? 1 : Colon() for i=1:N]
 
     Y1 = conv(X1, RB.W1.data; stride=RB.strides[1], pad=RB.pad[1]) .+ reshape(RB.b1.data, inds...)
-    X2 = ReLU(Y1)
+    X2 = RB.activation.forward(Y1)
 
     Y2 = X2 + conv(X2, RB.W2.data; stride=RB.strides[2], pad=RB.pad[2]) .+ reshape(RB.b2.data, inds...)
-    X3 = ReLU(Y2)
+    X3 = RB.activation.forward(Y2)
 
     cdims3 = DCDims(X1, RB.W3.data; stride=RB.strides[1], padding=RB.pad[1])
     Y3 = ∇conv_data(X3, RB.W3.data, cdims3)
     # Return if only recomputing state
     save && (return Y1, Y2, Y3)
     # Finish forward
-    RB.fan == true ? (return ReLU(Y3)) : (return GaLU(Y3))
+    RB.fan == true ? (return RB.activation.forward(Y3)) : (return GaLU(Y3))
 end
 
 # Backward
@@ -139,18 +147,18 @@ function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
     cdims3 = DCDims(X1, RB.W3.data;  stride=RB.strides[1], padding=RB.pad[1])
 
     # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = ReLUgrad(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    RB.fan == true ? (ΔY3 = RB.activation.backward(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
     ΔX3 = conv(ΔY3, RB.W3.data, cdims3)
-    ΔW3 = ∇conv_filter(ΔY3, ReLU(Y2), cdims3)
+    ΔW3 = ∇conv_filter(ΔY3, RB.activation.forward(Y2), cdims3)
 
-    ΔY2 = ReLUgrad(ΔX3, Y2)
+    ΔY2 = RB.activation.backward(ΔX3, Y2)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, cdims2) + ΔY2
-    ΔW2 = ∇conv_filter(ReLU(Y1), ΔY2, cdims2)
+    ΔW2 = ∇conv_filter(RB.activation.forward(Y1), ΔY2, cdims2)
     Δb2 = sum(ΔY2, dims=dims)[inds...]
 
     cdims1 = DenseConvDims(X1, RB.W1.data; stride=RB.strides[1], padding=RB.pad[1])
 
-    ΔY1 = ReLUgrad(ΔX2, Y1)
+    ΔY1 = RB.activation.backward(ΔX2, Y1)
     ΔX1 = ∇conv_data(ΔY1, RB.W1.data, cdims1)
     ΔW1 = ∇conv_filter(X1, ΔY1, cdims1)
     Δb1 = sum(ΔY1, dims=dims)[inds...]
@@ -178,22 +186,22 @@ function jacobian(ΔX1::AbstractArray{T, N}, Δθ::Array{Parameter, 1},
 
     Y1 = conv(X1, RB.W1.data, cdims1) .+ reshape(RB.b1.data, inds...)
     ΔY1 = conv(ΔX1, RB.W1.data, cdims1) + conv(X1, Δθ[1].data, cdims1) .+ reshape(Δθ[4].data, inds...)
-    X2 = ReLU(Y1)
-    ΔX2 = ReLUgrad(ΔY1, Y1)
+    X2 = RB.activation.forward(Y1)
+    ΔX2 = RB.activation.backward(ΔY1, Y1)
 
     cdims2 = DenseConvDims(X2, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
 
     Y2 = X2 + conv(X2, RB.W2.data, cdims2) .+ reshape(RB.b2.data, inds...)
     ΔY2 = ΔX2 + conv(ΔX2, RB.W2.data, cdims2) + conv(X2, Δθ[2].data, cdims2) .+ reshape(Δθ[5].data, inds...)
-    X3 = ReLU(Y2)
-    ΔX3 = ReLUgrad(ΔY2, Y2)
+    X3 = RB.activation.forward(Y2)
+    ΔX3 = RB.activation.backward(ΔY2, Y2)
 
     cdims3 = DCDims(X1, RB.W3.data; nc=2*size(X1, N-1), stride=RB.strides[1], padding=RB.pad[1])
     Y3 = ∇conv_data(X3, RB.W3.data, cdims3)
     ΔY3 = ∇conv_data(ΔX3, RB.W3.data, cdims3) + ∇conv_data(X3, Δθ[3].data, cdims3)
     if RB.fan == true
-        X4 = ReLU(Y3)
-        ΔX4 = ReLUgrad(ΔY3, Y3)
+        X4 = RB.activation.forward(Y3)
+        ΔX4 = RB.activation.backward(ΔY3, Y3)
     else
         ΔX4, X4 = GaLUjacobian(ΔY3, Y3)
     end
