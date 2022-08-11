@@ -6,7 +6,7 @@ export ComposedInvertibleNetwork, Composition
 import Base.length, Base.∘
 
 struct ComposedInvertibleNetwork <: InvertibleNetwork
-    layers::Array{T, 1} where {T <: Union{NeuralNetLayer, InvertibleNetwork}}
+    layers::Array{T, 1} where {T <: Invertible}
     logdet_array::Array{Bool, 1}
     logdet::Bool
     npars::Array{Int64, 1}
@@ -21,7 +21,7 @@ function Composition(layer...)
 
     # Initializing output
     depth = length(layer)
-    net_array = Array{Union{NeuralNetLayer, InvertibleNetwork}, 1}(undef, depth)
+    net_array = Array{Invertible, 1}(undef, depth)
     logdet_array = Array{Bool, 1}(undef, depth)
     logdet = false
     npars = Array{Int64, 1}(undef, depth)

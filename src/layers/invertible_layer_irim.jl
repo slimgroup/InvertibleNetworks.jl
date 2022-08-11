@@ -144,9 +144,6 @@ end
 
 # 2D
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::AbstractArray{T, N}, L::CouplingLayerIRIM) where {T, N}
-
-    # Get dimensions
-    k = Int(L.C.k/2)
     
     ΔX_, X_ = L.C.jacobian(ΔX, Δθ[1:3], X)
     X1_, X2_ = tensor_split(X_)

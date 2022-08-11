@@ -1,7 +1,7 @@
 name = "InvertibleNetworks"
 uuid = "b7115f24-5f92-4794-81e8-23b0ddb121d3"
 authors = ["Philipp Witte <p.witte@ymail.com>", "Ali Siahkoohi <alisk@gatech.edu>", "Mathias Louboutin <mlouboutin3@gatech.edu>", "Gabrio Rizzuti <g.rizzuti@umcutrecht.nl>", "Rafael Orozco <rorozco@gatech.edu>", "Felix J. herrmann <fherrmann@gatech.edu>"]
-version = "2.1.1"
+version = "2.1.5"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"

@@ -15,7 +15,7 @@ struct JacobianInvertibleNetwork{T} <: joAbstractLinearOperator{T, T}
     m::Int64
     fop::Function
     fop_T::Function
-    N::Union{NeuralNetLayer, InvertibleNetwork}
+    N::Invertible
     X::AbstractArray{T}
     Y::Union{Nothing, AbstractArray{T}}
 end
