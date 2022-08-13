@@ -67,12 +67,13 @@ struct NetworkGlow <: InvertibleNetwork
     K::Int64
     squeezer::Squeezer
     split_scales::Bool
+    logdet::Bool
 end
 
 @Flux.functor NetworkGlow
 
 # Constructor
-function NetworkGlow(n_in, n_hidden, L, K; freeze_conv=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
+function NetworkGlow(n_in, n_hidden, L, K; logdet=true, freeze_conv=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
  
@@ -93,7 +94,7 @@ function NetworkGlow(n_in, n_hidden, L, K; freeze_conv=false, split_scales=false
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkGlow(AN, CL, Z_dims, L, K, squeezer, split_scales)
+    return NetworkGlow(AN, CL, Z_dims, L, K, squeezer, split_scales, logdet)
 end
 
 NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)

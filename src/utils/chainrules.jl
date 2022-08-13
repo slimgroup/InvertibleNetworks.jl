@@ -104,9 +104,9 @@ end
 
 ## Chain rules for invertible networks
 # General pullback function
-function pullback(net::Invertible, ΔY::AbstractArray{T,N};
+function pullback(net::Invertible, ΔY;
                  state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
-
+    ΔY = ΔY[1] # MATHIAS HELP ME WHY IS THIS NOT NAMED????
     # Check state coherency
     check_coherence(state, net)
 
@@ -114,19 +114,24 @@ function pullback(net::Invertible, ΔY::AbstractArray{T,N};
     T2 = typeof(current(state))
     ΔY = convert(T2, ΔY)
     # Backward pass
-    ΔX, X_ = net.backward(ΔY, current(state))
+    ΔX, X_ = net.backward(ΔY, current(state);)
 
     # Update state
     backward_update!(state, X_)
 
-    return nothing, ΔX
+
+    gis = [p.grad for p in get_params(net)];
+    nis = [p.data for p in get_params(net)];
+
+    Δθ = IdDict([zip(nis,gis)...])
+    
+    return Δθ, ΔX
 end
 
 
 # Reverse-mode AD rule
 function ChainRulesCore.rrule(net::Invertible, X::AbstractArray{T, N};
                               state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
-   
     # Forward pass
     net.logdet ? ((Y, logdet) = net.forward(X)) : (Y = net.forward(X); logdet = nothing)
 
@@ -136,7 +141,7 @@ function ChainRulesCore.rrule(net::Invertible, X::AbstractArray{T, N};
     # Pullback
     ∂Y_T(ΔY) = pullback(net, ΔY; state=state)
 
-    return Y, ∂Y_T
+    return (Y, logdet), ∂Y_T
 end
 
 
