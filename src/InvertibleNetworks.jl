@@ -68,7 +68,9 @@ include("networks/invertible_network_glow.jl")  # Glow: Dinh et al. (2017), King
 include("networks/invertible_network_hyperbolic.jl")    # Hyperbolic: Lensink et al. (2019)
 
 # Conditional layers and nets
+include("conditional_layers/conditional_layer_glow.jl")
 include("conditional_layers/conditional_layer_hint.jl")
+include("networks/invertible_network_conditional_glow.jl")
 include("networks/invertible_network_conditional_hint.jl")
 include("networks/invertible_network_conditional_hint_multiscale.jl")
 

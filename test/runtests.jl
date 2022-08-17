@@ -28,6 +28,7 @@ layers = ["test_layers/test_residual_block.jl",
           "test_layers/test_coupling_layer_irim.jl",
           "test_layers/test_coupling_layer_glow.jl",
           "test_layers/test_coupling_layer_hint.jl",
+          "test_layers/test_conditional_layer_glow.jl",
           "test_layers/test_conditional_layer_hint.jl",
           "test_layers/test_conditional_res_block.jl",
           "test_layers/test_hyperbolic_layer.jl",
@@ -40,7 +41,8 @@ networks = ["test_networks/test_unrolled_loop.jl",
             "test_networks/test_hyperbolic_network.jl",
             "test_networks/test_multiscale_hint_network.jl",
             "test_networks/test_multiscale_conditional_hint_network.jl",
-            "test_networks/test_conditional_hint_network.jl"]
+            "test_networks/test_conditional_hint_network.jl",
+            "test_networks/test_conditional_glow_network.jl"]
 
 
 if test_suite == "all" || test_suite == "basics"
