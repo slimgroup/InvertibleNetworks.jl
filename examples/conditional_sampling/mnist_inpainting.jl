@@ -87,7 +87,7 @@ for e=1:epochs # epoch loop
         end
         clear_grad!(G) # clear gradients unless you need to accumulate
 
-        # progress meter
+        # Progress meter
         append!(loss_train, norm(ZX)^2 / (N*batch_size) - logdet_i / N)  # normalize by image size and batch size
      
     	next!(progress; showvalues=[
@@ -104,7 +104,7 @@ for e=1:epochs # epoch loop
 end
 
 
-#Make generative conditional samples
+# Make generative conditional samples
 num_plot = 5
 fig = figure(figsize=(15, 17)); suptitle("Conditional Glow: epoch = $(epochs)")
 for i in 1:num_plot
@@ -140,7 +140,7 @@ for i in 1:num_plot
 end
 tight_layout()
 
-############# Training metric logs
+# Training logs
 final_obj_train = round(loss_train[end];digits=3)
 final_obj_val = round(loss_val[end];digits=3)
 
