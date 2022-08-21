@@ -135,6 +135,7 @@ function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {
     # Finish forward
     #RB.fan == true ? (return LeakyReLU(Y3; slope = 0.1f0)) : (return GaLU(Y3))
     RB.fan == true ? (return RB.activation.forward(Y3;)) : (return GaLU(Y3))
+    #RB.fan == true ? (return Y3;) : (return GaLU(Y3))
 
 end
 
@@ -154,6 +155,7 @@ function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
     # Backpropagate residual ΔX4 and compute gradients
     #RB.fan == true ? (ΔY3 = LeakyReLUgrad(ΔX4, Y3; slope = 0.1f0)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
     RB.fan == true ? (ΔY3 = RB.activation.backward(ΔX4, Y3;)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    #RB.fan == true ? (ΔY3 = ΔX4) : (ΔY3 = GaLUgrad(ΔX4, Y3))
     
     ΔX3 = conv(ΔY3, RB.W3.data, cdims3)
     #ΔW3 = ∇conv_filter(ΔY3, LeakyReLU(Y2; slope = 0.1f0), cdims3)

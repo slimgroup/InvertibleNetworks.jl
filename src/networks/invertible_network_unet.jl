@@ -62,17 +62,22 @@ struct NetworkUNET <: InvertibleNetwork
     AN::ActNorm
     n_mem::Int64
     n_grad::Int64
+    early_squeeze
 end
 
 @Flux.functor NetworkUNET
 
 # 2D Constructor
-function NetworkUNET(n_in::Int64, n_hiddens::Array{Int64,1}, ds::Array{Int64,1};n_grad=1, k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
+function NetworkUNET(n_in::Int64, n_hiddens::Array{Int64,1}, ds::Array{Int64,1}; early_squeeze=false, n_grad=1, k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
 
-    L = CouplingLayerIRIM(n_in, n_hiddens, ds; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
-    AN = ActNorm(n_grad) # Only for 1 channel gradient
     n_mem = n_in 
-    return NetworkUNET(L, AN, n_mem, n_grad)
+    if early_squeeze
+        n_in = 4*n_in
+    end
+    L = CouplingLayerIRIM(n_in, n_hiddens, ds; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
+    AN = ActNorm(n_grad) # Only for 1 channel gradient # try turning off logdet
+    
+    return NetworkUNET(L, AN, n_mem, n_grad, early_squeeze)
 end
 
 # 3D Constructor
@@ -91,9 +96,16 @@ function forward(g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
     gn = UL.AN.forward(g)[1]   # normalize
     gs[:,:,1:UL.n_grad,:] = gn # gradient in first channel
 
-    gs_ = UL.L.forward(gs)
+    if UL.early_squeeze
+        gs = squeeze(gs; pattern="checkerboard")
+    end
+    gs = UL.L.forward(gs)
 
-    return gs_
+    if UL.early_squeeze
+        gs = unsqueeze(gs; pattern="checkerboard")
+    end
+
+    return gs
 end
 
 # 2D Inverse loop: Input (η), Output (η)
@@ -108,10 +120,19 @@ end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
 function backward(Δgs::AbstractArray{T, N}, 
-    _gs::AbstractArray{T, N}, UL::NetworkUNET; set_grad::Bool=true) where {T, N}
+    gs::AbstractArray{T, N}, UL::NetworkUNET; set_grad::Bool=true) where {T, N}
+
+    if UL.early_squeeze
+        Δgs = squeeze(Δgs; pattern="checkerboard")
+        gs  = squeeze(gs; pattern="checkerboard")
+    end
 
     # Backwards pass
-    Δgs, gs = UL.L.backward(Δgs, _gs)
+    Δgs, gs = UL.L.backward(Δgs, gs)
+    if UL.early_squeeze
+        Δgs = unsqueeze(Δgs; pattern="checkerboard")
+        gs  = unsqueeze(gs; pattern="checkerboard")
+    end
 
     g, s = tensor_split(gs;    split_index=UL.n_grad)
     Δgn, Δs = tensor_split(Δgs; split_index=UL.n_grad)
