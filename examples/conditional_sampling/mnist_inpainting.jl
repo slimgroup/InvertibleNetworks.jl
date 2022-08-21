@@ -1,4 +1,4 @@
-# Take around 5 minutes on CPU
+# Take around 3 minutes on CPU
 using InvertibleNetworks
 using PyPlot
 using Flux
@@ -16,9 +16,9 @@ function posterior_sampler(G, y, size_x; num_samples=16)
 end
 
 # Training hyperparameters
-device      = cpu #GPU doesnt really accelerate at this small size. But it is quick on cpu
-lr      = 4f-3
-epochs  = 15
+device = cpu #GPU does not accelerate at this small size. quicker on cpu
+lr     = 4f-3
+epochs = 15
 batch_size = 128
 
 # Load in training and val data
@@ -116,7 +116,6 @@ for i in 1:num_plot
 	X_post_var  = var(X_post;  dims=ndims(X_post)) |> cpu
 
 	ssim_val = round(assess_ssim(X_post_mean[:,:,1,1], x[:,:,1,1]) ,digits=2)
-	append!(ssims_list, ssim_val)
 
 	subplot(num_plot,7,1+7*(i-1)); imshow(x[:,:,1,1],  cmap="gray")
 	axis("off"); title(L"$x_{gt} \sim p(x,y)$");
@@ -125,10 +124,10 @@ for i in 1:num_plot
 	axis("off"); title(L"$y \sim p(x,y)$"); 
 
 	subplot(num_plot,7,3+7*(i-1)); imshow(X_post_mean[:,:,1,1] ,  cmap="gray")
-	axis("off"); title(L"$\mathrm{E}_{x} p_{\theta}(x | y)$"*"\n ssim="*string(ssim_val)) ; 
+	axis("off"); title(L"$\mathrm{E} \, p_{\theta}(x | y)$"*"\n ssim="*string(ssim_val)) ; 
 
 	subplot(num_plot,7,4+7*(i-1)); imshow(X_post_var[:,:,1,1] ,  cmap="magma")
-	axis("off"); title(L"$\mathrm{Var} p_{\theta}(x | y)$") ; 
+	axis("off"); title(L"$\mathrm{Var} \, p_{\theta}(x | y)$") ; 
 
 	subplot(num_plot,7,5+7*(i-1)); imshow(X_post[:,:,1,1] |> cpu,  cmap="gray")
 	axis("off"); title(L"$x\sim p_{\theta}(x | y)$") ; 
