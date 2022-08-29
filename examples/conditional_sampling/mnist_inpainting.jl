@@ -7,6 +7,7 @@ using MLDatasets
 using Statistics
 using ProgressMeter: Progress, next!
 using Images
+using MLUtils
 
 function posterior_sampler(G, y, size_x; num_samples=16)
 	# make samples from posterior
@@ -21,24 +22,17 @@ lr     = 4f-3
 epochs = 15
 batch_size = 128
 
-# Load in training and val data
-n_train = 2048
-n_val   = Int(div(2048,10))
-xs, _ = MNIST(split=:train)[1:(n_train+n_val)];
-train_x = Float32.(xs[:,:,1:n_train];);
-val_x   = Float32.(xs[:,:,n_train+1:end];);
+# Load in training data
+n_total = 2048
+validation_perc = 0.9
+X, _ = MNIST(split=:train)[1:(n_total)];
 
-
-# Resize to a power of two to make multiscale splitting easier. 
+# Resize spatial size to a power of two to make Real-NVP multiscale  easier. 
 nx = 16; ny = 16;
 N = nx*ny;
-X_train = zeros(Float32, nx, ny, 1, n_train)
-X_val   = zeros(Float32, nx, ny, 1, n_val)
-for i in 1:n_train
-	X_train[:,:,:,i] = imresize(train_x[:,:,i]', (nx, ny))
-end
-for i in 1:n_val
-	X_val[:,:,:,i] = imresize(val_x[:,:,i]', (nx, ny))
+Xs = zeros(Float32, nx, ny, 1, n_total)
+for i in 1:n_total
+	Xs[:,:,:,i] = imresize(X[:,:,i]', (nx, ny))
 end
 
 # Make Forward operator A
@@ -48,21 +42,26 @@ A  = ones(Float32,nx,ny)
 A[mask_start:(end-mask_start),mask_start:(end-mask_start)] .= 0f0
 
 # Make observations y 
-Y_train = A .* X_train 
-Y_val   = A .* X_val   
+Ys = A .* Xs
+
+# Use MLutils to split into training and validation set
+XY_train, XY_val = splitobs((Xs, Ys); at=validation_perc, shuffle=true)
+train_loader = DataLoader(XY_train, batchsize=batch_size, shuffle=true);
+
+# Number of training batches 
+n_train = numobs(XY_train)
+batches = cld(n_train, batch_size)
+progress = Progress(epochs*batches);
 
 # Architecture parametrs
-chan_x = size(X_train)[end-1]
-chan_y = size(Y_train)[end-1]
-L = 2
-K = 10
-n_hidden = 32
+chan_x = 1    # not RGB so chan=1
+chan_y = 1    # not RGB so chan=1
+L = 2         # Number of multiscale levels
+K = 10        # Number of Real-NVP layers per multiscale level
+n_hidden = 32 # Number of hidden channels in convolutional residual blocks
 
 # Create network
 G = NetworkConditionalGlow(chan_x, chan_y, n_hidden,  L, K;) |> device;
-
-# Number of training batches 
-batches = cld(n_train, batch_size)
 
 # Optimizer
 opt = ADAM(lr)
@@ -70,13 +69,15 @@ opt = ADAM(lr)
 # Training logs 
 loss_train = [];
 loss_val = [];
-progress = Progress(epochs*batches);
+
+for (X, Y) in train_loader
+	print("h")
+end
 
 for e=1:epochs # epoch loop
-	idx_e = reshape(1:n_train, batch_size, batches)
-    for b = 1:batches # batch loop
-    	X = X_train[:, :, :, idx_e[:,b]] |> device;
-        Y = Y_train[:, :, :, idx_e[:,b]] |> device;
+    for (X, Y) in train_loader#eachobs(XY_train, batchsize=batch_size)
+    	X |> device;
+        Y |> device;
 
         ZX, logdet_i = G.forward(X, Y);
 
@@ -87,16 +88,16 @@ for e=1:epochs # epoch loop
         end
         clear_grad!(G) # clear gradients unless you need to accumulate
 
-        # Progress meter
+        Progress meter
         append!(loss_train, norm(ZX)^2 / (N*batch_size) - logdet_i / N)  # normalize by image size and batch size
      
     	next!(progress; showvalues=[
     		(:objective, loss_train[end])])
     end
 
-    # Evaluate network validation batch 
-    X = X_val |> device
-    Y = Y_val |> device
+    # Evaluate network on validation set 
+    X = XY_val[1] |> device
+    Y = XY_val[2] |> device
 
     ZX, logdet_i = G.forward(X, Y); 
 
@@ -108,8 +109,8 @@ end
 num_plot = 5
 fig = figure(figsize=(15, 17)); suptitle("Conditional Glow: epoch = $(epochs)")
 for i in 1:num_plot
-	y = Y_val[:,:,:,i:i]
-	x = X_val[:,:,:,i:i] |> cpu;
+	x = XY_val[1][:,:,:,i:i] |> cpu;
+	y = XY_val[2][:,:,:,i:i]
 	X_post = posterior_sampler(G, y, size(x); num_samples=64) 
 
 	X_post_mean = mean(X_post; dims=ndims(X_post)) |> cpu
