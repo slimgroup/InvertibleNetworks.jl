@@ -99,6 +99,10 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=true,
     return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales)
 end
 
+function NetworkConditionalGlow()
+    return NetworkConditionalGlow(1, 1, 32,  2, 10;)
+end
+
 NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet

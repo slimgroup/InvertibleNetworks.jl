@@ -1,10 +1,10 @@
 # Take around 3 minutes on CPU
 using InvertibleNetworks
-using PyPlot
 using Flux
 using LinearAlgebra
 using MLDatasets
 using Statistics
+using PyPlot
 using ProgressMeter: Progress, next!
 using Images
 using MLUtils
@@ -27,12 +27,11 @@ n_total = 2048
 validation_perc = 0.9
 X, _ = MNIST(split=:train)[1:(n_total)];
 
-# Resize spatial size to a power of two to make Real-NVP multiscale  easier. 
+# Resize spatial size to a power of two to make Real-NVP multiscale easier. 
 nx = 16; ny = 16;
-N = nx*ny;
-Xs = zeros(Float32, nx, ny, 1, n_total)
+Xs = zeros(Float32, nx, ny, 1, n_total);
 for i in 1:n_total
-	Xs[:,:,:,i] = imresize(X[:,:,i]', (nx, ny))
+	Xs[:,:,:,i] = imresize(X[:,:,i]', (nx, ny));
 end
 
 # Make Forward operator A
@@ -42,14 +41,15 @@ A  = ones(Float32,nx,ny)
 A[mask_start:(end-mask_start),mask_start:(end-mask_start)] .= 0f0
 
 # Make observations y 
-Ys = A .* Xs
+Ys = A .* Xs;
 
 # Use MLutils to split into training and validation set
-XY_train, XY_val = splitobs((Xs, Ys); at=validation_perc, shuffle=true)
-train_loader = DataLoader(XY_train, batchsize=batch_size, shuffle=true);
+XY_train, XY_val = splitobs((Xs, Ys); at=validation_perc, shuffle=true);
+train_loader = DataLoader(XY_train, batchsize=batch_size, shuffle=true, partial=false);
 
 # Number of training batches 
 n_train = numobs(XY_train)
+n_val = numobs(XY_val)
 batches = cld(n_train, batch_size)
 progress = Progress(epochs*batches);
 
@@ -70,12 +70,8 @@ opt = ADAM(lr)
 loss_train = [];
 loss_val = [];
 
-for (X, Y) in train_loader
-	print("h")
-end
-
 for e=1:epochs # epoch loop
-    for (X, Y) in train_loader#eachobs(XY_train, batchsize=batch_size)
+    for (X, Y) in train_loader #batch loop
     	X |> device;
         Y |> device;
 
@@ -88,26 +84,26 @@ for e=1:epochs # epoch loop
         end
         clear_grad!(G) # clear gradients unless you need to accumulate
 
-        Progress meter
+        #Progress meter
+        N = prod(size(X)[1:end-1])
         append!(loss_train, norm(ZX)^2 / (N*batch_size) - logdet_i / N)  # normalize by image size and batch size
-     
     	next!(progress; showvalues=[
     		(:objective, loss_train[end])])
     end
 
     # Evaluate network on validation set 
-    X = XY_val[1] |> device
-    Y = XY_val[2] |> device
+    X = getobs(XY_val[1]) |> device
+    Y = getobs(XY_val[2]) |> device
 
     ZX, logdet_i = G.forward(X, Y); 
 
-    append!(loss_val, norm(ZX)^2 / (N*batch_size) - logdet_i / N)  # normalize by image size and batch size
+    N = prod(size(X)[1:end-1])
+    append!(loss_val, norm(ZX)^2 / (N*n_val) - logdet_i / N)  # normalize by image size and batch size
 end
 
-
 # Make generative conditional samples
-num_plot = 5
-fig = figure(figsize=(15, 17)); suptitle("Conditional Glow: epoch = $(epochs)")
+num_plot = 4
+fig = figure(figsize=(13, 9));
 for i in 1:num_plot
 	x = XY_val[1][:,:,:,i:i] |> cpu;
 	y = XY_val[2][:,:,:,i:i]
@@ -125,7 +121,7 @@ for i in 1:num_plot
 	axis("off"); title(L"$y \sim p(x,y)$"); 
 
 	subplot(num_plot,7,3+7*(i-1)); imshow(X_post_mean[:,:,1,1] ,  cmap="gray")
-	axis("off"); title(L"$\mathrm{E} \, p_{\theta}(x | y)$"*"\n ssim="*string(ssim_val)) ; 
+	axis("off"); title("SSIM="*string(ssim_val)*" \n"*L"$\mathrm{E_x} \, p_{\theta}(x | y)$") ; 
 
 	subplot(num_plot,7,4+7*(i-1)); imshow(X_post_var[:,:,1,1] ,  cmap="magma")
 	axis("off"); title(L"$\mathrm{Var} \, p_{\theta}(x | y)$") ; 
@@ -146,9 +142,10 @@ final_obj_train = round(loss_train[end];digits=3)
 final_obj_val = round(loss_val[end];digits=3)
 
 fig = figure()
-title("Total objective: train=$(final_obj_train) validation=$(final_obj_val)")
-plot(loss_train); 
-plot(batches:batches:batches*(epochs), loss_val); 
-xlabel("Parameter Update") ;
+title("Objective value: train=$(final_obj_train) validation=$(final_obj_val)")
+plot(loss_train;label="Train"); 
+plot(batches:batches:batches*(epochs), loss_val;label="Validation"); 
+xlabel("Parameter update"); ylabel("Negative log likelihood objective") ;
+legend()
 
 
