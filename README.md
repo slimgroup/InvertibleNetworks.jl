@@ -23,9 +23,70 @@ InvertibleNetworks is registered and can be added like any standard julia packag
 ] add InvertibleNetworks
 ```
 
+## Getting started
+
+### Conditional sampling
+ A practical application of normalizing flows is solving inverse problems with uncertainty quantification. In a Bayesian framework, this is accomplished by training a conditional normalizing flow to sample from the posterior distribution. For quick training on CPU (around 4 minutes), we use the MNIST dataset and solve an inpainting problem. To run a complete training script refer to 
+([Inpainting MNIST](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/conditional_sampling/mnist_inpainting.jl)). 
+
+First we download and reshape our ground truth digits.
+```
+using InvertibleNetworks, Flux, MLDatasets
+
+Xs, _ = MNIST(split=:train)[1:2048];
+Xs = Flux.unsqueeze(Xs, dims=3)
+nx, ny, n_chan, n_train = size(Xs)
+```
+Now we make observations by applying a masking forward operator `A` to the digits. 
+```
+# Make forward operator A
+A = ones(Float32, nx, ny)
+A[12:16,12:16] .= 0
+
+Ys = A .* Xs;
+```
+The goal of the inverse problem is to recover the original digit `x` from an observation `y`. We train the conditional GLOW network to solve this problem. 
+```
+G = NetworkConditionalGlow();
+
+opt = ADAM()
+batch_size = 128
+for epoch in 1:10
+	for (X, Y) in Flux.DataLoader((Xs, Ys), batchsize=batch_size, partial=false)  # batch loop
+	    ZX, logdet_i = G.forward(X, Y);
+
+	    G.backward(ZX / batch_size, ZX, Y) # Set parameters of learned layers in G
+	    for p in get_params(G) 
+	    	Flux.update!(opt, p.data, p.grad)
+	    end
+	    clear_grad!(G) # Clear gradients unless you need to accumulate
+	end
+end
+```
+Now we can sample our trained conditional normalizing flow for an unseen data observation. 
+```
+X_test, _ = MNIST(split=:test)[1:1];
+X_test = Flux.unsqueeze(X_test, dims=3)
+y = A .* X_test[:,:,:,1:1]
+
+num_samples = 64
+Y_repeat = repeat(y, 1, 1, 1, num_samples) ;
+ZX_noise = randn(Float32, nx, ny, n_chan, num_samples) 
+X_post = G.inverse(ZX_noise, Y_repeat); # Make generative samples from posterior
+```
+By taking pointwise statistics of these posterior samples, we can study the uncertainty of the inverse problem. 
+```
+using Statistics
+X_post_mean = mean(X_post; dims=4) 
+X_post_var  = var(X_post;  dims=4)
+```
+
+Here are results from the training script with tweaked hyperparameters at ([Inpainting MNIST](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/conditional_sampling/mnist_inpainting.jl)). 
+
+![mnist_sampling_cond](docs/src/figures/mnist_sampling_cond.png)
+
 
 ## Papers
-
 The following publications use [InvertibleNetworks.jl]:
 
 - **["Reliable amortized variational inference with physics-based latent distribution correction"]**
