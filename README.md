@@ -26,23 +26,19 @@ InvertibleNetworks is registered and can be added like any standard julia packag
 ## Getting started
 
 ### Conditional sampling
- A practical application of normalizing flows is solving inverse problems with uncertainty quantification. In a Bayesian framework, this is accomplished by training a conditional normalizing flow to sample from the posterior distribution. For quick training on CPU (around 4 minutes), we use the MNIST dataset and solve an inpainting problem. To run a complete training script refer to 
-([Inpainting MNIST](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/conditional_sampling/mnist_inpainting.jl)). 
+ A practical application of normalizing flows is solving inverse problems with uncertainty quantification. In a Bayesian framework, this is accomplished by training a conditional normalizing flow to sample from the posterior distribution. For quick training on CPU (around 4 minutes), we use the MNIST dataset and solve an inpainting problem. This is a minimal example, to run a complete training script refer to 
+([Inpainting MNIST](https://github.com/slimgroup/InvertibleNetworks.jl/blob/cond_mnist/examples/conditional_sampling/mnist_inpainting.jl)). 
 
-First we download and reshape our ground truth digits.
+First we download and reshape our ground truth digits. Then we make observations by applying a masking forward operator `A` to the digits. 
 ```
 using InvertibleNetworks, Flux, MLDatasets
 
 Xs, _ = MNIST(split=:train)[1:2048];
 Xs = Flux.unsqueeze(Xs, dims=3)
 nx, ny, n_chan, n_train = size(Xs)
-```
-Now we make observations by applying a masking forward operator `A` to the digits. 
-```
-# Make forward operator A
+
 A = ones(Float32, nx, ny)
 A[12:16,12:16] .= 0
-
 Ys = A .* Xs;
 ```
 The goal of the inverse problem is to recover the original digit `x` from an observation `y`. We train the conditional GLOW network to solve this problem. 
@@ -81,7 +77,7 @@ X_post_mean = mean(X_post; dims=4)
 X_post_var  = var(X_post;  dims=4)
 ```
 
-Here are results from the training script with tweaked hyperparameters at ([Inpainting MNIST](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/conditional_sampling/mnist_inpainting.jl)). 
+Here are results from the training script with tweaked hyperparameters at ([Inpainting MNIST](https://github.com/slimgroup/InvertibleNetworks.jl/blob/cond_mnist/examples/conditional_sampling/mnist_inpainting.jl)). 
 
 ![mnist_sampling_cond](docs/src/figures/mnist_sampling_cond.png)
 
@@ -200,7 +196,9 @@ This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl),
 
  - Mathias Louboutin, Georgia Institute of Technology
 
- - Ali Siahkoohi, Georgia Institute of Technology
+ - Ali Siahkoohi, Georgia Institute of Technology (now Rice University)
+
+ - Rafael Orozco, Georgia Institute of Technology
 
 [Flux]:https://fluxml.ai
 [Julia]:https://julialang.org

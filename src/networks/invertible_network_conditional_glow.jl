@@ -1,23 +1,25 @@
-# Invertible network based on Glow (Kingma and Dhariwal, 2018)
+# Conditional Invertible network based on Glow (Kingma and Dhariwal, 2018)
 # Includes 1x1 convolution and residual block
-# Author: Philipp Witte, pwitte3@gatech.edu
-# Date: February 2020
+# Author: Rafael Orozco, rorozco@gatech.edu
+# Date: February 2022
 
 export NetworkConditionalGlow, NetworkConditionalGlow3D
 
 """
-    G = NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
+    G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales = true)
 
-    G = NetworkGlow3D(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
+    G = NetworkConditionalGlow3D(n_in, n_cond, n_hidden, L, K; split_scales = true)
 
- Create an invertible network based on the Glow architecture. Each flow step in the inner loop 
- consists of an activation normalization layer, followed by an invertible coupling layer with
+ Create a conditional invertible network based on the Glow architecture. Each flow step in the inner loop 
+ consists of an activation normalization layer, followed by an invertible conditional coupling layer with
  1x1 convolutions and a residual block. The outer loop performs a squeezing operation prior 
  to the inner loop, and a splitting operation afterwards.
 
  *Input*: 
 
  - 'n_in': number of input channels
+
+ - 'n_cond': number of input channels for conditioning variable
 
  - `n_hidden`: number of hidden units in residual blocks
 
@@ -42,13 +44,15 @@ export NetworkConditionalGlow, NetworkConditionalGlow3D
 
  *Output*:
  
- - `G`: invertible Glow network.
+ - `G`: conditional invertible Glow network.
 
  *Usage:*
 
- - Forward mode: `Y, logdet = G.forward(X)`
+ - Forward mode: `ZX, logdet = G.forward(X, C)`
 
- - Backward mode: `ΔX, X = G.backward(ΔY, Y)`
+ - Backward mode: `ΔX, X = G.backward(ΔZX, ZX, C)`
+
+ - Inverse mode: `X = G.inverse(ZX, C)`
 
  *Trainable parameters:*
 
@@ -75,7 +79,7 @@ end
 # Constructor
 function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=true, rb_activation::ActivationFunction=ReLUlayer(), k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
-    AN_C = ActNorm(n_cond; logdet=false)    # activation normalization for condition
+    AN_C = ActNorm(n_cond; logdet=false)    # activation normalization for condition NOTE: doesnt need logdet
     CL = Array{ConditionalLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
  
     if split_scales
@@ -99,6 +103,7 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=true,
     return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales)
 end
 
+# Default constructor. Works well for MNSIT 16x16
 function NetworkConditionalGlow()
     return NetworkConditionalGlow(1, 1, 32,  2, 10;)
 end
@@ -109,8 +114,6 @@ NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., n
 function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
     G.split_scales && (Z_save = array_of_array(X, G.L-1))
     orig_shape = size(X)
-
-    # Dont need logdet for condition
     C = G.AN_C.forward(C)
 
     logdet = 0
@@ -134,10 +137,7 @@ end
 
 # Forward pass on y
 function forward_c(C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
-
-    # Dont need logdet for condition
     C = G.AN_C.forward(C)
-
     for i=1:G.L
         (G.split_scales) && (C = G.squeezer.forward(C))
     end
@@ -146,8 +146,10 @@ end
 
 # Inverse pass 
 function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
+    # Set C to the right shape
     C = forward_c(C,G)
     
+    # Make sure that Z_dims is set to the proper batchsize
     batch_size = size(X)[end]
     if batch_size != G.Z_dims
         for i in G.Z_dims
@@ -173,6 +175,7 @@ end
 
 # Backward pass and compute gradients
 function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
+    # Set C to the right shape
     C = forward_c(C,G)
 
     # Split data and gradients
@@ -203,6 +206,5 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
     end
 
     ΔC_total, C = G.AN_C.backward(ΔC_total, C)
-
     return ΔX, X
 end

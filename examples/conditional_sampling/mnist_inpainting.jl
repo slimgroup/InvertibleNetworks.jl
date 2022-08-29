@@ -104,7 +104,7 @@ end
 # Make generative conditional samples
 num_plot = 4
 fig = figure(figsize=(13, 9));
-for i in 1:num_plot
+for i in [1,3]
 	x = XY_val[1][:,:,:,i:i] |> cpu;
 	y = XY_val[2][:,:,:,i:i]
 	X_post = posterior_sampler(G, y, size(x); num_samples=64) 
@@ -136,6 +136,7 @@ for i in 1:num_plot
 	axis("off"); title(L"$x\sim p_{\theta}(x | y)$") ; 
 end
 tight_layout()
+savefig("mnist_sampling_cond.png",dpi=300)
 
 # Training logs
 final_obj_train = round(loss_train[end];digits=3)
@@ -147,5 +148,43 @@ plot(loss_train;label="Train");
 plot(batches:batches:batches*(epochs), loss_val;label="Validation"); 
 xlabel("Parameter update"); ylabel("Negative log likelihood objective") ;
 legend()
+
+
+# Make Figure of README
+num_plot = 2
+fig = figure(figsize=(11, 5));
+for (i,ind) in enumerate([1,3])
+	x = XY_val[1][:,:,:,ind:ind] |> cpu;
+	y = XY_val[2][:,:,:,ind:ind]
+	X_post = posterior_sampler(G, y, size(x); num_samples=64) 
+
+	X_post_mean = mean(X_post; dims=ndims(X_post)) |> cpu
+	X_post_var  = var(X_post;  dims=ndims(X_post)) |> cpu
+
+	ssim_val = round(assess_ssim(X_post_mean[:,:,1,1], x[:,:,1,1]) ,digits=2)
+
+	subplot(num_plot,7,1+7*(i-1)); imshow(x[:,:,1,1],  vmin=0, vmax=1, cmap="gray")
+	axis("off"); title(L"$x$");
+
+	subplot(num_plot,7,2+7*(i-1)); imshow(y[:,:,1,1] |> cpu,  cmap="gray")
+	axis("off"); title(L"$y$"); 
+
+	subplot(num_plot,7,3+7*(i-1)); imshow(X_post_mean[:,:,1,1] ,  vmin=0, vmax=1, cmap="gray")
+	axis("off"); title("SSIM="*string(ssim_val)*" \n"*"Conditional Mean") ; 
+
+	subplot(num_plot,7,4+7*(i-1)); imshow(X_post_var[:,:,1,1] ,  cmap="magma")
+	axis("off"); title(L"$UQ$") ; 
+
+	subplot(num_plot,7,5+7*(i-1)); imshow(X_post[:,:,1,1] |> cpu,   vmin=0, vmax=1,cmap="gray")
+	axis("off"); title("Posterior Sample") ; 
+
+	subplot(num_plot,7,6+7*(i-1)); imshow(X_post[:,:,1,2] |> cpu,  vmin=0, vmax=1,cmap="gray")
+	axis("off"); title("Posterior Sample") ; 
+
+	subplot(num_plot,7,7+7*(i-1)); imshow(X_post[:,:,1,3] |> cpu, vmin=0, vmax=1, cmap="gray")
+	axis("off"); title("Posterior Sample") ; 
+end
+tight_layout()
+savefig("mnist_sampling_cond.png",dpi=300,bbox_inches="tight")
 
 
