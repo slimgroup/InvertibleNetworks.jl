@@ -65,6 +65,7 @@ struct CouplingLayerGlow <: NeuralNetLayer
     RB::Union{ResidualBlock, FluxBlock}
     logdet::Bool
     activation::ActivationFunction
+    affine::Bool
 end
 
 @Flux.functor CouplingLayerGlow
@@ -79,13 +80,14 @@ end
 CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerGlow(C, RB, logdet, activation)
 
 # Constructor from input dimensions
-function CouplingLayerGlow(n_in::Int64, n_hidden::Int64; freeze_conv=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
+function CouplingLayerGlow(n_in::Int64, n_hidden::Int64; affine=true, freeze_conv=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
+    affine ? (n_out = n_in) : (n_out = Int(n_in/2))
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in; freeze=freeze_conv)
-    RB = ResidualBlock(Int(n_in/2), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+    RB = ResidualBlock(Int(n_in/2), n_hidden; n_out=n_out, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
 
-    return CouplingLayerGlow(C, RB, logdet, activation)
+    return CouplingLayerGlow(C, RB, logdet, activation, affine)
 end
 
 CouplingLayerGlow3D(args...;kw...) = CouplingLayerGlow(args...; kw..., ndims=3)
@@ -97,26 +99,37 @@ function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow) where {T,N}
     X1, X2 = tensor_split(X_)
 
     Y2 = copy(X2)
-    logS_T = L.RB.forward(X2)
-    logSm, Tm = tensor_split(logS_T)
-    Sm = L.activation.forward(logSm)
-    Y1 = Sm.*X1 + Tm
+    if L.affine
+        logS_T = L.RB.forward(X2)
+        logSm, Tm = tensor_split(logS_T)
+        Sm = L.activation.forward(logSm)
+        Y1 = Sm .* X1 + Tm
 
-    Y = tensor_cat(Y1, Y2)
-
-    L.logdet == true ? (return Y, glow_logdet_forward(Sm)) : (return Y)
+        Y = tensor_cat(Y1, Y2)
+        L.logdet == true ? (return Y, glow_logdet_forward(Sm)) : (return Y)
+    else
+        Tm = L.RB.forward(X2)
+        Y1 = X1 + Tm
+        Y = tensor_cat(Y1, Y2)
+        L.logdet == true ? (return Y, T(0)) : (return Y)
+    end
 end
 
 # Inverse pass: Input Y, Output X
 function inverse(Y::AbstractArray{T, N}, L::CouplingLayerGlow; save=false) where {T,N}
     Y1, Y2 = tensor_split(Y)
-
     X2 = copy(Y2)
-    logS_T = L.RB.forward(X2)
-    logSm, Tm = tensor_split(logS_T)
-    Sm = L.activation.forward(logSm)
-    X1 = (Y1 - Tm) ./ (Sm .+ eps(T)) # add epsilon to avoid division by 0
 
+    if L.affine
+        logS_T = L.RB.forward(X2)
+        logSm, Tm = tensor_split(logS_T)
+        Sm = L.activation.forward(logSm)
+        X1 = (Y1 - Tm) ./ (Sm .+ eps(T)) # add epsilon to avoid division by 0
+    else
+        Tm = L.RB.forward(X2)
+        X1 = Y1 - Tm
+        Sm = nothing 
+    end
     X_ = tensor_cat(X1, X2)
     X = L.C.inverse(X_)
 
@@ -132,32 +145,24 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
     # Backpropagate residual
     ΔY1, ΔY2 = tensor_split(ΔY)
     ΔT = copy(ΔY1)
-    ΔS = ΔY1 .* X1
-    if L.logdet
-        set_grad ? (ΔS -= glow_logdet_backward(S)) : (ΔS_ = glow_logdet_backward(S))
-    end
-
-    ΔX1 = ΔY1 .* S
-    if set_grad
+    if L.affine #might be easier if we just set S to ones. Might simplify all the math 
+        ΔS = ΔY1 .* X1
+        if L.logdet
+            set_grad ? (ΔS -= glow_logdet_backward(S)) : (ΔS_ = glow_logdet_backward(S))
+        end
+        ΔX1 = ΔY1 .* S
         ΔX2 = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), X2) + ΔY2
     else
-        ΔX2, Δθrb = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT; ), X2; set_grad=set_grad)
-        _, ∇logdet = L.RB.backward(tensor_cat(L.activation.backward(ΔS_, S), 0f0.*ΔT;), X2; set_grad=set_grad)
-        ΔX2 += ΔY2
-    end
-    ΔX_ = tensor_cat(ΔX1, ΔX2)
-    if set_grad
-        ΔX = L.C.inverse((ΔX_, tensor_cat(X1, X2)))[1]
-    else
-        ΔX, Δθc = L.C.inverse((ΔX_, tensor_cat(X1, X2)); set_grad=set_grad)[1:2]
-        Δθ = cat(Δθc, Δθrb; dims=1)
+        ΔX1 = ΔY1 
+        ΔX2 = L.RB.backward(ΔT, X2) + ΔY2
     end
 
-    if set_grad
-        return ΔX, X
-    else
-        L.logdet ? (return ΔX, Δθ, X, cat(0*Δθ[1:3], ∇logdet; dims=1)) : (return ΔX, Δθ, X)
-    end
+    ΔX_ = tensor_cat(ΔX1, ΔX2)
+    ΔX = L.C.inverse((ΔX_, tensor_cat(X1, X2)))[1]
+   
+  
+    return ΔX, X
+   
 end
 
 

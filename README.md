@@ -48,15 +48,15 @@ G = NetworkConditionalGlow();
 opt = ADAM()
 batch_size = 128
 for epoch in 1:10
-	for (X, Y) in Flux.DataLoader((Xs, Ys), batchsize=batch_size, partial=false)  # batch loop
-	    ZX, logdet_i = G.forward(X, Y);
+    for (X, Y) in Flux.DataLoader((Xs, Ys), batchsize=batch_size, partial=false)  # batch loop
+        ZX, logdet_i = G.forward(X, Y);
 
-	    G.backward(ZX / batch_size, ZX, Y) # Set parameters of learned layers in G
-	    for p in get_params(G) 
-	    	Flux.update!(opt, p.data, p.grad)
-	    end
-	    clear_grad!(G) # Clear gradients unless you need to accumulate
-	end
+        G.backward(ZX / batch_size, ZX, Y) # Set parameters of learned layers in G
+        for p in get_params(G) 
+        	Flux.update!(opt, p.data, p.grad)
+        end
+        clear_grad!(G) # Clear gradients unless you need to accumulate
+    end
 end
 ```
 Now we can sample our trained conditional normalizing flow for an unseen data observation. 

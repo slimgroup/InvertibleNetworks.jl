@@ -91,7 +91,8 @@ function ResidualBlock(n_in, n_hidden; n_out=nothing, activation::ActivationFunc
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1..., n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2..., n_hidden, n_hidden))
-    W3 = Parameter(glorot_uniform(k1..., n_out, n_hidden))
+    W3 = Parameter(0.01f0*glorot_uniform(k1..., n_out, n_hidden))
+    #W3 = Parameter(zeros(Float32,k1..., n_out, n_hidden))
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
 
@@ -130,7 +131,8 @@ function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {
     # Return if only recomputing state
     save && (return Y1, Y2, Y3)
     # Finish forward
-    RB.fan == true ? (return RB.activation.forward(Y3)) : (return GaLU(Y3))
+    #RB.fan == true ? (return RB.activation.forward(Y3)) : (return GaLU(Y3))
+    RB.fan == true ? (return Y3) : (return GaLU(Y3))
 end
 
 # Backward
@@ -147,7 +149,8 @@ function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
     cdims3 = DCDims(X1, RB.W3.data;  stride=RB.strides[1], padding=RB.pad[1])
 
     # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = RB.activation.backward(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    #RB.fan == true ? (ΔY3 = RB.activation.backward(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    RB.fan == true ? (ΔY3 = ΔX4) : (ΔY3 = GaLUgrad(ΔX4, Y3))
     ΔX3 = conv(ΔY3, RB.W3.data, cdims3)
     ΔW3 = ∇conv_filter(ΔY3, RB.activation.forward(Y2), cdims3)
 
