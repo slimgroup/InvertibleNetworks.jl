@@ -8,7 +8,7 @@ export Sigmoid, SigmoidInv, SigmoidGrad
 export GaLU, GaLUgrad
 export ExpClamp, ExpClampInv, ExpClampGrad
 export ReLUlayer, LeakyReLUlayer, SigmoidLayer, Sigmoid2Layer, GaLUlayer, ExpClampLayer
-
+export ActivationFunction 
 
 ###############################################################################
 # Custom type for activation functions

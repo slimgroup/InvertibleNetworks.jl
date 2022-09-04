@@ -106,9 +106,17 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     logdet = 0
     for i=1:G.L
         (G.split_scales) && (X = G.squeezer.forward(X))
-        for j=1:G.K            
+        for j=1:G.K   
+            num_chan = size(X)[end-1]
+            mask = ones(T,num_chan)
+            if mod(j,2) == 0
+                mask[1:2:end] = -1f0 .* ones(T,length(mask[1:2:end]))
+            else
+                mask[2:2:end] = -1f0 .* ones(T,length(mask[2:2:end]))
+            end 
+            mask=nothing
             X, logdet1 = G.AN[i, j].forward(X)
-            X, logdet2 = G.CL[i, j].forward(X)
+            X, logdet2 = G.CL[i, j].forward(X;mask=mask)
             logdet += (logdet1 + logdet2)
         end
         if G.split_scales && i < G.L    # don't split after last iteration
@@ -125,7 +133,7 @@ end
 function inverse(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     # Make sure that Z_dims is set to the proper batchsize
     batch_size = size(X)[end]
-    if batch_size != G.Z_dims
+    if G.split_scales &&  batch_size != G.Z_dims 
         for i in G.Z_dims
             i[end] = batch_size
         end
@@ -137,7 +145,15 @@ function inverse(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
             X = tensor_cat(X, Z_save[i])
         end
         for j=G.K:-1:1
-            X = G.CL[i, j].inverse(X)
+            num_chan = size(X)[end-1]
+            mask = ones(T,num_chan)
+            if mod(j,2) == 0
+                mask[1:2:end] = -1f0 .* ones(T,length(mask[1:2:end]))
+            else
+                mask[2:2:end] = -1f0 .* ones(T,length(mask[2:2:end]))
+            end 
+            mask=nothing
+            X = G.CL[i, j].inverse(X;mask=mask)
             X = G.AN[i, j].inverse(X)
         end
 
@@ -168,8 +184,16 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGl
             ΔX = tensor_cat(ΔX, ΔZ_save[i])
         end
         for j=G.K:-1:1
+            num_chan = size(X)[end-1]
+            mask = ones(T,num_chan)
+            if mod(j,2) == 0
+                mask[1:2:end] = -1f0 .* ones(T,length(mask[1:2:end]))
+            else
+                mask[2:2:end] = -1f0 .* ones(T,length(mask[2:2:end]))
+            end 
+            mask=nothing
             if set_grad
-                ΔX, X = G.CL[i, j].backward(ΔX, X)
+                ΔX, X = G.CL[i, j].backward(ΔX, X;mask=mask)
                 ΔX, X = G.AN[i, j].backward(ΔX, X)
             else
                 ΔX, Δθcl_ij, X, ∇logdetcl_ij = G.CL[i, j].backward(ΔX, X; set_grad=set_grad)

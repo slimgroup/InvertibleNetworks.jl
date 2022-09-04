@@ -73,11 +73,11 @@ end
 # Constructor from 1x1 convolution and residual block
 function CouplingLayerGlow(C::Conv1x1, RB::ResidualBlock; logdet=false, activation::ActivationFunction=SigmoidLayer())
     RB.fan == false && throw("Set ResidualBlock.fan == true")
-    return CouplingLayerGlow(C, RB, logdet, activation)
+    return CouplingLayerGlow(C, RB, logdet, activation, true)
 end
 
 # Constructor from 1x1 convolution and residual Flux block
-CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerGlow(C, RB, logdet, activation)
+CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerGlow(C, RB, logdet, activation, true)
 
 # Constructor from input dimensions
 function CouplingLayerGlow(n_in::Int64, n_hidden::Int64; affine=true, freeze_conv=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
@@ -93,10 +93,10 @@ end
 CouplingLayerGlow3D(args...;kw...) = CouplingLayerGlow(args...; kw..., ndims=3)
 
 # Forward pass: Input X, Output Y
-function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow) where {T,N}
+function forward(X::AbstractArray{T, N},  L::CouplingLayerGlow;mask=nothing) where {T,N}
 
     X_ = L.C.forward(X)
-    X1, X2 = tensor_split(X_)
+    X1, X2 = tensor_split(X_; mask=mask)
 
     Y2 = copy(X2)
     if L.affine
@@ -105,7 +105,7 @@ function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow) where {T,N}
         Sm = L.activation.forward(logSm)
         Y1 = Sm .* X1 + Tm
 
-        Y = tensor_cat(Y1, Y2)
+        Y = tensor_cat(Y1, Y2; mask=mask)
         L.logdet == true ? (return Y, glow_logdet_forward(Sm)) : (return Y)
     else
         Tm = L.RB.forward(X2)
@@ -116,8 +116,8 @@ function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow) where {T,N}
 end
 
 # Inverse pass: Input Y, Output X
-function inverse(Y::AbstractArray{T, N}, L::CouplingLayerGlow; save=false) where {T,N}
-    Y1, Y2 = tensor_split(Y)
+function inverse(Y::AbstractArray{T, N}, L::CouplingLayerGlow; mask=nothing, save=false) where {T,N}
+    Y1, Y2 = tensor_split(Y; mask=mask)
     X2 = copy(Y2)
 
     if L.affine
@@ -130,20 +130,20 @@ function inverse(Y::AbstractArray{T, N}, L::CouplingLayerGlow; save=false) where
         X1 = Y1 - Tm
         Sm = nothing 
     end
-    X_ = tensor_cat(X1, X2)
+    X_ = tensor_cat(X1, X2; mask=mask)
     X = L.C.inverse(X_)
 
     save == true ? (return X, X1, X2, Sm) : (return X)
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
-function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingLayerGlow; set_grad::Bool=true) where {T,N}
+function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N},  L::CouplingLayerGlow; mask=nothing, set_grad::Bool=true) where {T,N}
 
     # Recompute forward state
-    X, X1, X2, S = inverse(Y, L; save=true)
+    X, X1, X2, S = inverse(Y, L;mask=mask, save=true)
 
     # Backpropagate residual
-    ΔY1, ΔY2 = tensor_split(ΔY)
+    ΔY1, ΔY2 = tensor_split(ΔY; mask=mask)
     ΔT = copy(ΔY1)
     if L.affine #might be easier if we just set S to ones. Might simplify all the math 
         ΔS = ΔY1 .* X1
@@ -157,8 +157,8 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
         ΔX2 = L.RB.backward(ΔT, X2) + ΔY2
     end
 
-    ΔX_ = tensor_cat(ΔX1, ΔX2)
-    ΔX = L.C.inverse((ΔX_, tensor_cat(X1, X2)))[1]
+    ΔX_ = tensor_cat(ΔX1, ΔX2; mask=mask)
+    ΔX = L.C.inverse((ΔX_, tensor_cat(X1, X2; mask=mask)))[1]
    
   
     return ΔX, X

@@ -10,10 +10,16 @@ using MLUtils
 using DrWatson
 using Random 
 using Suppressor
-# using NNlib
-# x = randn(Float32,16,16,1,1)
-# w = randn(Float32, 3,3,1,1)
-# conv(x,w)
+using Revise
+
+# [x] take off clipnorm 
+# [x] batch_size
+# [x] proper channel split
+# [] do their normalization
+# [x] right activation function
+# [] learned scaling parameter
+# [] zero residual layer last not small
+# [] start from 28 size 
 
 matplotlib.pyplot.switch_backend("Agg")
 
@@ -22,24 +28,25 @@ device = cpu #GPU does not accelerate at this small size. quicker on cpu
 #lr     = 6f-3
 lr     = 1f-3
 noise_lev = 0.00f0
-clip_norm = 5f0
+clip_norm = 0f0
 epochs = 1
-batch_size = 128
-
+batch_size = 8
+#4 137.064012 seconds 
 last_act = false
 affine = true
-
+zeros_w = true
+mask = true
 # Load in training data (need more for non-conditional sampling)
-n_total = 2048
+n_total = batch_size*4 #512
 #n_total = 2048
 validation_perc = 0.9
-X  = MNIST.traintensor(Float32, 1:n_total) 
+X  = MNIST.traintensor(Float32, 1:n_total) ;
 
 # Resize spatial size to a power of two to make Real-NVP multiscale easier. 
-nx = 32; ny = 32;
+nx = 16; ny = 16;
 Xs = zeros(Float32, nx, ny, 1, n_total);
 for i in 1:n_total
-	Xs[:,:,:,i] = imresize(X[:,:,i]', (nx, ny));
+    Xs[:,:,:,i] = imresize(X[:,:,i]', (nx, ny));
 end
 #Xs = reshape(X,size(X)[1:end-1]...,1,size(X)[end])
 
@@ -63,14 +70,46 @@ L        = 3  # Number of multiscale levels
 K        = 32 # Number of GLOW layers per multiscale level
 n_hidden = 64 # Number of hidden channels in convolutional residual blocks
 
+function SigmoidLayer_glow(;low=0f0, high=1f0)
+    fwd_a(x) = Sigmoid(x .+ 2f0; low=low, high=high) .+ 1f-3
+    inv_a(y) = SigmoidInv(y .- 1f-3 ; low=low, high=high) .- 2f0
+    grad_a(Δy, y; x=nothing) = SigmoidGrad(Δy, y; x=x, low=low, high=high)
+    return ActivationFunction(fwd_a, inv_a, grad_a)
+end
+
+activation = SigmoidLayer(low=0.5f0)
+act = "invnets"
 # Create network
 Random.seed!(123);
-G = NetworkGlow(chan_x, n_hidden,  L, K; affine=affine, split_scales=true) |> device;
+G = NetworkGlow(chan_x, n_hidden,  L, K;activation=activation, freeze_conv=false, affine=affine, split_scales=true) |> device;
+
+X = X_train[:,:,:,1:1]
+y, _ = G.forward(X)
+X_ = G.inverse(y)
+norm(X_ - X)
+
+
+X = G.squeezer.forward(X)
+
+j=1
+T= Float32
+num_chan = size(X)[end-1]
+mask = ones(T,num_chan)
+if mod(j,2) == 0
+    mask[1:2:end] = -1f0 .* ones(T,length(mask[1:2:end]))
+else
+    mask[2:2:end] = -1f0 .* ones(T,length(mask[2:2:end]))
+end 
+
+X_1,X_2 = tensor_split(X;mask=mask)
+X_ = tensor_cat(X_1,X_2;mask=mask)
+#norm(X_ - X)
 
 #x = randn(8,8,2,1)
 #x_ = G.CL[1].RB.forward(x)
 # Optimizer
-opt = Flux.Optimiser(ClipNorm(clip_norm),ADAM(lr))
+#opt = Flux.Optimiser(ClipNorm(clip_norm),ADAM(lr))
+opt = ADAM(lr)
 
 # Training logs 
 loss_train = [];
@@ -79,24 +118,25 @@ loss_val   = [];
 @time begin
 for e=1:epochs # epoch loop
     for (X) in train_loader #batch loop
-    	X .+= noise_lev*randn(Float32, size(X))
-    	X |> device;
+        X .+= noise_lev*randn(Float32, size(X))
+        X = X |> device;
 
         ZX, logdet_i = @suppress G.forward(X)
+        #ZX, logdet_i =  G.forward(X)
 
         @suppress G.backward(ZX / batch_size, ZX)
 
         for p in get_params(G) 
-        	Flux.update!(opt, p.data, p.grad)
+            Flux.update!(opt, p.data, p.grad)
         end
         clear_grad!(G) # clear gradients unless you need to accumulate
 
         #Progress meter
         N = prod(size(X)[1:end-1])
         append!(loss_train, norm(ZX)^2 / (N*batch_size) - logdet_i / N)  # normalize by image size and batch size
-    	#println( norm(ZX)^2 / (N*batch_size) - logdet_i / N)
-    	next!(progress; showvalues=[
-    		(:objective, loss_train[end])])
+        #println( norm(ZX)^2 / (N*batch_size) - logdet_i / N)
+        next!(progress; showvalues=[
+            (:objective, loss_train[end])])
     end
 
     # Evaluate network on validation set 
@@ -150,23 +190,23 @@ for e=1:epochs # epoch loop
     axis("off"); title("generative sample");
 
     tight_layout()
-	fig_name = @strdict last_act affine e epochs n_train clip_norm lr noise_lev n_hidden L K batch_size
-	safesave(joinpath("plots",savename(fig_name; digits=6)*"_gen.png"), fig); close(fig)
+    fig_name = @strdict mask zeros_w act last_act affine e epochs n_train clip_norm lr noise_lev n_hidden L K batch_size
+    safesave(joinpath("plots",savename(fig_name; digits=6)*"_gen.png"), fig); close(fig)
 
     # Training logs
-	final_obj_train = round(loss_train[end];digits=3)
-	final_obj_val = round(loss_val[end];digits=3)
+    final_obj_train = round(loss_train[end];digits=3)
+    final_obj_val = round(loss_val[end];digits=3)
 
-	fig = figure()
-	title("Objective value: train=$(final_obj_train) validation=$(final_obj_val)")
-	plot(loss_train;label="Train"); 
-	plot(batches:batches:batches*(e), loss_val;label="Validation"); 
-	xlabel("Parameter update"); ylabel("Negative log likelihood objective") ;
-	legend()
-	ylim(bottom=-2.0)
+    fig = figure()
+    title("Objective value: train=$(final_obj_train) validation=$(final_obj_val)")
+    plot(loss_train;label="Train"); 
+    plot(batches:batches:batches*(e), loss_val;label="Validation"); 
+    xlabel("Parameter update"); ylabel("Negative log likelihood objective") ;
+    legend()
+    ylim(bottom=-4.0)
 
-	fig_name = @strdict last_act affine e epochs n_train clip_norm lr noise_lev n_hidden L K batch_size
-	safesave(joinpath("plots",savename(fig_name; digits=6)*"_log.png"), fig); close(fig)
+    fig_name = @strdict mask zeros_w act last_act affine e epochs n_train clip_norm lr noise_lev n_hidden L K batch_size
+    safesave(joinpath("plots",savename(fig_name; digits=6)*"_log.png"), fig); close(fig)
 end
 end
 

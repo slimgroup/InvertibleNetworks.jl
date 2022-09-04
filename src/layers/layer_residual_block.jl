@@ -91,7 +91,7 @@ function ResidualBlock(n_in, n_hidden; n_out=nothing, activation::ActivationFunc
     # Initialize weights
     W1 = Parameter(glorot_uniform(k1..., n_in, n_hidden))
     W2 = Parameter(glorot_uniform(k2..., n_hidden, n_hidden))
-    W3 = Parameter(0.01f0*glorot_uniform(k1..., n_out, n_hidden))
+    W3 = Parameter(glorot_uniform(k1..., n_out, n_hidden))
     #W3 = Parameter(zeros(Float32,k1..., n_out, n_hidden))
     b1 = Parameter(zeros(Float32, n_hidden))
     b2 = Parameter(zeros(Float32, n_hidden))
