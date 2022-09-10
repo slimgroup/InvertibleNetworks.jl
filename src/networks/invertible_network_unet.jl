@@ -89,11 +89,11 @@ function forward(g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
     # Dimensions
     batchsize = size(g)[end]
     nn = size(g)[1:N-2]
-    #inds_c = [i!=(N-1) ? Colon() : 1:UL.n_grad for i=1:N]
-
+   
     # Forward pass
     gs = cuzeros(g, nn..., UL.n_mem, batchsize)
     gn = UL.AN.forward(g)[1]   # normalize
+   
     gs[:,:,1:UL.n_grad,:] = gn # gradient in first channel
 
     if UL.early_squeeze
@@ -109,39 +109,38 @@ function forward(g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
 end
 
 # 2D Inverse loop: Input (η), Output (η)
-function inverse(η::AbstractArray{T, N}, s::AbstractArray{T, N}, g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
+function inverse(y::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
 
-    # Inverse pass
-    ηs_ = UL.L.inverse(tensor_cat(η, s))
-    η, s_ = tensor_split(ηs_; split_index=UL.n_grad)
-    
-    return η
+    UL.early_squeeze && (y  = squeeze(y; pattern="checkerboard"))
+    x = UL.L.inverse(y)
+    UL.early_squeeze && (x  = unsqueeze(x; pattern="checkerboard"))
+
+    x, _ = tensor_split(x; split_index=UL.n_grad)
+
+    x  = UL.AN.inverse(x)[1]   # normalize
+    return x
 end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function backward(Δgs::AbstractArray{T, N}, 
-    gs::AbstractArray{T, N}, UL::NetworkUNET; set_grad::Bool=true) where {T, N}
+function backward(Δy::AbstractArray{T, N}, 
+    y::AbstractArray{T, N}, UL::NetworkUNET; set_grad::Bool=true) where {T, N}
 
     if UL.early_squeeze
-        Δgs = squeeze(Δgs; pattern="checkerboard")
-        gs  = squeeze(gs; pattern="checkerboard")
+        Δy = squeeze(Δy; pattern="checkerboard")
+        y  = squeeze(y; pattern="checkerboard")
     end
-
-    # Backwards pass
-    Δgs, gs = UL.L.backward(Δgs, gs)
+    Δx, x = UL.L.backward(Δy, y)
     if UL.early_squeeze
-        Δgs = unsqueeze(Δgs; pattern="checkerboard")
-        gs  = unsqueeze(gs; pattern="checkerboard")
+        Δx = unsqueeze(Δx; pattern="checkerboard")
+        x  = unsqueeze(x; pattern="checkerboard")
     end
 
-    g, s = tensor_split(gs;    split_index=UL.n_grad)
-    Δgn, Δs = tensor_split(Δgs; split_index=UL.n_grad)
+    x,  _ = tensor_split(x;  split_index=UL.n_grad)
+    Δx, _ = tensor_split(Δx; split_index=UL.n_grad)
 
-    gn  = UL.AN.forward(g)[1]   # normalize
-    #Δgn = tensor_split(Δs; split_index=UL.n_grad)[1]
-    Δg  = UL.AN.backward(Δgn, gn)[1]
+    Δx, x   = UL.AN.backward(Δx, x)
 
-    return Δg, g
+    return Δx, x
 end
 
 ## Jacobian-related utils
