@@ -91,20 +91,24 @@ end
 CouplingLayerGlow3D(args...;kw...) = CouplingLayerGlow(args...; kw..., ndims=3)
 
 # Forward pass: Input X, Output Y
-function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow) where {T,N}
+function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow; save=false) where {T,N}
 
     X_ = L.C.forward(X)
     X1, X2 = tensor_split(X_)
 
-    Y2 = copy(X2)
     logS_T = L.RB.forward(X2)
     logSm, Tm = tensor_split(logS_T)
     Sm = L.activation.forward(logSm)
     Y1 = Sm.*X1 + Tm
 
-    Y = tensor_cat(Y1, Y2)
+    Y = tensor_cat(Y1, X2)
 
-    L.logdet == true ? (return Y, glow_logdet_forward(Sm)) : (return Y)
+    if L.logdet
+        save ? (return Y, Y1, X2, coupling_logdet_forward(Sm), Sm) : (return Y, coupling_logdet_forward(Sm))
+    else
+        save ? (return Y, Y1, X2, Sm) : (return Y)
+    end
+
 end
 
 # Inverse pass: Input Y, Output X
@@ -160,9 +164,37 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
     end
 end
 
+# 2D/3D Reverse backward pass: Input (ΔX, X), Output (ΔY, Y)
+function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, L::CouplingLayerGlow; set_grad::Bool=true) where {T, N}
+
+    ΔX, X = L.C.forward((ΔX, X))
+    X1, X2 = tensor_split(X)
+    ΔX1, ΔX2 = tensor_split(ΔX)
+
+    # Recompute forward state
+    #Y, Y1, X2, S = forward(X, L; save=true)
+    logS_T = L.RB.forward(X2)
+    logSm, Tm = tensor_split(logS_T)
+    Sm = L.activation.forward(logSm)
+    Y1 = Sm.*X1 + Tm
+
+    # Backpropagate residual
+    ΔT = -ΔX1 ./ Sm
+    ΔS =  X1 .* ΔT 
+    if L.logdet == true
+        ΔS += coupling_logdet_backward(Sm)
+    end
+
+    ΔY2 = L.RB.backward(tensor_cat(L.activation.backward(ΔS, Sm), ΔT), X2) + ΔX2
+    ΔY1 = -ΔT
+
+    ΔY = tensor_cat(ΔY1, ΔY2)
+    Y  = tensor_cat(Y1, X2)
+
+    return ΔY, Y
+end
 
 ## Jacobian-related functions
-
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, L::CouplingLayerGlow) where {T,N}
 
     # Get dimensions

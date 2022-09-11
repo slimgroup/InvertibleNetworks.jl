@@ -67,12 +67,13 @@ struct NetworkGlow <: InvertibleNetwork
     K::Int64
     squeezer::Squeezer
     split_scales::Bool
+    logdet::Bool
 end
 
 @Flux.functor NetworkGlow
 
 # Constructor
-function NetworkGlow(n_in, n_hidden, L, K; freeze_conv=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
+function NetworkGlow(n_in, n_hidden, L, K; logdet=true,freeze_conv=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
  
@@ -87,13 +88,13 @@ function NetworkGlow(n_in, n_hidden, L, K; freeze_conv=false, split_scales=false
     for i=1:L
         n_in *= channel_factor # squeeze if split_scales is turned on
         for j=1:K
-            AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = CouplingLayerGlow(n_in, n_hidden; freeze_conv=freeze_conv, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
+            AN[i, j] = ActNorm(n_in; logdet=logdet)
+            CL[i, j] = CouplingLayerGlow(n_in, n_hidden; logdet=logdet, freeze_conv=freeze_conv, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, activation=activation, ndims=ndims)
         end
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkGlow(AN, CL, Z_dims, L, K, squeezer, split_scales)
+    return NetworkGlow(AN, CL, Z_dims, L, K, squeezer, split_scales, logdet)
 end
 
 NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
@@ -101,14 +102,14 @@ NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     G.split_scales && (Z_save = array_of_array(X, G.L-1))
-
+    orig_shape = size(X)
     logdet = 0
     for i=1:G.L
         (G.split_scales) && (X = G.squeezer.forward(X))
         for j=1:G.K            
-            X, logdet1 = G.AN[i, j].forward(X)
-            X, logdet2 = G.CL[i, j].forward(X)
-            logdet += (logdet1 + logdet2)
+            G.logdet ? (X, logdet1) = G.AN[i, j].forward(X) : X = G.AN[i, j].forward(X)
+            G.logdet ? (X, logdet2) = G.CL[i, j].forward(X) : X = G.CL[i, j].forward(X)
+            G.logdet && (logdet += (logdet1 + logdet2))
         end
         if G.split_scales && i < G.L    # don't split after last iteration
             X, Z = tensor_split(X)
@@ -116,13 +117,13 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
             G.Z_dims[i] = collect(size(Z))
         end
     end
-    G.split_scales && (X = cat_states(Z_save, X))
-    return X, logdet
+    G.split_scales && (X = reshape(cat_states(Z_save, X),orig_shape))
+    G.logdet ? (return X, logdet) : (return X)
 end
 
 # Inverse pass 
 function inverse(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
-    G.split_scales && ((Z_save, X) = split_states(X, G.Z_dims))
+    G.split_scales && ((Z_save, X) = split_states(X[:], G.Z_dims))
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X = tensor_cat(X, Z_save[i])
@@ -142,8 +143,8 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGl
     
     # Split data and gradients
     if G.split_scales
-        ΔZ_save, ΔX = split_states(ΔX, G.Z_dims)
-        Z_save, X = split_states(X, G.Z_dims)
+        ΔZ_save, ΔX = split_states(ΔX[:], G.Z_dims)
+        Z_save, X = split_states(X[:], G.Z_dims)
     end
 
     if ~set_grad
@@ -180,6 +181,38 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGl
     set_grad ? (return ΔX, X) : (return ΔX, vcat(ΔθAN, ΔθCL), X, vcat(∇logdetAN, ∇logdetCL))
 end
 
+#Wed
+#12-1
+
+# Backward reverse pass and compute gradients
+function backward_inv(ΔX::AbstractArray{T, N},  X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
+    G.split_scales && (X_save = array_of_array(X, G.L-1))
+    G.split_scales && (ΔX_save = array_of_array(ΔX, G.L-1))
+    orig_shape = size(X)
+
+    for i=1:G.L
+        ΔX = G.squeezer.forward(ΔX)
+        X  = G.squeezer.forward(X)
+        for j=1:G.K
+            ΔX_, X_ = backward_inv(ΔX, X, G.AN[i, j])
+            ΔX,  X  = backward_inv(ΔX_, X_, G.CL[i, j])
+        end
+
+        if G.split_scales && i < G.L    # don't split after last iteration
+            X, Z = tensor_split(X)
+            ΔX, ΔZx = tensor_split(ΔX)
+
+            X_save[i] = Z
+            ΔX_save[i] = ΔZx
+
+            G.Z_dims[i] = collect(size(X))
+        end
+    end
+
+    G.split_scales && (X = reshape(cat_states(X_save, X), orig_shape))
+    G.split_scales && (ΔX = reshape(cat_states(ΔX_save, ΔX), orig_shape))
+    return ΔX, X
+end
 
 ## Jacobian-related utils
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Vector{Parameter}, X, G::NetworkGlow) where {T, N}
