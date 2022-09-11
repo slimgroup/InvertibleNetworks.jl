@@ -191,8 +191,8 @@ function backward_inv(ΔX::AbstractArray{T, N},  X::AbstractArray{T, N}, G::Netw
     orig_shape = size(X)
 
     for i=1:G.L
-        ΔX = G.squeezer.forward(ΔX)
-        X  = G.squeezer.forward(X)
+        G.split_scales && (ΔX = G.squeezer.forward(ΔX))
+        G.split_scales && (X  = G.squeezer.forward(X))
         for j=1:G.K
             ΔX_, X_ = backward_inv(ΔX, X, G.AN[i, j])
             ΔX,  X  = backward_inv(ΔX_, X_, G.CL[i, j])
@@ -216,11 +216,12 @@ end
 
 ## Jacobian-related utils
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Vector{Parameter}, X, G::NetworkGlow) where {T, N}
-
     if G.split_scales 
         Z_save = array_of_array(ΔX, G.L-1)
         ΔZ_save = array_of_array(ΔX, G.L-1)
     end
+    orig_shape = size(X)
+
     logdet = 0
     cls = 2*G.K*G.L
     ΔθAN = Vector{Parameter}(undef, 0)
@@ -250,8 +251,8 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Vector{Parameter}, X, G::Netwo
         end
     end
     if G.split_scales 
-        X = cat_states(Z_save, X)
-        ΔX = cat_states(ΔZ_save, ΔX)
+        X = reshape(cat_states(Z_save, X), orig_shape)
+        ΔX = reshape(cat_states(ΔZ_save, ΔX), orig_shape)
     end
     
     return ΔX, X, logdet, vcat(ΔθAN, ΔθCL)
