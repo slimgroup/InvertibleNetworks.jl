@@ -80,7 +80,7 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=false
  
     if split_scales
         Z_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it   # save dimensions for inverse/backward pass
-        channel_factor = 4
+        channel_factor = 2^(ndims)
     else
         Z_dims = nothing
         channel_factor = 1
@@ -171,8 +171,10 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
         if G.split_scales 
             ΔC_total = G.squeezer.inverse(ΔC_total)
             C = G.squeezer.inverse(C)
+            ΔC_total = G.squeezer.inverse(ΔC_total) 
             X = G.squeezer.inverse(X)
             ΔX = G.squeezer.inverse(ΔX)
+
         end
     end
 
