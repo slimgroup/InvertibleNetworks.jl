@@ -25,9 +25,9 @@ for split_scales = [true,false]
         G = NetworkGlow(n_in, n_hidden, L, K; logdet = false, split_scales=split_scales, ndims=length(N))
         G = reverse(G)
 
-        X = rand(Float32, N..., n_in, batchsize)
+        local X = rand(Float32, N..., n_in, batchsize)
 
-        Y = G.inverse(X)
+        local Y = G.inverse(X)
         X_ = G.forward(Y)
 
         @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
@@ -53,7 +53,7 @@ for split_scales = [true,false]
 
         ###################################################################################################
         # Gradient test
-        function loss(G, X)
+        function loss_rev(G, X)
             Y = G.forward(X)
             f = -log_likelihood(Y) 
             ΔY = -∇log_likelihood(Y)
@@ -66,7 +66,7 @@ for split_scales = [true,false]
         X0 = rand(Float32, N..., n_in, batchsize)
         dX = X - X0
 
-        f0, ΔX = loss(G, X0)[1:2]
+        f0, ΔX = loss_rev(G, X0)[1:2]
         h = 0.1f0
         maxiter = 4
         err1 = zeros(Float32, maxiter)
@@ -74,7 +74,7 @@ for split_scales = [true,false]
 
         print("\nGradient test glow: input\n")
         for j=1:maxiter
-            f = loss(G, X0 + h*dX,)[1]
+            f = loss_rev(G, X0 + h*dX,)[1]
             err1[j] = abs(f - f0)
             err2[j] = abs(f - f0 - h*dot(dX, ΔX))
             print(err1[j], "; ", err2[j], "\n")
@@ -93,7 +93,7 @@ for split_scales = [true,false]
         dW = G.CL[1,1].RB.W1.data - G0.CL[1,1].RB.W1.data
         dv = G.CL[1,1].C.v1.data - G0.CL[1,1].C.v1.data
 
-        f0, ΔX, ΔW, Δv = loss(G0, X)
+        f0, ΔX, ΔW, Δv = loss_rev(G0, X)
         h = 0.1f0
         maxiter = 4
         err3 = zeros(Float32, maxiter)
@@ -104,7 +104,7 @@ for split_scales = [true,false]
             G0.CL[1,1].RB.W1.data = Gini.CL[1,1].RB.W1.data + h*dW
             G0.CL[1,1].C.v1.data = Gini.CL[1,1].C.v1.data + h*dv
 
-            f = loss(G0, X)[1]
+            f = loss_rev(G0, X)[1]
             err3[j] = abs(f - f0)
             err4[j] = abs(f - f0 - h*dot(dW, ΔW) - h*dot(dv, Δv))
             print(err3[j], "; ", err4[j], "\n")
@@ -113,12 +113,9 @@ for split_scales = [true,false]
 
         @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
         @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
-    end
-end
 
 
-for split_scales = [true,false]
-    for N in [(nx, ny), (nx, ny, nz)]
+        ########################################## Not reversed #######################
         println("testing glow with split_scales=$(split_scales) ndims=$(length(N))")
 
         # Network and input
@@ -262,5 +259,3 @@ for split_scales = [true,false]
 
     end
 end
-
-
