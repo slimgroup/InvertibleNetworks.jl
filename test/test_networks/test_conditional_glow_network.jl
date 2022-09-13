@@ -5,7 +5,7 @@
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
 # Random seed
-Random.seed!(3);
+Random.seed!(4);
 
 # Define network
 nx = 16
@@ -18,8 +18,8 @@ batchsize = 2
 L = 2
 K = 2
 
-for split_scales in [true,false] 
-    for N in [(nx,ny),(nx,ny,nz)] # Test 2d and 3d 
+function test(split_scales,N)
+
         G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N))
         X = rand(Float32, N..., n_in, batchsize)
         Cond = rand(Float32, N..., n_cond, batchsize)
@@ -115,7 +115,9 @@ for split_scales in [true,false]
 
         @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f0)
         @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f0)
-
+end
+for split_scales in [true,false] 
+    for N in [(nx,ny),(nx,ny,nz)] # Test 2d and 3d 
+        test(split_scales,N)
     end
 end
-  
