@@ -68,7 +68,7 @@ struct NetworkConditionalGlow <: InvertibleNetwork
     K::Int64
     squeezer::Squeezer
     split_scales::Bool
-    summary_net::Union{InvertibleNetwork, Nothing}
+    summary_net::Union{FluxBlock,InvertibleNetwork, Nothing}
     down_sampler::Union{FluxBlock, Nothing}
 end
 
@@ -207,7 +207,7 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
         !isnothing(G.summary_net) && (C = G.summary_net.forward(C_save))
         ΔC_total = G.down_sampler.backward(ΔC_total,C)
     end
-    !isnothing(G.summary_net) && (G.summary_net.backward(ΔC_total, C))
+    !isnothing(G.summary_net) && (G.summary_net.backward(ΔC_total, C_save))
 
     return ΔX, X
 end
