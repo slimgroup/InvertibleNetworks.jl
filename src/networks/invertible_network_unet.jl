@@ -92,7 +92,7 @@ function forward(g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
    
     # Forward pass
     gs = cuzeros(g, nn..., UL.n_mem, batchsize)
-    gn = UL.AN.forward(g)[1]   # normalize
+    gn,_ = UL.AN.forward(g)   # normalize
    
     gs[:,:,1:UL.n_grad,:] = gn # gradient in first channel
 
@@ -117,7 +117,7 @@ function inverse(y::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
 
     x, _ = tensor_split(x; split_index=UL.n_grad)
 
-    x  = UL.AN.inverse(x)[1]   # normalize
+    x,_  = UL.AN.inverse(x)   # normalize
     return x
 end
 
