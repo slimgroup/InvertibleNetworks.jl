@@ -61,68 +61,86 @@ struct NetworkUNET <: InvertibleNetwork
     L::CouplingLayerIRIM
     AN::ActNorm
     n_mem::Int64
+    n_grad::Int64
+    early_squeeze
 end
 
 @Flux.functor NetworkUNET
 
 # 2D Constructor
-function NetworkUNET(n_in::Int64, n_hiddens::Array{Int64,1}, ds::Array{Int64,1}; k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
+function NetworkUNET(n_in::Int64, n_hiddens::Array{Int64,1}, ds::Array{Int64,1}; early_squeeze=false, n_grad=1, k1=4, k2=3, p1=0, p2=1, s1=4, s2=1, ndims=2)
 
+    n_mem = n_in 
+    if early_squeeze
+        n_in = 4*n_in
+    end
     L = CouplingLayerIRIM(n_in, n_hiddens, ds; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, ndims=ndims)
-    AN = ActNorm(1) # Only for 1 channel gradient
-    n_mem = n_in - 1
-    return NetworkUNET(L, AN, n_mem)
+    AN = ActNorm(n_grad) # Only for 1 channel gradient # try turning off logdet
+    
+    return NetworkUNET(L, AN, n_mem, n_grad, early_squeeze)
 end
 
 # 3D Constructor
 NetworkUNET3D(args...; kw...) = NetworkUNET(args...; kw..., ndims=3)
 
 # 2D Forward loop: Input (η), Output (η)
-function forward(η::AbstractArray{T, N}, g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
+function forward(g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
 
     # Dimensions
-    batchsize = size(η)[end]
-    nn = size(η)[1:N-2]
-    inds_c = [i!=(N-1) ? Colon() : 1 for i=1:N]
-
+    batchsize = size(g)[end]
+    nn = size(g)[1:N-2]
+   
     # Forward pass
-    s = cuzeros(η, nn..., UL.n_mem, batchsize)
-    gn = UL.AN.forward(g)   # normalize
-    s[inds_c...] = gn # gradient in first channel
+    gs = cuzeros(g, nn..., UL.n_mem, batchsize)
+    gn = UL.AN.forward(g)[1]   # normalize
+   
+    gs[:,:,1:UL.n_grad,:] = gn # gradient in first channel
 
-    ηs = UL.L.forward(tensor_cat(η, s))
-    η, s = tensor_split(ηs; split_index=1)
+    if UL.early_squeeze
+        gs = squeeze(gs; pattern="checkerboard")
+    end
+    gs = UL.L.forward(gs)
 
-    return η, s
+    if UL.early_squeeze
+        gs = unsqueeze(gs; pattern="checkerboard")
+    end
+
+    return gs
 end
 
 # 2D Inverse loop: Input (η), Output (η)
-function inverse(η::AbstractArray{T, N}, s::AbstractArray{T, N}, g::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
+function inverse(y::AbstractArray{T, N}, UL::NetworkUNET) where {T, N}
 
-    # Inverse pass
-    ηs_ = UL.L.inverse(tensor_cat(η, s))
-    η, s_ = tensor_split(ηs_; split_index=1)
-    
-    return η
+    UL.early_squeeze && (y  = squeeze(y; pattern="checkerboard"))
+    x = UL.L.inverse(y)
+    UL.early_squeeze && (x  = unsqueeze(x; pattern="checkerboard"))
+
+    x, _ = tensor_split(x; split_index=UL.n_grad)
+
+    x  = UL.AN.inverse(x)[1]   # normalize
+    return x
 end
 
 # 2D Backward loop: Input (Δη, Δs, η, s), Output (Δη, Δs, η, s)
-function backward(Δη::AbstractArray{T, N}, 
-    η::AbstractArray{T, N}, s::AbstractArray{T, N}, g::AbstractArray{T, N}, UL::NetworkUNET; set_grad::Bool=true) where {T, N}
+function backward(Δy::AbstractArray{T, N}, 
+    y::AbstractArray{T, N}, UL::NetworkUNET; set_grad::Bool=true) where {T, N}
 
-    Δs = 0 .* s  # make Δs zero tensor
+    if UL.early_squeeze
+        Δy = squeeze(Δy; pattern="checkerboard")
+        y  = squeeze(y; pattern="checkerboard")
+    end
+    Δx, x = UL.L.backward(Δy, y)
+    if UL.early_squeeze
+        Δx = unsqueeze(Δx; pattern="checkerboard")
+        x  = unsqueeze(x; pattern="checkerboard")
+    end
 
-    # Backwards pass
-    Δηs_, ηs_ = UL.L.backward(tensor_cat(Δη, Δs), tensor_cat(η, s))
+    x,  _ = tensor_split(x;  split_index=UL.n_grad)
+    Δx, _ = tensor_split(Δx; split_index=UL.n_grad)
 
-    η, s_  = tensor_split(ηs_; split_index=1)
-    Δη, Δs = tensor_split(Δηs_; split_index=1)
+    Δx, x   = UL.AN.backward(Δx, x)
 
-    gn  = UL.AN.forward(g)   # normalize
-    Δgn = tensor_split(Δs; split_index=1)[1]
-    Δg  = UL.AN.backward(Δgn, gn)[1]
-
-    return Δη, η
+    return Δx, x
 end
 
 ## Jacobian-related utils
@@ -130,4 +148,3 @@ jacobian(::AbstractArray{T, 5}, ::AbstractArray{T, 5},  UL::NetworkUNET) where T
 
 adjointJacobian(Δη::AbstractArray{T, N}, η::AbstractArray{T, N}, s::AbstractArray{T, N}, UL::NetworkUNET;
                 set_grad::Bool=true) where {T, N} = throw(ArgumentError("Jacobian for NetworkUNET not yet implemented"))
-
