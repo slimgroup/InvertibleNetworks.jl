@@ -45,16 +45,17 @@ struct Conv1x1 <: NeuralNetLayer
     v2::Parameter
     v3::Parameter
     logdet::Bool
+    freeze::Bool
 end
 
 @Flux.functor Conv1x1
 
 # Constructor with random initializations
-function Conv1x1(k; logdet=false)
+function Conv1x1(k;freeze=false, logdet=false)
     v1 = Parameter(glorot_uniform(k))
     v2 = Parameter(glorot_uniform(k))
     v3 = Parameter(glorot_uniform(k))
-    return Conv1x1(k, v1, v2, v3, logdet)
+    return Conv1x1(k, v1, v2, v3, logdet,freeze)
 end
 
 function Conv1x1(v1, v2, v3; logdet=false)
@@ -126,6 +127,11 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
     dv1 = cuzeros(X, k)
     dv2 = cuzeros(X, k)
     dv3 = cuzeros(X, k)
+
+    # Do not calculate gradients if layer is frozen
+    if C.freeze 
+        return dv1, dv2, dv3 
+    end
 
     V1 = v1*v1'/(v1'*v1)
     V2 = v2*v2'/(v2'*v2)

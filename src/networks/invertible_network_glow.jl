@@ -129,7 +129,7 @@ function inverse(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
         end
         for j=G.K:-1:1
             X = G.CL[i, j].inverse(X)
-            X = G.AN[i, j].inverse(X)
+            X = G.AN[i, j].inverse(X)[1]
         end
 
         (G.split_scales) && (X = G.squeezer.inverse(X))
