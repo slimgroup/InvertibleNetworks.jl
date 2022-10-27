@@ -209,11 +209,10 @@ function backward_inv(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, X::Abs
     return ΔZx, ΔZy, Zx, Zy
 end
 
-function forward_Y(Y::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, N}
+function forward_Y(Y::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=false) where {T, N}
     ~isnothing(CH.C_Y) ? (Yp = CH.C_Y.forward(Y)) : (Yp = copy(Y))
-    Zy = CH.CL_Y.forward(Yp; logdet=false)
-    return Zy
-
+    logdet ? (Zy, logdet_) = CH.CL_Y.forward(Yp; logdet=true) : Zy = CH.CL_Y.forward(Yp; logdet=false)
+    logdet ? (return Zy, logdet_) : (return Zy)
 end
 
 function inverse_Y(Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, N}
@@ -221,7 +220,6 @@ function inverse_Y(Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, 
     ~isnothing(CH.C_Y) ? (Y = CH.C_Y.inverse(Yp)) : (Y = copy(Yp))
     return Y
 end
-
 
 ## Jacobian-related utils
 
