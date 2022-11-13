@@ -70,6 +70,7 @@ struct NetworkConditionalGlow <: InvertibleNetwork
     split_scales::Bool
     summary_net::Union{FluxBlock,InvertibleNetwork, Nothing}
     down_sampler::Union{FluxBlock, Nothing}
+    logdet::Bool
 end
 
 @Flux.functor NetworkConditionalGlow
@@ -77,7 +78,7 @@ end
 # Constructor
 function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; rb_activation::ActivationFunction=ReLUlayer(),  logdet=true,down_sample=false, summary_net = nothing,spade=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
-    AN_C = ActNorm(n_cond)    # activation normalization
+    AN_C = ActNorm(n_cond;logdet=false)    # activation normalization
     CL = Array{ConditionalLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
  
     down_sampler = nothing
@@ -108,9 +109,7 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; rb_activation::Act
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales, summary_net, down_sampler)
-    #return NetworkConditionalGlow(AN,  CL, Z_dims, L, K, squeezer, split_scales, summary_net, down_sampler)
-
+    return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales, summary_net, down_sampler, logdet)
 end
 
 NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., ndims=3)
@@ -123,19 +122,17 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
     orig_shape = size(X)
 
 
-    C, _ = G.AN_C.forward(C)
+    C = G.AN_C.forward(C)
 
     logdet = 0
     for i=1:G.L
         #println("L = $(i)")
         (G.split_scales) && (X = G.squeezer.forward(X))
         (G.split_scales) && (C = G.squeezer.forward(C))
-        for j=1:G.K      
-            #println("K = $(j)")      
-            X, logdet1 = G.AN[i, j].forward(X)
-            #C, _       = G.AN_C[i, j].forward(C) #dont need to keep track of c logdet
-            X, logdet2 = G.CL[i, j].forward(X, C)
-            logdet += (logdet1 + logdet2)
+        for j=1:G.K          
+            G.logdet ? (X, logdet1) = G.AN[i, j].forward(X) : X = G.AN[i, j].forward(X)
+            G.logdet ? (X, logdet2) = G.CL[i, j].forward(X, C) : X = G.CL[i, j].forward(X, C)
+            G.logdet && (logdet += (logdet1 + logdet2))
         end
         if G.split_scales && i < G.L    # don't split after last iteration
             X, Z = tensor_split(X)
@@ -144,31 +141,38 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
         end
     end
     G.split_scales && (X = reshape(cat_states(Z_save, X),orig_shape))
-    return X, C, logdet
+    G.logdet ? (return X, C, logdet) : (return X, C)
 end
 
 # Inverse pass 
 function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
     G.split_scales && ((Z_save, X) = split_states(X[:], G.Z_dims))
+
+    # when using split scale you pass in the already transformed c so dont need this  
+    if !G.split_scales
+        C = G.AN_C.forward(C)
+    end
+
+    logdet = 0
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X = tensor_cat(X, Z_save[i])
         end
         for j=G.K:-1:1
-            X = G.CL[i, j].inverse(X,C)
-            X, _ = G.AN[i, j].inverse(X)
+            G.logdet ? (X, logdet1) = G.CL[i, j].inverse(X,C) : X = G.CL[i, j].inverse(X,C)
+            G.logdet ? (X, logdet2) = G.AN[i, j].inverse(X) : X = G.AN[i, j].inverse(X)
+            G.logdet && (logdet += (logdet1 + logdet2))
             #C, _ = G.AN_C[i, j].inverse(C)
         end
 
         (G.split_scales) && (X = G.squeezer.inverse(X))
         (G.split_scales) && (C = G.squeezer.inverse(C))
     end
-    return X
+    G.logdet ? (return X, C, logdet) : (return X, C)
 end
 
 # Backward pass and compute gradients
 function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow;C_save=nothing) where {T, N}
-    
     # Split data and gradients
     if G.split_scales
         ΔZ_save, ΔX = split_states(ΔX[:], G.Z_dims)
@@ -176,8 +180,6 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
     end
 
     ΔC_total = T(0) .* C
-    #ΔC = T(0) .* C
-
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X  = tensor_cat(X, Z_save[i])
@@ -186,14 +188,11 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
         for j=G.K:-1:1
             ΔX, X, ΔC  = G.CL[i, j].backward(ΔX, X, C)
             ΔX, X = G.AN[i, j].backward(ΔX, X)
-            #ΔC, C = G.AN_C[i, j].backward(ΔC, C)
             ΔC_total += ΔC
         end
 
         if G.split_scales 
           ΔC_total = G.squeezer.inverse(ΔC_total)
-         
-          
           C = G.squeezer.inverse(C)
           X = G.squeezer.inverse(X)
           ΔX = G.squeezer.inverse(ΔX)
@@ -209,5 +208,102 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
     end
     !isnothing(G.summary_net) && (G.summary_net.backward(ΔC_total, C_save))
 
+    return ΔX, X
+end
+
+
+################# original glow mmap #########
+# function backward_inv(ΔX::AbstractArray{T, N},  X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
+#     G.split_scales && (X_save = array_of_array(X, G.L-1))
+#     G.split_scales && (ΔX_save = array_of_array(ΔX, G.L-1))
+#     orig_shape = size(X)
+
+#     for i=1:G.L
+#         G.split_scales && (ΔX = G.squeezer.forward(ΔX))
+#         G.split_scales && (X  = G.squeezer.forward(X))
+#         for j=1:G.K
+#             ΔX_, X_ = backward_inv(ΔX, X, G.AN[i, j])
+#             ΔX,  X  = backward_inv(ΔX_, X_, G.CL[i, j])
+#         end
+
+#         if G.split_scales && i < G.L    # don't split after last iteration
+#             X, Z = tensor_split(X)
+#             ΔX, ΔZx = tensor_split(ΔX)
+
+#             X_save[i] = Z
+#             ΔX_save[i] = ΔZx
+
+#             G.Z_dims[i] = collect(size(X))
+#         end
+#     end
+
+#     G.split_scales && (X = reshape(cat_states(X_save, X), orig_shape))
+#     G.split_scales && (ΔX = reshape(cat_states(ΔX_save, ΔX), orig_shape))
+#     return ΔX, X
+# end
+
+# function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
+#     !isnothing(G.summary_net) && (C = G.summary_net.forward(C))
+#     !isnothing(G.down_sampler) && (C = G.down_sampler(C))
+#     G.split_scales && (Z_save = array_of_array(X, G.L-1))
+#     orig_shape = size(X)
+
+
+#     C, _ = G.AN_C.forward(C)
+
+#     logdet = 0
+#     for i=1:G.L
+#         #println("L = $(i)")
+#         (G.split_scales) && (X = G.squeezer.forward(X))
+#         (G.split_scales) && (C = G.squeezer.forward(C))
+#         for j=1:G.K      
+#             #println("K = $(j)")      
+#             X, logdet1 = G.AN[i, j].forward(X)
+#             #C, _       = G.AN_C[i, j].forward(C) #dont need to keep track of c logdet
+#             X, logdet2 = G.CL[i, j].forward(X, C)
+#             logdet += (logdet1 + logdet2)
+#         end
+#         if G.split_scales && i < G.L    # don't split after last iteration
+#             X, Z = tensor_split(X)
+#             Z_save[i] = Z
+#             G.Z_dims[i] = collect(size(Z))
+#         end
+#     end
+#     G.split_scales && (X = reshape(cat_states(Z_save, X),orig_shape))
+#     return X, C, logdet
+# end
+
+# Backward pass and compute gradients
+function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow; C_save=nothing) where {T, N}
+    G.split_scales && (X_save = array_of_array(X, G.L-1))
+    G.split_scales && (ΔX_save = array_of_array(ΔX, G.L-1))
+    orig_shape = size(X)
+
+    if !G.split_scales
+        C = G.AN_C.forward(C)
+    end
+
+    for i=1:G.L
+        G.split_scales && (ΔX = G.squeezer.forward(ΔX))
+        G.split_scales && (X  = G.squeezer.forward(X))
+        G.split_scales && (C  = G.squeezer.forward(C))
+        for j=1:G.K
+            ΔX_, X_ = backward_inv(ΔX, X, G.AN[i, j])
+            ΔX,  X, ΔC  = backward_inv(ΔX_, X_, C, G.CL[i, j])
+        end
+
+        if G.split_scales && i < G.L    # don't split after last iteration
+            X, Z = tensor_split(X)
+            ΔX, ΔZx = tensor_split(ΔX)
+
+            X_save[i] = Z
+            ΔX_save[i] = ΔZx
+
+            G.Z_dims[i] = collect(size(X))
+        end
+    end
+
+    G.split_scales && (X = reshape(cat_states(X_save, X), orig_shape))
+    G.split_scales && (ΔX = reshape(cat_states(ΔX_save, ΔX), orig_shape))
     return ΔX, X
 end

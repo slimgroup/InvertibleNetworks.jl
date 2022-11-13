@@ -59,6 +59,7 @@ end
 # 2-3D Foward pass: Input X, Output Y
 function forward(X::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, N}
     isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
+    #isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 
@@ -73,13 +74,15 @@ function forward(X::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, 
     Y = X .* reshape(AN.s.data, inds...) .+ reshape(AN.b.data, inds...)
 
     # If logdet true, return as second ouput argument
-    #logdet ? (return Y, logdet_forward(size(X)[1:N-2]..., AN.s)) : (return Y)
-    return Y, logdet_forward(size(X)[1:N-2]..., AN.s) 
+    logdet ? (return Y, logdet_forward(size(X)[1:N-2]..., AN.s)) : (return Y)
+    #return Y, logdet_forward(size(X)[1:N-2]..., AN.s) 
 end
 
 # 2-3D Inverse pass: Input Y, Output X
 function inverse(Y::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, N}
-    isnothing(logdet) ? logdet = (AN.logdet && AN.is_reversed) : logdet = logdet
+    #isnothing(logdet) ? logdet = (AN.logdet && AN.is_reversed) : logdet = logdet
+    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
+    #println(logdet)
     inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 
@@ -94,8 +97,8 @@ function inverse(Y::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, 
     X = (Y .- reshape(AN.b.data, inds...)) ./ reshape(AN.s.data, inds...)
 
     # If logdet true, return as second ouput argument
-    #logdet ? (return X, -logdet_forward(size(Y)[1:N-2]..., AN.s)) : (return X)
-    return X, -logdet_forward(size(Y)[1:N-2]..., AN.s)
+    logdet ? (return X, -logdet_forward(size(Y)[1:N-2]..., AN.s)) : (return X)
+    #return X, -logdet_forward(size(Y)[1:N-2]..., AN.s)
 end
 
 # 2-3D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
@@ -104,7 +107,7 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, AN::ActNorm;
     dims = collect(1:N-1); dims[end] +=1
     nn = size(ΔY)[1:N-2]
 
-    X = inverse(Y, AN; logdet=false)[1]
+    X = inverse(Y, AN; logdet=false)
     ΔX = ΔY .* reshape(AN.s.data, inds...)
     Δs = sum(ΔY .* X, dims=dims)[inds...]
     if AN.logdet
