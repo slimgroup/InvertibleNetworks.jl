@@ -78,7 +78,7 @@ end
 
 # 2-3D Inverse pass: Input Y, Output X
 function inverse(Y::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, N}
-    isnothing(logdet) ? logdet = (AN.logdet && AN.is_reversed) : logdet = logdet
+    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 

@@ -56,9 +56,8 @@ Y_, l_ = N_.forward(X)
 
 ###############################################################################
 # Test invertibility
-
-@test isapprox(X, N.inverse(N.forward(X)[1]); rtol=1f-3)
-@test isapprox(X, N.forward(N.inverse(X))[1]; rtol=1f-3)
+@test isapprox(X, N.inverse(N.forward(X)[1])[1]; rtol=1f-3)
+@test isapprox(X, N.forward(N.inverse(X)[1])[1]; rtol=1f-3)
 
 
 ###############################################################################

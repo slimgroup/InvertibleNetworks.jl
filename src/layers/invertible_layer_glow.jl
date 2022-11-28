@@ -162,7 +162,6 @@ end
 
 
 ## Jacobian-related functions
-
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, L::CouplingLayerGlow) where {T,N}
 
     # Get dimensions
@@ -175,17 +174,19 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, L::Cou
     Y2 = copy(X2)
     ΔY2 = copy(ΔX2)
     ΔlogS_T, logS_T = L.RB.jacobian(ΔX2, Δθ[4:end], X2)
-    Sm = L.activation.forward(logS_T[:,:,1:k,:])
-    ΔS = L.activation.backward(ΔlogS_T[:,:,1:k,:], nothing;x=logS_T[:,:,1:k,:])
-    Tm = logS_T[:, :, k+1:end, :]
-    ΔT = ΔlogS_T[:, :, k+1:end, :]
+    logS, logT = tensor_split(logS_T)
+    ΔlogS, ΔlogT = tensor_split(ΔlogS_T)
+    Sm = L.activation.forward(logS)
+    ΔS = L.activation.backward(ΔlogS, nothing;x=logS)
+    Tm = logT
+    ΔT = ΔlogT
     Y1 = Sm.*X1 + Tm
     ΔY1 = ΔS.*X1 + Sm.*ΔX1 + ΔT
     Y = tensor_cat(Y1, Y2)
     ΔY = tensor_cat(ΔY1, ΔY2)
 
     # Gauss-Newton approximation of logdet terms
-    JΔθ = L.RB.jacobian(cuzeros(ΔX2, size(ΔX2)), Δθ[4:end], X2)[1][:, :, 1:k, :]
+    JΔθ = tensor_split(L.RB.jacobian(cuzeros(ΔX2, size(ΔX2)), Δθ[4:end], X2)[1])[1]
     GNΔθ = cat(0f0*Δθ[1:3], -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, Sm), zeros(Float32, size(Sm))), X2)[2]; dims=1)
 
     L.logdet ? (return ΔY, Y, glow_logdet_forward(Sm), GNΔθ) : (return ΔY, Y)

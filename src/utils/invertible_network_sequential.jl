@@ -86,11 +86,22 @@ function forward(X::AbstractArray{T, N1}, N::ComposedInvertibleNetwork) where {T
     N.logdet ? (return X, logdet) : (return X)
 end
 
+#Y = N.forward(X)[1]
+#@test isapprox(X, N.inverse(N.forward(X)[1])[1]; rtol=1f-3)
+
 function inverse(Y::AbstractArray{T, N1}, N::ComposedInvertibleNetwork) where {T, N1}
+    N.logdet && (logdet = 0)
     for i = length(N):-1:1
-        Y = N.layers[i].inverse(Y)
+        println(i)
+        if N.logdet_array[i]        
+            Y, logdet_ = N.layers[i].inverse(Y)
+            logdet += logdet_
+        else
+            Y = N.layers[i].inverse(Y)
+        end
+
     end
-    return Y
+    N.logdet ? (return Y, logdet) : (return Y)
 end
 
 function backward(ΔY::AbstractArray{T, N1}, Y::AbstractArray{T, N1}, N::ComposedInvertibleNetwork; set_grad::Bool = true) where {T, N1}

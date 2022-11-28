@@ -155,7 +155,7 @@ end
 
 # Input is tensor Y
 function inverse(Y::AbstractArray{T, N} , H::CouplingLayerHINT; scale=1, permute=nothing, logdet=nothing) where {T, N}
-    isnothing(logdet) ? logdet = (H.logdet && H.is_reversed) : logdet = logdet
+    isnothing(logdet) ? logdet = (H.logdet && ~H.is_reversed) : logdet = logdet
     isnothing(permute) ? permute = H.permute : permute = permute
 
     # Permutation
