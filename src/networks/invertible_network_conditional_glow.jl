@@ -169,6 +169,7 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
         end
 
         if G.split_scales 
+            ΔC_total = G.squeezer.inverse(ΔC_total)
             C = G.squeezer.inverse(C)
             X = G.squeezer.inverse(X)
             ΔX = G.squeezer.inverse(ΔX)

@@ -67,7 +67,7 @@ end
 
 # Constructor
 function NetworkMultiScaleHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
-                               split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2)
+                               split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     AN = Array{ActNorm}(undef, L, K)
     CL = Array{CouplingLayerHINT}(undef, L, K)
@@ -83,7 +83,7 @@ function NetworkMultiScaleHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
     for i=1:L
         for j=1:K
             AN[i, j] = ActNorm(n_in*4; logdet=true)
-            CL[i, j] = CouplingLayerHINT(n_in*4, n_hidden; permute="full", k1=k1, k2=k2, p1=p1, p2=p2,
+            CL[i, j] = CouplingLayerHINT(n_in*4, n_hidden; activation=activation,permute="full", k1=k1, k2=k2, p1=p1, p2=p2,
                                          s1=s1, s2=s2, logdet=true, ndims=ndims)
         end
         n_in *= channel_factor

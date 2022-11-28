@@ -65,12 +65,12 @@ end
 
 # 2D Constructor from input dimensions
 function ConditionalLayerHINT(n_in::Int64, n_hidden::Int64; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1,
-                              logdet=true, permute=true, ndims=2)
+                              logdet=true, permute=true, ndims=2, activation::ActivationFunction=SigmoidLayer())
 
     # Create basic coupling layers
-    CL_X = CouplingLayerHINT(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, permute="none", ndims=ndims)
-    CL_Y = CouplingLayerHINT(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, permute="none", ndims=ndims)
-    CL_YX = CouplingLayerBasic(n_in, n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, ndims=ndims)
+    CL_X = CouplingLayerHINT(n_in, n_hidden; activation=activation,k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, permute="none", ndims=ndims)
+    CL_Y = CouplingLayerHINT(n_in, n_hidden; activation=activation,k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, permute="none", ndims=ndims)
+    CL_YX = CouplingLayerBasic(n_in, n_hidden; activation=activation,k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, ndims=ndims)
 
     # Permutation using 1x1 convolution
     permute == true ? (C_X = Conv1x1(n_in)) : (C_X = nothing)
@@ -209,11 +209,10 @@ function backward_inv(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, X::Abs
     return ΔZx, ΔZy, Zx, Zy
 end
 
-function forward_Y(Y::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, N}
+function forward_Y(Y::AbstractArray{T, N}, CH::ConditionalLayerHINT; logdet=false) where {T, N}
     ~isnothing(CH.C_Y) ? (Yp = CH.C_Y.forward(Y)) : (Yp = copy(Y))
-    Zy = CH.CL_Y.forward(Yp; logdet=false)
-    return Zy
-
+    logdet ? (Zy, logdet_) = CH.CL_Y.forward(Yp; logdet=true) : Zy = CH.CL_Y.forward(Yp; logdet=false)
+    logdet ? (return Zy, logdet_) : (return Zy)
 end
 
 function inverse_Y(Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, N}
@@ -221,7 +220,6 @@ function inverse_Y(Zy::AbstractArray{T, N}, CH::ConditionalLayerHINT) where {T, 
     ~isnothing(CH.C_Y) ? (Y = CH.C_Y.inverse(Yp)) : (Y = copy(Yp))
     return Y
 end
-
 
 ## Jacobian-related utils
 

@@ -71,7 +71,7 @@ end
 
 # Constructor
 function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
-                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2, squeezer::Squeezer=ShuffleLayer())
+                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
 
     AN_X = Array{ActNorm}(undef, L, K)
     AN_Y = Array{ActNorm}(undef, L, K)
@@ -89,7 +89,7 @@ function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64
         for j=1:K
             AN_X[i, j] = ActNorm(n_in*4; logdet=logdet)
             AN_Y[i, j] = ActNorm(n_in*4; logdet=logdet)
-            CL[i, j] = ConditionalLayerHINT(n_in*4, n_hidden; permute=true, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, ndims=ndims)
+            CL[i, j] = ConditionalLayerHINT(n_in*4, n_hidden; permute=true, activation=activation,  k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, ndims=ndims)
         end
         n_in *= channel_factor
     end
@@ -129,6 +129,28 @@ function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMult
     CH.split_scales && ((X, Y) = cat_states(XY_save, X, Y))
     
     logdet ? (return X, Y, logdet_) : (return X, Y)
+end
+
+# Forward pass and compute logdet
+function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; logdet=false) where {T, N}
+    CH.split_scales && (Y_save = array_of_array(Y, CH.L-1))
+
+    logdet_ = 0f0
+    for i=1:CH.L
+        Y = CH.squeezer.forward(Y)
+        for j=1:CH.K
+            logdet ? (Y_,logdet1)  = CH.AN_Y[i, j].forward(Y; logdet=true) : Y_ = CH.AN_Y[i, j].forward(Y; logdet=false)
+            logdet ? (Y_,logdet2)  = CH.CL[i, j].forward_Y(Y_; logdet=true) : Y  = CH.CL[i, j].forward_Y(Y_; logdet=false)
+            logdet && (logdet_ += (logdet1 + logdet2)) 
+        end
+        if CH.split_scales && i < CH.L    # don't split after last iteration
+            Y, Zy = tensor_split(Y)
+            Y_save[i] = Zy
+            CH.XY_dims[i] = collect(size(Zy))
+        end
+    end
+    CH.split_scales && (Y = cat_states(Y_save, Y))
+    logdet ? (return Y, logdet_) : (return Y)
 end
 
 # Inverse pass and compute gradients
@@ -234,26 +256,7 @@ function backward_inv(ΔX, ΔY, X, Y, CH::NetworkMultiScaleConditionalHINT)
     end
 end
 
-# Forward pass and compute logdet
-function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
-    CH.split_scales && (Y_save = array_of_array(Y, CH.L-1))
 
-    for i=1:CH.L
-        Y = CH.squeezer.forward(Y)
-        for j=1:CH.K
-            Y_ = CH.AN_Y[i, j].forward(Y; logdet=false)
-            Y  = CH.CL[i, j].forward_Y(Y_)
-        end
-        if CH.split_scales && i < CH.L    # don't split after last iteration
-            Y, Zy = tensor_split(Y)
-            Y_save[i] = Zy
-            CH.XY_dims[i] = collect(size(Zy))
-        end
-    end
-    CH.split_scales && (Y = cat_states(Y_save, Y))
-    return Y
-
-end
 
 # Inverse pass and compute gradients
 function inverse_Y(Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
