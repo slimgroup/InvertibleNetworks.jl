@@ -2,8 +2,9 @@
 # Date: January 2020
 
 using InvertibleNetworks, LinearAlgebra, Test, Statistics
+using Random 
 
-
+Random.seed!(11)
 ###############################################################################
 # Test logdet implementation
 
