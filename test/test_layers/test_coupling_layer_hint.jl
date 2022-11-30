@@ -16,6 +16,7 @@ n_hidden = 8
 batchsize = 2
 
 function test_inv(nx, ny, n_channel, n_hidden, batchsize, permute, logdet, rev)
+    print("invertibility for permute=$(permute), reverse=$(rev), logdet=$(logdet)\n")
     # Input image
     X = randn(Float32, nx, ny, n_channel, batchsize)
 
@@ -24,7 +25,7 @@ function test_inv(nx, ny, n_channel, n_hidden, batchsize, permute, logdet, rev)
     rev && (HL = reverse(HL))
     # Test 
     Y = logdet ? HL.forward(X)[1] : HL.forward(X)
-    X_ = HL.inverse(Y)
+    X_ = logdet ? HL.inverse(Y)[1] : HL.inverse(X)
     @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
     X_ = HL.backward(0f0.*Y, Y)[2]
@@ -57,6 +58,7 @@ function grad_test_X(nx, ny, n_channel, n_hidden, batchsize, permute, logdet, re
     rev && (HL = reverse(HL))
         
     f0, gX, X_ = lossf(HL, X0)[[1,2,4]]
+    println("hereb")
     @test isapprox(norm(X_ - X0)/norm(X0), 0f0; atol=1f-5)
 
     maxiter = 5
@@ -75,6 +77,7 @@ function grad_test_X(nx, ny, n_channel, n_hidden, batchsize, permute, logdet, re
 
     @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f0)
     @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f0)
+    println("herec")
 end
 
 function grad_test_layer(nx, ny, n_channel, n_hidden, batchsize, permute, logdet, rev)
@@ -92,6 +95,7 @@ function grad_test_layer(nx, ny, n_channel, n_hidden, batchsize, permute, logdet
     dW = HL.CL[1].RB.W1.data - HL0.CL[1].RB.W1.data
 
     f0, gX, gW, X_ = lossf(HL0, X)
+    println("here")
     @test isapprox(norm(X_ - X)/norm(X), 0f0; atol=1f-5)
 
     maxiter = 5
@@ -116,6 +120,9 @@ end
 # Loop over all possible permutation options
 options = ["none", "lower", "both", "full"]
 
+permute = "none"
+logdet = false
+rev = true
 for permute in options
     for logdet in [true, false]
         for rev in [true, false]
