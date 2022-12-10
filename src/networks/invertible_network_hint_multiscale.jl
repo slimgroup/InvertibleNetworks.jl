@@ -1,19 +1,19 @@
-# Invertible multiscale HINT network from Kruse et. al (2020)
-# Author: Gabrio Rizzuti, grizzuti3@gatech.edu
-# Date: October 2020
+# Invertible conditional HINT multiscale network from Kruse et. al (2020)
+# Author: Philipp Witte, pwitte3@gatech.edu
+# Date: February 2020
 
-export NetworkMultiScaleHINT, NetworkMultiScaleHINT3D
+export NetworkMultiScaleConditionalHINT, NetworkMultiScaleConditionalHINT3D
 
 """
-    H = NetworkMultiScaleHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2)
+    CH = NetworkMultiScaleConditionalHINT(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
-    H = NetworkMultiScaleHINT3D(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
+    CH = NetworkMultiScaleConditionalHINT3D(n_in, n_hidden, L, K; split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1)
 
- Create a multiscale HINT network for data-driven generative modeling based
+ Create a conditional HINT network for data-driven generative modeling based
  on the change of variables formula.
 
  *Input*: 
- 
+
  - 'n_in': number of input channels
  
  - `n_hidden`: number of hidden units in residual blocks
@@ -35,180 +35,322 @@ export NetworkMultiScaleHINT, NetworkMultiScaleHINT3D
 
  *Output*:
  
- - `H`: multiscale HINT network
+ - `CH`: conditional HINT network
 
  *Usage:*
 
- - Forward mode: `Z, logdet = H.forward(X)`
+ - Forward mode: `Zx, Zy, logdet = CH.forward(X, Y)`
 
- - Inverse mode: `X = H.inverse(Z)`
+ - Inverse mode: `X, Y = CH.inverse(Zx, Zy)`
 
- - Backward mode: `ΔX, X = H.backward(ΔZ, Z)`
+ - Backward mode: `ΔX, X = CH.backward(ΔZx, ΔZy, Zx, Zy)`
 
  *Trainable parameters:*
 
- - None in `H` itself
+ - None in `CH` itself
 
- - Trainable parameters in activation normalizations `H.AN[i]`, 
- and in coupling layers `H.CL[i]`, where `i` ranges from `1` to `depth`.
+ - Trainable parameters in activation normalizations `CH.AN_X[i]` and `CH.AN_Y[i]`, 
+ and in coupling layers `CH.CL[i]`, where `i` ranges from `1` to `depth`.
 
- See also: [`ActNorm`](@ref), [`CouplingLayerHINT!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
+ See also: [`ActNorm`](@ref), [`ConditionalLayerHINT!`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct NetworkMultiScaleHINT <: InvertibleNetwork
-    AN::AbstractArray{ActNorm, 2}
-    CL::AbstractArray{CouplingLayerHINT, 2}
-    X_dims::Union{Array{Tuple, 1}, Nothing}
+mutable struct NetworkMultiScaleConditionalHINT <: InvertibleNetwork
+    AN_X::AbstractArray{ActNorm, 2}
+    AN_Y::AbstractArray{ActNorm, 2}
+    CL::AbstractArray{ConditionalLayerHINT, 2}
+    XY_dims::Union{Array{Array, 1}, Nothing}
     L::Int64
     K::Int64
     split_scales::Bool
+    logdet::Bool
+    is_reversed::Bool
+    squeezer::Squeezer
 end
 
-@Flux.functor NetworkMultiScaleHINT
+@Flux.functor NetworkMultiScaleConditionalHINT
 
 # Constructor
-function NetworkMultiScaleHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
-                               split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2)
+function NetworkMultiScaleConditionalHINT(n_in::Int64, n_hidden::Int64, L::Int64, K::Int64;
+                                          split_scales=false, k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
 
-    AN = Array{ActNorm}(undef, L, K)
-    CL = Array{CouplingLayerHINT}(undef, L, K)
+    AN_X = Array{ActNorm}(undef, L, K)
+    AN_Y = Array{ActNorm}(undef, L, K)
+    CL = Array{ConditionalLayerHINT}(undef, L, K)
     if split_scales
-        X_dims = Array{Tuple}(undef, L-1)
+        XY_dims = fill!(Array{Array}(undef, L-1), [1,1]) #fill in with dummy values so that |> gpu accepts it
         channel_factor = 2
     else
-        X_dims = nothing
+        XY_dims = nothing
         channel_factor = 4
     end
 
     # Create layers
     for i=1:L
         for j=1:K
-            AN[i, j] = ActNorm(n_in*4; logdet=true)
-            CL[i, j] = CouplingLayerHINT(n_in*4, n_hidden; permute="full", k1=k1, k2=k2, p1=p1, p2=p2,
-                                         s1=s1, s2=s2, logdet=true, ndims=ndims)
+            AN_X[i, j] = ActNorm(n_in*4; logdet=logdet)
+            AN_Y[i, j] = ActNorm(n_in*4; logdet=logdet)
+            CL[i, j] = ConditionalLayerHINT(n_in*4, n_hidden; permute=true, activation=activation,  k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, ndims=ndims)
         end
         n_in *= channel_factor
     end
 
-    return NetworkMultiScaleHINT(AN, CL, X_dims, L, K, split_scales)
+    return NetworkMultiScaleConditionalHINT(AN_X, AN_Y, CL, XY_dims, L, K, split_scales, logdet, false, squeezer)
 end
 
-NetworkMultiScaleHINT3D(args...; kw...) = NetworkMultiScaleHINT(args...; kw..., ndims=3)
+NetworkMultiScaleConditionalHINT3D(args...;kw...) = NetworkMultiScaleConditionalHINT(args...; kw..., ndims=3)
+
 
 # Forward pass and compute logdet
-function forward(X::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N}
-    H.split_scales && (X_save = Array{Array}(undef, H.L-1))
-    logdet = 0
-    for i=1:H.L
-        X = wavelet_squeeze(X)
-        for j=1:H.K
-            X_, logdet1 = H.AN[i, j].forward(X)
-            X, logdet2 = H.CL[i, j].forward(X_)
-            logdet += (logdet1 + logdet2)
+function forward(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; logdet=nothing) where {T, N}
+    isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
+
+    CH.split_scales && (XY_save = array_of_array(X, CH.L-1, 2))
+
+    logdet_ = 0f0
+
+    for i=1:CH.L
+        X = CH.squeezer.forward(X)
+        Y = CH.squeezer.forward(Y)
+
+        for j=1:CH.K
+            logdet ? (X_, logdet1)   = CH.AN_X[i, j].forward(X) : X_ = CH.AN_X[i, j].forward(X)
+            logdet ? (Y_, logdet2)   = CH.AN_Y[i, j].forward(Y) : Y_ = CH.AN_Y[i, j].forward(Y)
+            logdet ? (X, Y, logdet3) = CH.CL[i, j].forward(X_, Y_) : (X, Y) = CH.CL[i, j].forward(X_, Y_)
+            logdet && (logdet_ += (logdet1 + logdet2 + logdet3)) 
         end
-        if H.split_scales && i < H.L    # don't split after last iteration
-            X, Z = tensor_split(X)
-            X_save[i] = Z
-            H.X_dims[i] = size(Z)
+        if CH.split_scales && i < CH.L    # don't split after last iteration
+            X, Zx = tensor_split(X)
+            Y, Zy = tensor_split(Y)
+            XY_save[i, :] = [Zx, Zy]
+            CH.XY_dims[i] = collect(size(Zx))
         end
     end
-    H.split_scales && (X = cat_states(X_save, X))
-    return X, logdet
+
+    CH.split_scales && ((X, Y) = cat_states(XY_save, X, Y))
+    
+    logdet ? (return X, Y, logdet_) : (return X, Y)
+end
+
+# Forward pass and compute logdet
+function forward_Y(Y::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; logdet=false) where {T, N}
+    CH.split_scales && (Y_save = array_of_array(Y, CH.L-1))
+
+    logdet_ = 0f0
+    for i=1:CH.L
+        Y = CH.squeezer.forward(Y)
+        for j=1:CH.K
+            logdet ? (Y_,logdet1)  = CH.AN_Y[i, j].forward(Y; logdet=true) : Y_ = CH.AN_Y[i, j].forward(Y; logdet=false)
+            logdet ? (Y_,logdet2)  = CH.CL[i, j].forward_Y(Y_; logdet=true) : Y  = CH.CL[i, j].forward_Y(Y_; logdet=false)
+            logdet && (logdet_ += (logdet1 + logdet2)) 
+        end
+        if CH.split_scales && i < CH.L    # don't split after last iteration
+            Y, Zy = tensor_split(Y)
+            Y_save[i] = Zy
+            CH.XY_dims[i] = collect(size(Zy))
+        end
+    end
+    CH.split_scales && (Y = cat_states(Y_save, Y))
+    logdet ? (return Y, logdet_) : (return Y)
 end
 
 # Inverse pass and compute gradients
-function inverse(Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N}
-    H.split_scales && ((X_save, Z) = split_states(H.X_dims, Z))
-    for i=H.L:-1:1
-        if H.split_scales && i < H.L
-            Z = tensor_cat(Z, X_save[i])
+function inverse(Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; logdet=nothing) where {T, N}
+    isnothing(logdet) ? logdet = (CH.logdet && CH.is_reversed) : logdet = logdet
+
+    CH.split_scales && ((XY_save, Zx, Zy) = split_states(Zx, Zy, CH.XY_dims))
+    logdet_ = 0f0
+    for i=CH.L:-1:1
+        if CH.split_scales && i < CH.L
+            Zx = tensor_cat(Zx, XY_save[i, 1])
+            Zy = tensor_cat(Zy, XY_save[i, 2])
         end
-        for j=H.K:-1:1
-            Z_ = H.CL[i, j].inverse(Z)
-            Z = H.AN[i, j].inverse(Z_; logdet=false)
+        for j=CH.K:-1:1
+            logdet ? (Zx_, Zy_, logdet1) = CH.CL[i, j].inverse(Zx, Zy; logdet=true) : (Zx_, Zy_) = CH.CL[i, j].inverse(Zx, Zy; logdet=false)
+            logdet ? (Zy, logdet2) = CH.AN_Y[i, j].inverse(Zy_; logdet=true) : Zy = CH.AN_Y[i, j].inverse(Zy_; logdet=false)
+            logdet ? (Zx, logdet3) = CH.AN_X[i, j].inverse(Zx_; logdet=true) : Zx = CH.AN_X[i, j].inverse(Zx_; logdet=false)
+            logdet && (logdet_ += (logdet1 + logdet2 + logdet3))
         end
-        Z = wavelet_unsqueeze(Z)
+        Zx = CH.squeezer.inverse(Zx) 
+        Zy = CH.squeezer.inverse(Zy) 
+
     end
-    return Z
+    logdet ? (return Zx, Zy, logdet_) : (return Zx, Zy)
 end
 
 # Backward pass and compute gradients
-function backward(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT; set_grad::Bool=true) where {T, N}
+function backward(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT; set_grad::Bool=true) where {T, N}
 
     # Split data and gradients
-    if H.split_scales
-        ΔX_save, ΔZ = split_states(H.X_dims, ΔZ)
-        X_save, Z = split_states(H.X_dims, Z)
+    if CH.split_scales
+        ΔXY_save, ΔZx, ΔZy = split_states(ΔZx, ΔZy, CH.XY_dims)
+        XY_save, Zx, Zy = split_states(Zx, Zy, CH.XY_dims)
     end
 
     if ~set_grad
-        ΔθAN = Vector{Parameter}(undef, 0)
-        ΔθCL = Vector{Parameter}(undef, 0)
-        ∇logdetAN = Vector{Parameter}(undef, 0)
-        ∇logdetCL = Vector{Parameter}(undef, 0)
+        ΔθANX, ΔθANY, ΔθCL = Vector{Parameter}(undef, 0), Vector{Parameter}(undef, 0), Vector{Parameter}(undef, 0)
+        if CH.logdet
+            ∇logdetANX, ∇logdetANY, ∇logdetCL = Vector{Parameter}(undef, 0), Vector{Parameter}(undef, 0), Vector{Parameter}(undef, 0)
+        end
     end
 
-    for i=H.L:-1:1
-        if H.split_scales && i < H.L
-            ΔZ = tensor_cat(ΔZ, ΔX_save[i])
-            Z = tensor_cat(Z, X_save[i])
+    for i=CH.L:-1:1
+        if CH.split_scales && i < CH.L
+            ΔZx = tensor_cat(ΔZx, ΔXY_save[i, 1])
+            ΔZy = tensor_cat(ΔZy, ΔXY_save[i, 2])
+            Zx = tensor_cat(Zx, XY_save[i, 1])
+            Zy = tensor_cat(Zy, XY_save[i, 2])
         end
-        for j=H.K:-1:1
+        for j=CH.K:-1:1
             if set_grad
-                ΔZ_, Z_ = H.CL[i, j].backward(ΔZ, Z)
-                ΔZ, Z = H.AN[i, j].backward(ΔZ_, Z_)
+                ΔZx_, ΔZy_, Zx_, Zy_ = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy)
+                ΔZx, Zx = CH.AN_X[i, j].backward(ΔZx_, Zx_)
+                ΔZy, Zy = CH.AN_Y[i, j].backward(ΔZy_, Zy_)
             else
-                ΔZ_, Δθcl, Z_, ∇logdet_cl = H.CL[i, j].backward(ΔZ, Z; set_grad=set_grad)
-                ΔZ, Δθx, Z, ∇logdet_x = H.AN[i, j].backward(ΔZ_, Z_; set_grad=set_grad)
-                prepend!(ΔθAN, Δθx)
-                prepend!(ΔθCL, Δθcl)
-                prepend!(∇logdetAN, ∇logdet_x)
-                prepend!(∇logdetCL, ∇logdet_cl)
+                if CH.logdet
+                    ΔZx_, ΔZy_, Δθcl, Zx_, Zy_, ∇logdetcl = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
+                    ΔZx, Δθx, Zx, ∇logdetx = CH.AN_X[i, j].backward(ΔZx_, Zx_; set_grad=set_grad)
+                    ΔZy, Δθy, Zy, ∇logdety = CH.AN_Y[i, j].backward(ΔZy_, Zy_; set_grad=set_grad)
+                    prepend!(∇logdetANX, ∇logdetx)
+                    prepend!(∇logdetANY, ∇logdety)
+                    prepend!(∇logdetCL, ∇logdetcl)
+                else
+                    ΔZx_, ΔZy_, Δθcl, Zx_, Zy_ = CH.CL[i, j].backward(ΔZx, ΔZy, Zx, Zy; set_grad=set_grad)
+                    ΔZx, Δθx, Zx = CH.AN_X[i, j].backward(ΔZx_, Zx_; set_grad=set_grad)
+                    ΔZy, Δθy, Zy = CH.AN_Y[i, j].backward(ΔZy_, Zy_; set_grad=set_grad)
+                end
+                prepend!(ΔθANX, Δθx);prepend!(ΔθANY, Δθy);prepend!(ΔθCL, Δθcl)
             end
         end
-        ΔZ = wavelet_unsqueeze(ΔZ)
-        Z = wavelet_unsqueeze(Z)
+        ΔZx = CH.squeezer.inverse(ΔZx)
+        ΔZy = CH.squeezer.inverse(ΔZy)
+        Zx = CH.squeezer.inverse(Zx)
+        Zy = CH.squeezer.inverse(Zy)
     end
-    set_grad ? (return ΔZ, Z) : (return ΔZ, vcat(ΔθAN, ΔθCL), Z, vcat(∇logdetAN, ∇logdetCL))
+    if set_grad
+        return ΔZx, ΔZy, Zx, Zy
+    else
+        CH.logdet && (∇logdet = vcat(∇logdetANX, ∇logdetANY, ∇logdetCL))
+        Δθ = vcat(ΔθANX, ΔθANY, ΔθCL)
+        CH.logdet ? (return ΔZx, ΔZy, Δθ, Zx, Zy, ∇logdet) : (return ΔZx, ΔZy, Δθ, Zx, Zy)
+    end
+end
+
+# Backward reverse pass and compute gradients
+function backward_inv(ΔX, ΔY, X, Y, CH::NetworkMultiScaleConditionalHINT)
+    for i=1:CH.L
+        ΔX = CH.squeezer.inverse(ΔX)
+        ΔY = CH.squeezer.inverse(ΔY)
+        X  = CH.squeezer.inverse(X)
+        Y  = CH.squeezer.inverse(Y)
+        for j=1:CH.K
+            ΔX_, X_ = backward_inv(ΔX, X, CH.AN_X[i, j])
+            ΔY_, Y_ = backward_inv(ΔY, Y, CH.AN_Y[i, j])
+            ΔX, ΔY, X, Y = backward_inv(ΔX_, ΔY_, X_, Y_, CH.CL[i, j])
+       end
+    end
+
+    if set_grad
+        return ΔZx, ΔZy, Zx, Zy
+    else
+        CH.logdet ? (return ΔZx, ΔZy, Δθ, Zx, Zy, ∇logdet) : (return ΔZx, ΔZy, Δθ, Zx, Zy)
+    end
+end
+
+
+
+# Inverse pass and compute gradients
+function inverse_Y(Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N}
+    CH.split_scales && ((Y_save, Zy) = split_states(Zy, CH.XY_dims))
+
+    for i=CH.L:-1:1
+        if CH.split_scales && i < CH.L
+            Zy = tensor_cat(Zy, Y_save[i])
+        end
+        for j=CH.K:-1:1
+            Zy_ = CH.CL[i, j].inverse_Y(Zy)
+            Zy = CH.AN_Y[i, j].inverse(Zy_; logdet=false)
+        end
+        Zy = CH.squeezer.inverse(Zy)
+    end
+    return Zy
 end
 
 
 ## Jacobian-related utils
-function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, H::NetworkMultiScaleHINT) where {T, N}
-    if H.split_scales
-        X_save = array_of_array(ΔX, H.L-1, 2)
-        ΔX_save = array_of_array(ΔX, H.L-1, 2)
-    end
-    logdet = 0
-    cls = 2*H.K*H.L
-    ΔθAN = Vector{Parameter}(undef, 0)
-    ΔθCL = Vector{Parameter}(undef, 0)
 
-    for i=1:H.L
-        X = wavelet_squeeze(X)
-        ΔX = wavelet_squeeze(ΔX)
-        for j=1:H.K
-            as = length(ΔθAN) + 1
+function jacobian(ΔX::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Δθ::Vector{Parameter}, X, Y, CH::NetworkMultiScaleConditionalHINT; logdet=nothing) where {T, N}
+    isnothing(logdet) ? logdet = (CH.logdet && ~CH.is_reversed) : logdet = logdet
+
+    if CH.split_scales
+        XY_save = array_of_array(ΔX,  CH.L-1, 2)
+        ΔXY_save = array_of_array(ΔX,  CH.L-1, 2)
+    end
+
+    logdet_ = 0f0
+    if logdet
+        cls = 4*CH.K*CH.L
+        ays = 2*CH.K*CH.L
+        ΔθANX = Vector{Parameter}(undef, 0)
+        ΔθANY = Vector{Parameter}(undef, 0)
+        ΔθCL = Vector{Parameter}(undef, 0)
+    end
+
+    for i=1:CH.L
+        ΔX = CH.squeezer.forward(ΔX)
+        ΔY = CH.squeezer.forward(ΔY)
+        X = CH.squeezer.forward(X)
+        Y = CH.squeezer.forward(Y)
+
+        for j=1:CH.K
+            asx = length(ΔθANX)+1
+            asy = ays + length(ΔθANY) + 1
             cs = cls + length(ΔθCL) + 1
-            ce = cs + length(get_params(H.CL[i, j])) - 1
-            ΔX_, X_, logdet1, GNΔθ1 = H.AN[i, j].jacobian(ΔX, Δθ[as:as+1], X)
-            ΔX, X, logdet2, GNΔθ2 = H.CL[i, j].jacobian(ΔX_, Δθ[cs:ce], X_)
-            logdet += (logdet1 + logdet2)
-            append!(ΔθAN, GNΔθ1)
-            append!(ΔθCL, GNΔθ2)
+            ce = cs + length(get_params(CH.CL[i, j])) - 1
+            if logdet
+                ΔX_, X_, logdet1, GNΔθ1 = CH.AN_X[i, j].jacobian(ΔX, Δθ[asx:asx+1], X)
+                ΔY_, Y_, logdet2, GNΔθ2 = CH.AN_Y[i, j].jacobian(ΔY, Δθ[asy:asy+1], Y)
+                ΔX, ΔY, X, Y, logdet3, GNΔθ3 = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθ[cs:ce], X_, Y_)
+                logdet_ += (logdet1 + logdet2 + logdet3)
+                append!(ΔθANX, GNΔθ1)
+                append!(ΔθANY, GNΔθ2)
+                append!(ΔθCL, GNΔθ3)
+            else 
+                ΔX_, X_ = CH.AN_X[i, j].jacobian(ΔX, Δθij[asx:asx+1], X)
+                ΔY_, Y_ = CH.AN_Y[i, j].jacobian(ΔY, Δθij[asx:asx+1], Y)
+                ΔX, ΔY, X, Y = CH.CL[i, j].jacobian(ΔX_, ΔY_, Δθj[cs:ce], X_, Y_)
+            end
         end
-        if H.split_scales && i < H.L    # don't split after last iteration
-            X, Z = tensor_split(X)
-            ΔX, ΔZ = tensor_split(ΔX)
-            X_save[i] = Z
-            ΔX_save[i] = ΔZ
-            H.X_dims[i] = size(Z)
+        if CH.split_scales && i < CH.L    # don't split after last iteration
+            X, Zx = tensor_split(X)
+            ΔX, ΔZx = tensor_split(ΔX)
+            Y, Zy = tensor_split(Y)
+            ΔY, ΔZy = tensor_split(ΔY)
+            XY_save[i, :] = [Zx, Zy]
+            ΔXY_save[i, :] = [ΔZx, ΔZy]
+            CH.XY_dims[i] = size(Zx)
         end
     end
-    if H.split_scales
-        X = cat_states(X_save, X)
-        ΔX = cat_states(ΔX_save, ΔX)
+    if CH.split_scales
+        X, Y = cat_states(XY_save, X, Y)
+        ΔX, ΔY = cat_states(ΔXY_save, ΔX, ΔY)
     end
-    return ΔX, X, logdet, vcat(ΔθAN, ΔθCL)
+   
+    logdet ? (return ΔX, ΔY, X, Y, logdet_, vcat(ΔθANX, ΔθANY, ΔθCL)) : (return ΔX, ΔY, X, Y)
 end
 
-adjointJacobian(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, H::NetworkMultiScaleHINT) where {T, N} = backward(ΔZ, Z, H; set_grad=false)
+adjointJacobian(ΔZx::AbstractArray{T, N}, ΔZy::AbstractArray{T, N}, Zx::AbstractArray{T, N}, Zy::AbstractArray{T, N}, CH::NetworkMultiScaleConditionalHINT) where {T, N} = backward(ΔZx, ΔZy, Zx, Zy, CH; set_grad=false)
+
+# Set is_reversed flag in full network tree
+function tag_as_reversed!(CH::NetworkMultiScaleConditionalHINT, tag::Bool)
+    L, K = size(CH.CL)
+    CH.is_reversed = tag
+    for i = 1:L
+        for j = 1:K
+            tag_as_reversed!(CH.AN_X[i, j], tag)
+            tag_as_reversed!(CH.AN_Y[i, j], tag)
+            tag_as_reversed!(CH.CL[i, j], tag)
+        end
+    end
+
+    return CH
+end

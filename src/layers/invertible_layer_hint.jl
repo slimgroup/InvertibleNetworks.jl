@@ -73,17 +73,18 @@ end
 
 # Constructor for given coupling layer and 1 x 1 convolution
 CouplingLayerHINT(CL::AbstractArray{CouplingLayerBasic, 1}, C::Union{Conv1x1, Nothing};
-    logdet=false, permute="none") = CouplingLayerHINT(CL, C, logdet, permute, false)
+    logdet=false, permute="none", activation::ActivationFunction=SigmoidLayer()) = CouplingLayerHINT(CL, C, logdet, permute, false)
 
 # 2D Constructor from input dimensions
-function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; logdet=false, permute="none",
-                           k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2)
+function CouplingLayerHINT(n_in::Int64, n_hidden::Int64;max_recursion=1, logdet=false, permute="none",
+                           k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, ndims=2, activation::ActivationFunction=SigmoidLayer())
 
     # Create basic coupling layers
-    n = get_depth(n_in)
+    isnothing(max_recursion) ? n = get_depth(n_in) : n = min(get_depth(n_in),max_recursion)
+
     CL = Array{CouplingLayerBasic}(undef, n)
     for j=1:n
-        CL[j] = CouplingLayerBasic(Int(n_in/2^j), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2,
+        CL[j] = CouplingLayerBasic(Int(n_in/2^j), n_hidden;activation=activation, k1=k1, k2=k2, p1=p1, p2=p2,
                                    s1=s1, s2=s2, logdet=logdet, ndims=ndims)
     end
 
@@ -115,9 +116,9 @@ function forward(X::AbstractArray{T, N}, H::CouplingLayerHINT; scale=1, permute=
 
     # Determine whether to continue recursion
     recursive = false
-    if N == 4 && size(X, 3) > 4
+    if N == 4 && size(X, 3) > 4 && scale < length(H.CL)
         recursive = true
-    elseif N == 5 && size(X, 4) > 4
+    elseif N == 5 && size(X, 4) > 4 && scale < length(H.CL)
         recursive = true
     end
 
@@ -163,7 +164,7 @@ function inverse(Y::AbstractArray{T, N} , H::CouplingLayerHINT; scale=1, permute
     Ya, Yb = tensor_split(Y)
 
     # Check for recursion
-    recursive = (size(Y, N-1) > 4)
+    recursive = (size(Y, N-1) > 4) && (scale < length(H.CL))
 
     # Coupling layer
     if recursive
@@ -226,7 +227,7 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, H::CouplingL
     ΔYa, ΔYb = tensor_split(ΔY)
 
     # Determine whether to continue recursion
-    recursive = (size(Y, N-1) > 4)
+    recursive = (size(Y, N-1) > 4) && (scale < length(H.CL))
 
     # HINT coupling
     if recursive
@@ -311,7 +312,7 @@ function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, H::Coupl
     permute == "lower" && ((ΔXb, Xb) = H.C.forward((ΔXb, Xb)))
 
     # Check whether to continue recursion
-    recursive = (size(X, N-1) > 4)
+    recursive = (size(Y, N-1) > 4) && (scale < length(H.CL))
 
     # Coupling layer backprop
     if recursive

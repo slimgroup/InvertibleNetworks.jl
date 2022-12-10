@@ -4,6 +4,7 @@
 # Date: February 2020
 
 export NetworkConditionalGlow, NetworkConditionalGlow3D
+using CUDA
 
 """
     G = NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
@@ -121,7 +122,6 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
     G.split_scales && (Z_save = array_of_array(X, G.L-1))
     orig_shape = size(X)
 
-
     C = G.AN_C.forward(C)
 
     logdet = 0
@@ -206,9 +206,11 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
         !isnothing(G.summary_net) && (C = G.summary_net.forward(C_save))
         ΔC_total = G.down_sampler.backward(ΔC_total,C)
     end
-    !isnothing(G.summary_net) && (G.summary_net.backward(ΔC_total, C_save))
+    GC.gc(true)
+    CUDA.reclaim()
+    !isnothing(G.summary_net) && (ΔC_total = G.summary_net.backward(ΔC_total, C_save))
 
-    return ΔX, X
+    return ΔX, X, ΔC_total
 end
 
 

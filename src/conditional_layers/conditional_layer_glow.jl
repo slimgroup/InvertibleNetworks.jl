@@ -159,7 +159,7 @@ function inverse(Y::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalL
     X = L.C.inverse(X_)
 
     save && (return X, X1, X2, Sm,Tm)
-    L.logdet ? (return X, glow_logdet_forward(Sm)) : (return X) 
+    L.logdet ? (return X, -glow_logdet_forward(Sm)) : (return X) 
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
