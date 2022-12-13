@@ -6,6 +6,7 @@ using InvertibleNetworks, LinearAlgebra, Flux
 import Flux.Optimise.update!
 
 device = InvertibleNetworks.CUDA.functional() ? gpu : cpu
+
 # Define network
 nx = 64     # must be multiple of 2
 ny = 64
@@ -31,6 +32,7 @@ end
 
 # Evaluate loss
 f = loss(X)
+@time loss(X)
 
 # Update weights
 opt = Flux.ADAM()
