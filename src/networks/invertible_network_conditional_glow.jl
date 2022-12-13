@@ -72,6 +72,7 @@ struct NetworkConditionalGlow <: InvertibleNetwork
     summary_net::Union{FluxBlock,InvertibleNetwork, Nothing}
     down_sampler::Union{FluxBlock, Nothing}
     logdet::Bool
+    down_samps::AbstractArray{FluxBlock, 1}
 end
 
 @Flux.functor NetworkConditionalGlow
@@ -81,6 +82,8 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; rb_activation::Act
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     AN_C = ActNorm(n_cond;logdet=false)    # activation normalization
     CL = Array{ConditionalLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
+
+    down_samps = Array{FluxBlock}(undef, L)  # coupling layers w/ 1x1 convolution and residual block
  
     down_sampler = nothing
 
@@ -97,8 +100,10 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; rb_activation::Act
         channel_factor = 1
     end
     for i=1:L
+        #down_samps[i] = FluxBlock(Chain([Conv((3,3), 1 => 1;  pad=1,stride=2) for k in 1:i]..., BatchNorm(1)))
+        down_samps[i] = FluxBlock(Chain([Conv((3,3), 1 => 1;  pad=1,stride=2) for k in 1:i]...))
         n_in *= channel_factor # squeeze if split_scales is turned on
-        n_cond *= channel_factor # squeeze if split_scales is turned on
+        #n_cond *= channel_factor # squeeze if split_scales is turned on
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=logdet)
             #AN_C[i, j] = ActNorm(n_cond; logdet=logdet)
@@ -110,10 +115,18 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; rb_activation::Act
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales, summary_net, down_sampler, logdet)
+    return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales, summary_net, down_sampler, logdet, down_samps)
+    #return NetworkConditionalGlow(AN, CL, Z_dims, L, K, squeezer, split_scales, summary_net, down_sampler, logdet, down_samps)
+
 end
 
 NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., ndims=3)
+
+# expand_dims(x,n::Int) = reshape(x,ones(Int64,n)...,size(x)...)
+
+# function BatchNormWrap(out_ch::Integer)
+#     Chain(x->expand_dims(x,2), BatchNorm(out_ch), x->squeeze(x))
+# end
 
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
@@ -124,14 +137,29 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
 
     C = G.AN_C.forward(C)
 
+    # Conv2d((3,3);stride=2)
+
+    # RB = ResidualBlock(1,1;s1=3, s2=1)
+
+    # size(RB(randn(Float32,256,256,1,1)))
+
+    # conv((3,3);stride=2)
+
+    # rb = Conv((3,3), 1 => 1;  pad=1,stride=2)
+    # rb = Chain(Conv((3,3), 1 => 1;  pad=1,stride=2), Conv((3,3), 1 => 1;  pad=1,stride=2), BatchNormWrap(1))
+    # L = 2
+    # rb = Chain([Conv((3,3), 1 => 1;  pad=1,stride=2) for i in 1:L]..., BatchNorm(1))
+    # size(rb(randn(Float32,256,256,1,1)))
+
     logdet = 0
     for i=1:G.L
         #println("L = $(i)")
         (G.split_scales) && (X = G.squeezer.forward(X))
-        (G.split_scales) && (C = G.squeezer.forward(C))
+        #(G.split_scales) && (C = G.squeezer.forward(C))
+        Cl = G.down_samps[i].forward(C)
         for j=1:G.K          
             G.logdet ? (X, logdet1) = G.AN[i, j].forward(X) : X = G.AN[i, j].forward(X)
-            G.logdet ? (X, logdet2) = G.CL[i, j].forward(X, C) : X = G.CL[i, j].forward(X, C)
+            G.logdet ? (X, logdet2) = G.CL[i, j].forward(X, Cl) : X = G.CL[i, j].forward(X, Cl)
             G.logdet && (logdet += (logdet1 + logdet2))
         end
         if G.split_scales && i < G.L    # don't split after last iteration
@@ -147,26 +175,29 @@ end
 # Inverse pass 
 function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
     G.split_scales && ((Z_save, X) = split_states(X[:], G.Z_dims))
+    #!isnothing(G.summary_net) && (C = G.summary_net.forward(C))
+    #C needs to be the output of the summary network!!
 
     # when using split scale you pass in the already transformed c so dont need this  
-    if !G.split_scales
-        C = G.AN_C.forward(C)
-    end
+    # if !G.split_scales
+    #     C = G.AN_C.forward(C)
+    # end
 
     logdet = 0
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X = tensor_cat(X, Z_save[i])
         end
+        Cl = G.down_samps[i].forward(C)
         for j=G.K:-1:1
-            G.logdet ? (X, logdet1) = G.CL[i, j].inverse(X,C) : X = G.CL[i, j].inverse(X,C)
+            G.logdet ? (X, logdet1) = G.CL[i, j].inverse(X,Cl) : X = G.CL[i, j].inverse(X,Cl)
             G.logdet ? (X, logdet2) = G.AN[i, j].inverse(X) : X = G.AN[i, j].inverse(X)
             G.logdet && (logdet += (logdet1 + logdet2))
             #C, _ = G.AN_C[i, j].inverse(C)
         end
 
         (G.split_scales) && (X = G.squeezer.inverse(X))
-        (G.split_scales) && (C = G.squeezer.inverse(C))
+        #(G.split_scales) && (C = G.squeezer.inverse(C))
     end
     G.logdet ? (return X, C, logdet) : (return X, C)
 end
@@ -179,36 +210,41 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
         Z_save, X = split_states(X[:], G.Z_dims)
     end
 
-    ΔC_total = T(0) .* C
+    #!isnothing(G.summary_net) && (C_save = G.summary_net.forward(C_save))
+
+    ΔC_total_all = T(0) .* C
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X  = tensor_cat(X, Z_save[i])
             ΔX = tensor_cat(ΔX, ΔZ_save[i])
         end
+        Cl = G.down_samps[i].forward(C)
+        ΔC_total = T(0) .* Cl
         for j=G.K:-1:1
-            ΔX, X, ΔC  = G.CL[i, j].backward(ΔX, X, C)
+            ΔX, X, ΔC  = G.CL[i, j].backward(ΔX, X, Cl)
             ΔX, X = G.AN[i, j].backward(ΔX, X)
             ΔC_total += ΔC
         end
+        ΔC_total_all += G.down_samps[i].backward(ΔC_total,C)
 
         if G.split_scales 
-          ΔC_total = G.squeezer.inverse(ΔC_total)
-          C = G.squeezer.inverse(C)
+          #ΔC_total = G.squeezer.inverse(ΔC_total)
+          #C = G.squeezer.inverse(C)
           X = G.squeezer.inverse(X)
           ΔX = G.squeezer.inverse(ΔX)
         end
     end
 
     #println(size())
-    ΔC_total, C = G.AN_C.backward(ΔC_total, C)
+    ΔC_total_all, C = G.AN_C.backward(ΔC_total_all, C)
     
     if !isnothing(G.down_sampler) 
         !isnothing(G.summary_net) && (C = G.summary_net.forward(C_save))
         ΔC_total = G.down_sampler.backward(ΔC_total,C)
     end
-    GC.gc(true)
-    CUDA.reclaim()
-    !isnothing(G.summary_net) && (ΔC_total = G.summary_net.backward(ΔC_total, C_save))
+    #GC.gc(true)
+    #CUDA.reclaim()
+    !isnothing(G.summary_net) && (ΔC_total = G.summary_net.backward(ΔC_total_all, C_save))
 
     return ΔX, X, ΔC_total
 end
