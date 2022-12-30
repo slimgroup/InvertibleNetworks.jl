@@ -104,7 +104,7 @@ end
 
 # 2D/3D Inverse pass: Input Y, Output X
 function inverse(Y1::AbstractArray{T, N}, Y2::AbstractArray{T, N}, L::CouplingLayerBasic; save::Bool=false, logdet=nothing) where {T, N}
-    isnothing(logdet) ? logdet = (L.logdet && L.is_reversed) : logdet = logdet
+    isnothing(logdet) ? logdet = (L.logdet && ~L.is_reversed) : logdet = logdet
 
     # Inverse layer
     logS_T1, logS_T2 = tensor_split(L.RB.forward(Y1))
