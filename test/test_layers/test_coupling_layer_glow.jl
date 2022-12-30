@@ -29,23 +29,14 @@ for (logdet,rev) in [(true, false),(false, true)]
     L = CouplingLayerGlow(C, RB; logdet=logdet)
     rev && (L = reverse(L))
 
-    if rev # needs logdet=false
-        Y = L.forward(X)
-        X_ = L.inverse(Y)
-        @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
+    L.logdet ? (Y, logdet_i) = L.forward(X) : Y = L.forward(X)
+    L.logdet ? (X_, logdet_i) = L.inverse(Y) : X_ = L.inverse(Y)
+    @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
 
-        Y = L.forward(X)
-        X_ = L.backward(Y.*0f0, Y)[2]
-        @test isapprox(norm(X_-X)/norm(X), 0f0; atol=1e-2)
-    else 
-        Y, logdet_i = L.forward(X)
-        X_ = L.inverse(Y)
-        @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
-
-        (Y, logdet_i) = L.forward(X)
-        X_ = L.backward(Y.*0f0, Y)[2]
-        @test isapprox(norm(X_-X)/norm(X), 0f0; atol=1e-2)
-    end
+    L.logdet ? (Y, logdet_i) = L.forward(X) : Y = L.forward(X)
+    X_ = L.backward(Y.*0f0, Y)[2]
+    @test isapprox(norm(X_-X)/norm(X), 0f0; atol=1e-2)
+   
 
     ###################################################################################################
     # Gradient tests
@@ -70,7 +61,7 @@ for (logdet,rev) in [(true, false),(false, true)]
     err1 = zeros(Float32, maxiter)
     err2 = zeros(Float32, maxiter)
 
-    print("\nGradient test coupling layer\n")
+    print("\nGradient wrt input of glow coupling layer\n")
     for j=1:maxiter
         f = loss(L, X0 + h*dX, Y)[1]
         err1[j] = abs(f - f0)
@@ -105,7 +96,7 @@ for (logdet,rev) in [(true, false),(false, true)]
     err3 = zeros(Float32, maxiter)
     err4 = zeros(Float32, maxiter)
 
-    print("\nGradient test coupling layer\n")
+    print("\nGradient wrt RB weights glow coupling layer\n")
     for j=1:maxiter
         L02.RB.W1.data = Lini.RB.W1.data + h*dW1
         L02.RB.W2.data = Lini.RB.W2.data + h*dW2
@@ -134,7 +125,7 @@ for (logdet,rev) in [(true, false),(false, true)]
     err5 = zeros(Float32, maxiter)
     err6 = zeros(Float32, maxiter)
 
-    print("\nGradient test coupling layer\n")
+    print("\nGradient test wrt 1x1 conv weights glow coupling layer\n")
     for j=1:maxiter
         L01.C.v1.data = Lini.C.v1.data + h*dv1
         L01.C.v2.data = Lini.C.v2.data + h*dv2

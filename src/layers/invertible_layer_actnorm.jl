@@ -57,8 +57,7 @@ function ActNorm(k; logdet=false)
 end
 
 # 2-3D Foward pass: Input X, Output Y
-function forward(X::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, N}
-    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
+function forward(X::AbstractArray{T, N}, AN::ActNorm;) where {T, N}
     inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 
@@ -73,12 +72,11 @@ function forward(X::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, 
     Y = X .* reshape(AN.s.data, inds...) .+ reshape(AN.b.data, inds...)
 
     # If logdet true, return as second ouput argument
-    logdet ? (return Y, logdet_forward(size(X)[1:N-2]..., AN.s)) : (return Y)
+    AN.logdet ? (return Y, logdet_forward(size(X)[1:N-2]..., AN.s)) : (return Y)
 end
 
 # 2-3D Inverse pass: Input Y, Output X
-function inverse(Y::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, N}
-    isnothing(logdet) ? logdet = (AN.logdet && AN.is_reversed) : logdet = logdet
+function inverse(Y::AbstractArray{T, N}, AN::ActNorm;) where {T, N}
     inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     dims = collect(1:N-1); dims[end] +=1
 
@@ -93,7 +91,7 @@ function inverse(Y::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, 
     X = (Y .- reshape(AN.b.data, inds...)) ./ reshape(AN.s.data, inds...)
 
     # If logdet true, return as second ouput argument
-    logdet ? (return X, -logdet_forward(size(Y)[1:N-2]..., AN.s)) : (return X)
+    AN.logdet ? (return X, -logdet_forward(size(Y)[1:N-2]..., AN.s)) : (return X)
 end
 
 # 2-3D Backward pass: Input (ΔY, Y), Output (ΔY, Y)
@@ -102,7 +100,7 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, AN::ActNorm;
     dims = collect(1:N-1); dims[end] +=1
     nn = size(ΔY)[1:N-2]
 
-    X = inverse(Y, AN; logdet=false)
+    X = inverse(Y, AN;)[1]
     ΔX = ΔY .* reshape(AN.s.data, inds...)
     Δs = sum(ΔY .* X, dims=dims)[inds...]
     if AN.logdet
@@ -129,7 +127,8 @@ function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, AN::ActN
     dims = collect(1:N-1); dims[end] +=1
     nn = size(ΔX)[1:N-2]
 
-    Y = forward(X, AN; logdet=false)
+    #Y = forward(X, AN;)[1]
+    AN.logdet ? (Y, logdet_i) = forward(X, AN;) : Y = forward(X, AN;)
     ΔY = ΔX ./ reshape(AN.s.data, inds...)
     Δs = -sum(ΔX .* X ./ reshape(AN.s.data, inds...), dims=dims)[inds...]
     if AN.logdet
@@ -152,20 +151,19 @@ end
 ## Jacobian-related functions
 # 2-£D
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::AbstractArray{Parameter, 1}, X::AbstractArray{T, N}, AN::ActNorm; logdet=nothing) where {T, N}
-    isnothing(logdet) ? logdet = (AN.logdet && ~AN.is_reversed) : logdet = logdet
     inds = [i!=(N-1) ? 1 : Colon() for i=1:N]
     nn = size(ΔX)[1:N-2]
     Δs = Δθ[1].data
     Δb = Δθ[2].data
 
     # Forward evaluation
-    logdet ? (Y, lgdet) = forward(X, AN; logdet=logdet) : Y = forward(X, AN; logdet=logdet)
+    AN.logdet ? (Y, lgdet) = forward(X, AN;) : Y = forward(X, AN;)
 
     # Jacobian evaluation
     ΔY = ΔX .* reshape(AN.s.data, inds...) .+ X .* reshape(Δs, inds...) .+ reshape(Δb, inds...)
 
     # Hessian evaluation of logdet terms
-    if logdet
+    if AN.logdet
         nx, ny, _, _ = size(X)
         HlogΔθ = [Parameter(logdet_hessian(nn..., AN.s).*Δs), Parameter(zeros(Float32, size(Δb)))]
         return ΔY, Y, lgdet, HlogΔθ

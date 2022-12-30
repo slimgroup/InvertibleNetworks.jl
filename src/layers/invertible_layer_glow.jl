@@ -104,7 +104,7 @@ function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow; save=false) where
     Y = tensor_cat(Y1, X2)
 
     if L.logdet
-        save ? (return Y, Y1, X2, coupling_logdet_forward(Sm), Sm) : (return Y, coupling_logdet_forward(Sm))
+        save ? (return Y, Y1, X2, Sm, glow_logdet_forward(Sm)) : (return Y, glow_logdet_forward(Sm))
     else
         save ? (return Y, Y1, X2, Sm) : (return Y)
     end
@@ -124,7 +124,11 @@ function inverse(Y::AbstractArray{T, N}, L::CouplingLayerGlow; save=false) where
     X_ = tensor_cat(X1, X2)
     X = L.C.inverse(X_)
 
-    save == true ? (return X, X1, X2, Sm) : (return X)
+    if L.logdet
+        save ? (return X, X1, X2, Sm, -glow_logdet_forward(Sm)) : (return X, -glow_logdet_forward(Sm))
+    else
+        save ? (return X, X1, X2, Sm) : (return X)
+    end
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
@@ -172,7 +176,6 @@ function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, L::Coupl
     ΔX1, ΔX2 = tensor_split(ΔX)
 
     # Recompute forward state
-    #Y, Y1, X2, S = forward(X, L; save=true)
     logS_T = L.RB.forward(X2)
     logSm, Tm = tensor_split(logS_T)
     Sm = L.activation.forward(logSm)
@@ -226,6 +229,6 @@ function adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::Co
     return backward(ΔY, Y, L; set_grad=false)
 end
 
-# Logdet (correct?)
+# Logdet 
 glow_logdet_forward(S) = sum(log.(abs.(S))) / size(S)[end]
 glow_logdet_backward(S) = 1f0./ S / size(S)[end]

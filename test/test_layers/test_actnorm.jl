@@ -75,26 +75,27 @@ AN_rev = reverse(AN)
 # Test with logdet enabled
 AN = ActNorm(nc; logdet=true)
 Y, lgdt = AN.forward(X)
+#X_, lgdt = AN.inverse(X)
 
 # Test initialization
 @test isapprox(mean(Y), 0f0; atol=1f-6)
 @test isapprox(var(Y), 1f0; atol=1f-3)
 
 # Test invertibility
-@test isapprox(norm(X - AN.inverse(AN.forward(X)[1]))/norm(X), 0f0, atol=1f-6)
-@test isapprox(norm(X - AN.forward(AN.inverse(X))[1])/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN.inverse(AN.forward(X)[1])[1])/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN.forward(AN.inverse(X)[1])[1])/norm(X), 0f0, atol=1f-6)
 
 # Reversed layer (all combinations)
 AN_rev = reverse(AN)
 
-@test isapprox(norm(X - AN_rev.inverse(AN_rev.forward(X)[1]))/norm(X), 0f0, atol=1f-6)
-@test isapprox(norm(X - AN_rev.forward(AN_rev.inverse(X))[1])/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN_rev.inverse(AN_rev.forward(X)[1])[1])/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN_rev.forward(AN_rev.inverse(X)[1])[1])/norm(X), 0f0, atol=1f-6)
 
 @test isapprox(norm(X - AN_rev.forward(AN.forward(X)[1])[1])/norm(X), 0f0, atol=1f-6)
-@test isapprox(norm(X - AN_rev.inverse(AN.inverse(X)))/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN_rev.inverse(AN.inverse(X)[1])[1])/norm(X), 0f0, atol=1f-6)
 
 @test isapprox(norm(X - AN.forward(AN_rev.forward(X)[1])[1])/norm(X), 0f0, atol=1f-6)
-@test isapprox(norm(X - AN.inverse(AN_rev.inverse(X)))/norm(X), 0f0, atol=1f-6)
+@test isapprox(norm(X - AN.inverse(AN_rev.inverse(X)[1])[1])/norm(X), 0f0, atol=1f-6)
 
 
 ###############################################################################

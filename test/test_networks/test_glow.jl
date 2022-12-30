@@ -17,18 +17,22 @@ batchsize = 2
 L = 2
 K = 2
 
-############################### Test reverse#######################################
 for split_scales = [true,false]
     for N in [(nx, ny), (nx, ny, nz)]
+        ############################### Test reverse#######################################
         println("testing reverse glow with split_scales=$(split_scales) ndims=$(length(N))")
         # Network and input
-        G = NetworkGlow(n_in, n_hidden, L, K; logdet = false, split_scales=split_scales, ndims=length(N))
+        G = NetworkGlow(n_in, n_hidden, L, K; logdet = true, split_scales=split_scales, ndims=length(N))
         G = reverse(G)
 
-        local X = rand(Float32, N..., n_in, batchsize)
+        X = rand(Float32, N..., n_in, batchsize)
 
-        local Y = G.inverse(X)
-        X_ = G.forward(Y)
+        #Y = G.inverse(X)
+        #X_ = G.forward(Y)
+
+        G.logdet ? (Y, logdet_i) = G.inverse(X) : X_ = G.inverse(X)
+        G.logdet ? (X_, logdet_i) = G.forward(Y) : X_ = G.forward(Y)
+        
 
         @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
@@ -54,8 +58,11 @@ for split_scales = [true,false]
         ###################################################################################################
         # Gradient test
         function loss_rev(G, X)
-            Y = G.forward(X)
-            f = -log_likelihood(Y) 
+            #Y = G.forward(X)
+            logdet_i = 0
+            G.logdet ? (Y, logdet_i) = G.forward(X) : Y = G.forward(X)
+
+            f = -log_likelihood(Y) - logdet_i
             ΔY = -∇log_likelihood(Y)
             ΔX, X_ = G.backward(ΔY, Y)
             return f, ΔX, G.CL[1,1].RB.W1.grad, G.CL[1,1].C.v1.grad
@@ -122,8 +129,8 @@ for split_scales = [true,false]
         G = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
         X = rand(Float32, N..., n_in, batchsize)
 
-        Y = G.forward(X)[1]
-        X_ = G.inverse(Y)
+        G.logdet ? (Y, logdet_i) = G.forward(X) : Y = G.forward(X)
+        G.logdet ? (X_, logdet_i) = G.inverse(Y) : X_ = G.inverse(Y)
 
         @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 

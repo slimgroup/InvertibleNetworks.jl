@@ -124,18 +124,20 @@ end
 # Inverse pass 
 function inverse(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     G.split_scales && ((Z_save, X) = split_states(X[:], G.Z_dims))
+    logdet = 0
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X = tensor_cat(X, Z_save[i])
         end
         for j=G.K:-1:1
-            X = G.CL[i, j].inverse(X)
-            X = G.AN[i, j].inverse(X)
+            G.logdet ? (X, logdet1) = G.CL[i, j].inverse(X) : X = G.CL[i, j].inverse(X)
+            G.logdet ? (X, logdet2) = G.AN[i, j].inverse(X) : X = G.AN[i, j].inverse(X)
+            G.logdet && (logdet += (logdet1 + logdet2))
         end
 
         (G.split_scales) && (X = G.squeezer.inverse(X))
     end
-    return X
+    G.logdet ? (return X, logdet) : (return X)
 end
 
 # Backward pass and compute gradients
@@ -180,9 +182,6 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGl
     end
     set_grad ? (return ΔX, X) : (return ΔX, vcat(ΔθAN, ΔθCL), X, vcat(∇logdetAN, ∇logdetCL))
 end
-
-#Wed
-#12-1
 
 # Backward reverse pass and compute gradients
 function backward_inv(ΔX::AbstractArray{T, N},  X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
