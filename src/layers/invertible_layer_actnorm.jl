@@ -100,7 +100,7 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, AN::ActNorm;
     dims = collect(1:N-1); dims[end] +=1
     nn = size(ΔY)[1:N-2]
 
-    X = inverse(Y, AN;)[1]
+    AN.logdet ? (X, logdet_i) = inverse(Y, AN;) : X = inverse(Y, AN;)
     ΔX = ΔY .* reshape(AN.s.data, inds...)
     Δs = sum(ΔY .* X, dims=dims)[inds...]
     if AN.logdet
@@ -127,7 +127,6 @@ function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, AN::ActN
     dims = collect(1:N-1); dims[end] +=1
     nn = size(ΔX)[1:N-2]
 
-    #Y = forward(X, AN;)[1]
     AN.logdet ? (Y, logdet_i) = forward(X, AN;) : Y = forward(X, AN;)
     ΔY = ΔX ./ reshape(AN.s.data, inds...)
     Δs = -sum(ΔX .* X ./ reshape(AN.s.data, inds...), dims=dims)[inds...]
