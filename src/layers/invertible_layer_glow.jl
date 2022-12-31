@@ -91,20 +91,24 @@ end
 CouplingLayerGlow3D(args...;kw...) = CouplingLayerGlow(args...; kw..., ndims=3)
 
 # Forward pass: Input X, Output Y
-function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow) where {T,N}
+function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow; save=false) where {T,N}
 
     X_ = L.C.forward(X)
     X1, X2 = tensor_split(X_)
 
-    Y2 = copy(X2)
     logS_T = L.RB.forward(X2)
     logSm, Tm = tensor_split(logS_T)
     Sm = L.activation.forward(logSm)
     Y1 = Sm.*X1 + Tm
 
-    Y = tensor_cat(Y1, Y2)
+    Y = tensor_cat(Y1, X2)
 
-    L.logdet == true ? (return Y, glow_logdet_forward(Sm)) : (return Y)
+    if L.logdet
+        save ? (return Y, Y1, X2, Sm, glow_logdet_forward(Sm)) : (return Y, glow_logdet_forward(Sm))
+    else
+        save ? (return Y, Y1, X2, Sm) : (return Y)
+    end
+
 end
 
 # Inverse pass: Input Y, Output X
@@ -120,7 +124,11 @@ function inverse(Y::AbstractArray{T, N}, L::CouplingLayerGlow; save=false) where
     X_ = tensor_cat(X1, X2)
     X = L.C.inverse(X_)
 
-    save == true ? (return X, X1, X2, Sm) : (return X)
+    if L.logdet
+        save ? (return X, X1, X2, Sm, -glow_logdet_forward(Sm)) : (return X, -glow_logdet_forward(Sm))
+    else
+        save ? (return X, X1, X2, Sm) : (return X)
+    end
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
@@ -160,13 +168,37 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::CouplingL
     end
 end
 
+# 2D/3D Reverse backward pass: Input (ΔX, X), Output (ΔY, Y)
+function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, L::CouplingLayerGlow; set_grad::Bool=true) where {T, N}
+
+    ΔX, X = L.C.forward((ΔX, X))
+    X1, X2 = tensor_split(X)
+    ΔX1, ΔX2 = tensor_split(ΔX)
+
+    # Recompute forward state
+    logS_T = L.RB.forward(X2)
+    logSm, Tm = tensor_split(logS_T)
+    Sm = L.activation.forward(logSm)
+    Y1 = Sm.*X1 + Tm
+
+    # Backpropagate residual
+    ΔT = -ΔX1 ./ Sm
+    ΔS =  X1 .* ΔT 
+    if L.logdet == true
+        ΔS += coupling_logdet_backward(Sm)
+    end
+
+    ΔY2 = L.RB.backward(tensor_cat(L.activation.backward(ΔS, Sm), ΔT), X2) + ΔX2
+    ΔY1 = -ΔT
+
+    ΔY = tensor_cat(ΔY1, ΔY2)
+    Y  = tensor_cat(Y1, X2)
+
+    return ΔY, Y
+end
 
 ## Jacobian-related functions
-
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, L::CouplingLayerGlow) where {T,N}
-
-    # Get dimensions
-    k = Int(L.C.k/2)
 
     ΔX_, X_ = L.C.jacobian(ΔX, Δθ[1:3], X)
     X1, X2 = tensor_split(X_)
@@ -175,17 +207,19 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, L::Cou
     Y2 = copy(X2)
     ΔY2 = copy(ΔX2)
     ΔlogS_T, logS_T = L.RB.jacobian(ΔX2, Δθ[4:end], X2)
-    Sm = L.activation.forward(logS_T[:,:,1:k,:])
-    ΔS = L.activation.backward(ΔlogS_T[:,:,1:k,:], nothing;x=logS_T[:,:,1:k,:])
-    Tm = logS_T[:, :, k+1:end, :]
-    ΔT = ΔlogS_T[:, :, k+1:end, :]
+    logSm, Tm = tensor_split(logS_T)
+    ΔlogSm, ΔT = tensor_split(ΔlogS_T)
+
+    Sm = L.activation.forward(logSm)
+    ΔS = L.activation.backward(ΔlogSm, nothing;x=logSm)
     Y1 = Sm.*X1 + Tm
     ΔY1 = ΔS.*X1 + Sm.*ΔX1 + ΔT
     Y = tensor_cat(Y1, Y2)
     ΔY = tensor_cat(ΔY1, ΔY2)
 
     # Gauss-Newton approximation of logdet terms
-    JΔθ = L.RB.jacobian(cuzeros(ΔX2, size(ΔX2)), Δθ[4:end], X2)[1][:, :, 1:k, :]
+    JΔθ = L.RB.jacobian(cuzeros(ΔX2, size(ΔX2)), Δθ[4:end], X2)[1]
+    JΔθ = tensor_split(JΔθ)[1]
     GNΔθ = cat(0f0*Δθ[1:3], -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, Sm), zeros(Float32, size(Sm))), X2)[2]; dims=1)
 
     L.logdet ? (return ΔY, Y, glow_logdet_forward(Sm), GNΔθ) : (return ΔY, Y)
@@ -195,6 +229,6 @@ function adjointJacobian(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, L::Co
     return backward(ΔY, Y, L; set_grad=false)
 end
 
-# Logdet (correct?)
+# Logdet 
 glow_logdet_forward(S) = sum(log.(abs.(S))) / size(S)[end]
 glow_logdet_backward(S) = 1f0./ S / size(S)[end]

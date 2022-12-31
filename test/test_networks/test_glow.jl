@@ -19,15 +19,118 @@ K = 2
 
 for split_scales = [true,false]
     for N in [(nx, ny), (nx, ny, nz)]
-        ###########################################Test with split_scales = false #########################
-        # Invertibility
+        ############################### Test reverse#######################################
+        println("testing reverse glow with split_scales=$(split_scales) ndims=$(length(N))")
+        # Network and input
+        G = NetworkGlow(n_in, n_hidden, L, K; logdet = true, split_scales=split_scales, ndims=length(N))
+        G = reverse(G)
+
+        X = rand(Float32, N..., n_in, batchsize)
+
+        #Y = G.inverse(X)
+        #X_ = G.forward(Y)
+
+        G.logdet ? (Y, logdet_i) = G.inverse(X) : X_ = G.inverse(X)
+        G.logdet ? (X_, logdet_i) = G.forward(Y) : X_ = G.forward(Y)
+        
+
+        @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
+
+        ###################################################################################################
+        # Test gradients are set and cleared
+        G.backward(Y, Y)
+
+        P = get_params(G)
+        gsum = 0
+        for p in P
+            ~isnothing(p.grad) && (gsum += 1)
+        end
+        @test isequal(gsum, L*K*10)
+
+        clear_grad!(G)
+        gsum = 0
+        for p in P
+            ~isnothing(p.grad) && (gsum += 1)
+        end
+        @test isequal(gsum, 0)
+
+
+        ###################################################################################################
+        # Gradient test
+        function loss_rev(G, X)
+            #Y = G.forward(X)
+            logdet_i = 0
+            G.logdet ? (Y, logdet_i) = G.forward(X) : Y = G.forward(X)
+
+            f = -log_likelihood(Y) - logdet_i
+            ΔY = -∇log_likelihood(Y)
+            ΔX, X_ = G.backward(ΔY, Y)
+            return f, ΔX, G.CL[1,1].RB.W1.grad, G.CL[1,1].C.v1.grad
+        end
+
+        # Gradient test w.r.t. input
+        X = rand(Float32, N..., n_in, batchsize)
+        X0 = rand(Float32, N..., n_in, batchsize)
+        dX = X - X0
+
+        f0, ΔX = loss_rev(G, X0)[1:2]
+        h = 0.1f0
+        maxiter = 4
+        err1 = zeros(Float32, maxiter)
+        err2 = zeros(Float32, maxiter)
+
+        print("\nGradient test glow: input\n")
+        for j=1:maxiter
+            f = loss_rev(G, X0 + h*dX,)[1]
+            err1[j] = abs(f - f0)
+            err2[j] = abs(f - f0 - h*dot(dX, ΔX))
+            print(err1[j], "; ", err2[j], "\n")
+            h = h/2f0
+        end
+
+        @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
+        @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+        # Test one parameter from residual block and 1x1 conv
+        G0 = NetworkGlow(n_in, n_hidden, L, K; logdet = false, split_scales=split_scales, ndims=length(N))
+        G0.forward(X)
+        G0 = reverse(G0)
+        Gini = deepcopy(G0)
+
+        dW = G.CL[1,1].RB.W1.data - G0.CL[1,1].RB.W1.data
+        dv = G.CL[1,1].C.v1.data - G0.CL[1,1].C.v1.data
+
+        f0, ΔX, ΔW, Δv = loss_rev(G0, X)
+        h = 0.1f0
+        maxiter = 4
+        err3 = zeros(Float32, maxiter)
+        err4 = zeros(Float32, maxiter)
+
+        print("\nGradient test glow: input\n")
+        for j=1:maxiter
+            G0.CL[1,1].RB.W1.data = Gini.CL[1,1].RB.W1.data + h*dW
+            G0.CL[1,1].C.v1.data = Gini.CL[1,1].C.v1.data + h*dv
+
+            f = loss_rev(G0, X)[1]
+            err3[j] = abs(f - f0)
+            err4[j] = abs(f - f0 - h*dot(dW, ΔW) - h*dot(dv, Δv))
+            print(err3[j], "; ", err4[j], "\n")
+            h = h/2f0
+        end
+
+        @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
+        @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+
+        ########################################## Not reversed #######################
+        println("testing glow with split_scales=$(split_scales) ndims=$(length(N))")
 
         # Network and input
         G = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
         X = rand(Float32, N..., n_in, batchsize)
 
-        Y = G.forward(X)[1]
-        X_ = G.inverse(Y)
+        G.logdet ? (Y, logdet_i) = G.forward(X) : Y = G.forward(X)
+        G.logdet ? (X_, logdet_i) = G.inverse(Y) : X_ = G.inverse(Y)
 
         @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
@@ -62,9 +165,7 @@ for split_scales = [true,false]
         end
 
         # Gradient test w.r.t. input
-        G = NetworkGlow(n_in, n_hidden, L, K)
-        X = rand(Float32, nx, ny, n_in, batchsize)
-        X0 = rand(Float32, nx, ny, n_in, batchsize)
+        X0 = rand(Float32, N..., n_in, batchsize)
         dX = X - X0
 
         f0, ΔX = loss(G, X0)[1:2]
@@ -86,9 +187,8 @@ for split_scales = [true,false]
         @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
         # Gradient test w.r.t. parameters
-        X = rand(Float32, nx, ny, n_in, batchsize)
-        G = NetworkGlow(n_in, n_hidden, L, K)
-        G0 = NetworkGlow(n_in, n_hidden, L, K)
+        G = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
+        G0 = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
         Gini = deepcopy(G0)
 
         # Test one parameter from residual block and 1x1 conv
@@ -122,16 +222,16 @@ for split_scales = [true,false]
         # Gradient test
 
         # Initialization
-        G = NetworkGlow(n_in, n_hidden, L, K); G.forward(randn(Float32, nx, ny, n_in, batchsize))
+        G.forward(randn(Float32, N..., n_in, batchsize))
         θ = deepcopy(get_params(G))
-        G0 = NetworkGlow(n_in, n_hidden, L, K); G0.forward(randn(Float32, nx, ny, n_in, batchsize))
+        G0.forward(randn(Float32, N..., n_in, batchsize))
         θ0 = deepcopy(get_params(G0))
-        X = randn(Float32, nx, ny, n_in, batchsize)
+        X = randn(Float32, N..., n_in, batchsize)
 
         # Perturbation (normalized)
         dθ = θ-θ0
         dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
-        dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
+        dX = randn(Float32, N..., n_in, batchsize); dX *= norm(X)/norm(dX)
 
         # Jacobian eval
         dY, Y, _, _ = G.jacobian(dX, dθ, X)

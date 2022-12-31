@@ -74,7 +74,7 @@ Y_ = C0.forward(X)
 
 
 # Test gradients are zero in inverse pass if freeze =true
-C_frozen = Conv1x1(v10, v20, v30;freeze=true) |> device
+C_frozen = Conv1x1(v10, v20, v30; freeze=true) |> device
 
 # Predicted data and misfit
 C_frozen.v1.grad = nothing
