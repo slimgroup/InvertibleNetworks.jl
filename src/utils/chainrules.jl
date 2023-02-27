@@ -70,7 +70,7 @@ function forward_update!(state::InvertibleOperationsTape, X::AbstractArray{T,N},
 
     if isa_newblock(state, X)
         push!(state.Y, Y)
-        push!(state.layer_blocks, [net])
+        push!(state.layer_blocks, Vector{Any}([net]))
         state.counter_block += 1
         state.counter_layer = 1
     else
