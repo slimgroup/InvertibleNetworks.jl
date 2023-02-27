@@ -21,7 +21,7 @@ function chain_lr(x::AbstractMatrix{T}, vi::Vararg{AbstractVector{T}, N}) where 
     out = T(1) .* x
     tmp = cuzeros(vi[1], size(x, 1))
     for v=vi
-        n = -2/norm(v)^2
+        n = -2/dot(v, v)
         mul!(tmp, out, v)
         rmul!(tmp, n)
         gemm_outer!(out, tmp, v)
