@@ -8,7 +8,7 @@ export Sigmoid, SigmoidInv, SigmoidGrad
 export GaLU, GaLUgrad
 export ExpClamp, ExpClampInv, ExpClampGrad
 export ReLUlayer, LeakyReLUlayer, SigmoidLayer, Sigmoid2Layer, GaLUlayer, ExpClampLayer
-
+export ActivationFunction 
 
 ###############################################################################
 # Custom type for activation functions
@@ -27,7 +27,7 @@ function LeakyReLUlayer()
     return ActivationFunction(LeakyReLU, LeakyReLUinv, LeakyReLUgrad)
 end
 
-function SigmoidLayer(;low=0f0, high=1f0)
+function SigmoidLayer(;low=0.5f0, high=1f0)
     fwd_a(x) = Sigmoid(x; low=low, high=high)
     inv_a(y) = SigmoidInv(y; low=low, high=high)
     grad_a(Δy, y; x=nothing) = SigmoidGrad(Δy, y; x=x, low=low, high=high)

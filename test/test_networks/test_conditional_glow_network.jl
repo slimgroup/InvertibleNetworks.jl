@@ -25,7 +25,7 @@ G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K)
 X = rand(Float32, nx, ny, n_in, batchsize)
 Cond = rand(Float32, nx, ny, n_cond, batchsize)
 
-Y, Cond = G.forward(X,Cond)
+Y, _ = G.forward(X,Cond)
 X_ = G.inverse(Y,Cond) # saving the cond is important in split scales because of reshapes
 
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
@@ -53,10 +53,10 @@ end
 # Gradient test
 
 function loss(G, X, Cond)
-    Y, ZC, logdet = G.forward(X, Cond)
+    Y,  logdet = G.forward(X, Cond)
     f = -log_likelihood(Y) - logdet
     ΔY = -∇log_likelihood(Y)
-    ΔX, X_ = G.backward(ΔY, Y, ZC)
+    ΔX, X_ = G.backward(ΔY, Y, Cond)
     return f, ΔX, G.CL[1,1].RB.W1.grad, G.CL[1,1].C.v1.grad
 end
 

@@ -401,7 +401,7 @@ end
 
  See also: [`tensor_cat`](@ref)
 """
-function tensor_split(X::AbstractArray{T, N}; split_index=nothing) where {T, N}
+function tensor_split(X::AbstractArray{T, N}; mask=nothing, split_index=nothing) where {T, N}
     d = max(1, N-1)
     if isnothing(split_index)
         k = Int(round(size(X, d)/2))
@@ -409,8 +409,13 @@ function tensor_split(X::AbstractArray{T, N}; split_index=nothing) where {T, N}
         k = split_index
     end
 
-    indsl = [i==d ? (1:k) : Colon() for i=1:N]
-    indsr = [i==d ? (k+1:size(X, d)) : Colon() for i=1:N]
+    if isnothing(mask)
+        indsl = [i==d ? (1:k) : Colon() for i=1:N]
+        indsr = [i==d ? (k+1:size(X, d)) : Colon() for i=1:N]
+    else 
+        indsl = [i==d ? (findall(x->x<0,mask)) : Colon() for i=1:N]
+        indsr = [i==d ? (findall(x->x>0,mask)) : Colon() for i=1:N]
+    end
 
     return X[indsl...], X[indsr...]
 end
@@ -431,14 +436,24 @@ end
 
  See also: [`tensor_split`](@ref)
 """
-function tensor_cat(X::AbstractArray{T, N}, Y::AbstractArray{T, N}) where {T, N}
+function tensor_cat(X::AbstractArray{T, N}, Y::AbstractArray{T, N}; mask=nothing) where {T, N}
     d = max(1, N-1)
     if size(X, d) == 0
         return Y
     elseif size(Y, d) == 0
         return X
     else
-        return cat(X, Y; dims=d)
+        if isnothing(mask)
+            return cat(X, Y; dims=d)
+        else
+            Z = cat(X, Y; dims=d)
+            indsl = [i==d ? (findall(x->x<0,mask)) : Colon() for i=1:N]
+            indsr = [i==d ? (findall(x->x>0,mask)) : Colon() for i=1:N]
+            Z[indsl...] = X
+            Z[indsr...] = Y
+            return Z
+        end
+        
     end
 end
 

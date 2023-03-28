@@ -72,7 +72,7 @@ end
 @Flux.functor NetworkGlow
 
 # Constructor
-function NetworkGlow(n_in, n_hidden, L, K; freeze_conv=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
+function NetworkGlow(n_in, n_hidden, L, K; affine=true,freeze_conv=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     CL = Array{CouplingLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
  
@@ -88,7 +88,7 @@ function NetworkGlow(n_in, n_hidden, L, K; freeze_conv=false, split_scales=false
         n_in *= channel_factor # squeeze if split_scales is turned on
         for j=1:K
             AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = CouplingLayerGlow(n_in, n_hidden; freeze_conv=freeze_conv, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
+            CL[i, j] = CouplingLayerGlow(n_in, n_hidden;affine=affine, freeze_conv=freeze_conv, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
         end
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
@@ -101,13 +101,22 @@ NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
 # Forward pass and compute logdet
 function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
     G.split_scales && (Z_save = array_of_array(X, G.L-1))
+    orig_shape = size(X)
 
     logdet = 0
     for i=1:G.L
         (G.split_scales) && (X = G.squeezer.forward(X))
-        for j=1:G.K            
+        for j=1:G.K   
+            num_chan = size(X)[end-1]
+            mask = ones(T,num_chan)
+            if mod(j,2) == 0
+                mask[1:2:end] = -1f0 .* ones(T,length(mask[1:2:end]))
+            else
+                mask[2:2:end] = -1f0 .* ones(T,length(mask[2:2:end]))
+            end 
+            mask=nothing
             X, logdet1 = G.AN[i, j].forward(X)
-            X, logdet2 = G.CL[i, j].forward(X)
+            X, logdet2 = G.CL[i, j].forward(X;mask=mask)
             logdet += (logdet1 + logdet2)
         end
         if G.split_scales && i < G.L    # don't split after last iteration
@@ -116,19 +125,35 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
             G.Z_dims[i] = collect(size(Z))
         end
     end
-    G.split_scales && (X = cat_states(Z_save, X))
+    G.split_scales && (X = reshape(cat_states(Z_save, X),orig_shape))
     return X, logdet
 end
 
 # Inverse pass 
 function inverse(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
-    G.split_scales && ((Z_save, X) = split_states(X, G.Z_dims))
+    # Make sure that Z_dims is set to the proper batchsize
+    batch_size = size(X)[end]
+    if G.split_scales &&  batch_size != G.Z_dims 
+        for i in G.Z_dims
+            i[end] = batch_size
+        end
+    end
+
+    G.split_scales && ((Z_save, X) = split_states(X[:], G.Z_dims))
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X = tensor_cat(X, Z_save[i])
         end
         for j=G.K:-1:1
-            X = G.CL[i, j].inverse(X)
+            num_chan = size(X)[end-1]
+            mask = ones(T,num_chan)
+            if mod(j,2) == 0
+                mask[1:2:end] = -1f0 .* ones(T,length(mask[1:2:end]))
+            else
+                mask[2:2:end] = -1f0 .* ones(T,length(mask[2:2:end]))
+            end 
+            mask=nothing
+            X = G.CL[i, j].inverse(X;mask=mask)
             X = G.AN[i, j].inverse(X)
         end
 
@@ -142,8 +167,8 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGl
     
     # Split data and gradients
     if G.split_scales
-        ΔZ_save, ΔX = split_states(ΔX, G.Z_dims)
-        Z_save, X = split_states(X, G.Z_dims)
+        ΔZ_save, ΔX = split_states(ΔX[:], G.Z_dims)
+        Z_save, X = split_states(X[:], G.Z_dims)
     end
 
     if ~set_grad
@@ -159,8 +184,16 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, G::NetworkGl
             ΔX = tensor_cat(ΔX, ΔZ_save[i])
         end
         for j=G.K:-1:1
+            num_chan = size(X)[end-1]
+            mask = ones(T,num_chan)
+            if mod(j,2) == 0
+                mask[1:2:end] = -1f0 .* ones(T,length(mask[1:2:end]))
+            else
+                mask[2:2:end] = -1f0 .* ones(T,length(mask[2:2:end]))
+            end 
+            mask=nothing
             if set_grad
-                ΔX, X = G.CL[i, j].backward(ΔX, X)
+                ΔX, X = G.CL[i, j].backward(ΔX, X;mask=mask)
                 ΔX, X = G.AN[i, j].backward(ΔX, X)
             else
                 ΔX, Δθcl_ij, X, ∇logdetcl_ij = G.CL[i, j].backward(ΔX, X; set_grad=set_grad)
