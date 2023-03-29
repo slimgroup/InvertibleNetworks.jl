@@ -39,6 +39,7 @@ end
 
 function checkboard_inds(N::NTuple{n, Int}, d::Integer) where n
     indsX = [ix+1:2:N[1] for ix=[(i+1)%2      for i=1:2^(d-2)]]
+    d == 3 && (return zip(indsX))
     indsY = [iy+1:2:N[2] for iy=[div(i-1,2)%2 for i=1:2^(d-2)]]
     d == 4 && (return zip(indsX, indsY))
     indsZ = [iz+1:2:N[3] for iz=[div(i-1,4)%2 for i=1:2^(d-2)]]
@@ -461,6 +462,7 @@ function tensor_cat!(out::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::Abstra
 end
 
 @inline xy_dims(dims::Array, ::Val{false}, ::Any) = tuple(dims...)
+@inline xy_dims(dims::Array, ::Val{true}, ::Val{3}) = tuple(Int.(dims .* (.5, 2, 1))...)
 @inline xy_dims(dims::Array, ::Val{true}, ::Val{4}) = tuple(Int.(dims .* (.5, .5, 4, 1))...)
 @inline xy_dims(dims::Array, ::Val{true}, ::Val{5}) = tuple(Int.(dims .* (.5, .5, .5, 8, 1))...)
 

@@ -18,12 +18,13 @@ L = 2
 K = 2
 
 for split_scales = [true,false]
-    for N in [(nx, ny), (nx, ny, nz)]
-        ###########################################Test with split_scales = false #########################
+    for N in [(nx),(nx, ny), (nx, ny, nz)]
+        println("Testing Glow with dimensions $(N) and split_scales=$(split_scales)")
         # Invertibility
-
+        dense = length(N)==1# test dense for (nx) size
+        
         # Network and input
-        G = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
+        G = NetworkGlow(n_in, n_hidden, L, K;dense=dense, nx=nx, split_scales=split_scales, ndims=length(N))
         X = rand(Float32, N..., n_in, batchsize)
 
         Y = G.forward(X)[1]

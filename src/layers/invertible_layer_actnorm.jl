@@ -181,6 +181,10 @@ end
 
 
 ## Logdet utils
+# 1D Logdet
+logdet_forward(nx, s) = nx*sum(log.(abs.(s.data)))
+logdet_backward(nx, s) = nx ./ s.data
+logdet_hessian(nx, s) = -nx ./ s.data.^2f0
 # 2D Logdet
 logdet_forward(nx, ny, s) = nx*ny*sum(log.(abs.(s.data)))
 logdet_backward(nx, ny, s) = nx*ny ./ s.data

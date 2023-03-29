@@ -88,8 +88,13 @@ function CouplingLayerGlow(n_in::Int64, n_hidden::Int64;nx=nothing, dense=false,
 
     if dense #need to supply nx
         isnothing(nx) && error("Dense network needs nx as kwarg input")
-        dense_in  = nx*div(n_in,2) #make pretty for odd case later
-        RB = FluxBlock(Chain(x->reshape(x,dense_in,:),Dense(dense_in,nx*n_in),x->reshape(x,nx,n_in,:)))
+        #dense_in  = nx*div(n_in,2) #make pretty for odd case later
+        #RB = FluxBlock(Chain(x->reshape(x,dense_in,:),Dense(dense_in,nx*n_in),x->reshape(x,nx,n_in,:)))
+
+        split_num = Int(round(n_in/2))
+        in_chan   = n_in-split_num
+        out_chan  = split_num*2
+        RB = FluxBlock(Chain(x->reshape(x,nx*in_chan,:),Dense(nx*in_chan,nx*out_chan),x->reshape(x,nx,out_chan,:)))
     else 
         RB = ResidualBlock(Int(n_in/2), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
     end
