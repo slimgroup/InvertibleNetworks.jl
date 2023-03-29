@@ -2,7 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using InvertibleNetworks, LinearAlgebra, Test, Random
+using InvertibleNetworks, LinearAlgebra, Test, Random, Flux
 
 # Random seed
 Random.seed!(11)
@@ -15,7 +15,7 @@ nx = 24
 ny = 24
 k = 4
 n_hidden = 4
-batchsize = 1
+batchsize = 2
 
 # Input images
 X = randn(Float32, nx, ny, k, batchsize)
@@ -177,3 +177,97 @@ dX_, dθ_, _, _ = L.adjointJacobian(dY_, Y)
 a = dot(dY, dY_)
 b = dot(dX, dX_)+dot(dθ, dθ_)
 @test isapprox(a, b; rtol=1f-3)
+
+
+########################################## Test with dense layer##############################
+# Test invertibility
+
+# Input
+nx = 24
+k = 4
+n_hidden = 4
+batchsize = 2
+
+# Input images
+X = randn(Float32, nx, k, batchsize)
+X0 = randn(Float32, nx, k, batchsize)
+dX = X - X0
+
+# 1x1 convolution and residual blocks
+C = Conv1x1(k)
+n_in=k
+dense_in  = nx*div(n_in,2) #make pretty for odd case later
+RB_dense = FluxBlock(Chain(x->reshape(x,dense_in,:),Dense(dense_in,nx*n_in),x->reshape(x,nx,n_in,:)))
+L = CouplingLayerGlow(C, RB_dense; logdet=true)
+
+X_ = L.inverse(L.forward(X)[1])
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
+
+X_ = L.forward(L.inverse(X))[1]
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1e-2)
+
+###################################################################################################
+# Gradient tests
+
+# Loss Function
+function loss_dense(L, X, Y)
+    Y_, logdet = L.forward(X)
+    f = mse(Y_, Y) - logdet
+    ΔY = ∇mse(Y_, Y)
+    ΔX = L.backward(ΔY, Y_)[1]
+
+    # Pass back gradients w.r.t. input X and from the residual block and 1x1 conv. layer
+    return f, ΔX, L.RB.params[1].grad
+end
+
+# Invertible layers
+C0 = Conv1x1(k)
+#RB0 = ResidualBlock(div(k,2), n_hidden;n_out=k, k1=3, k2=3, p1=1, p2=1, fan=true)
+RB_dense0 = FluxBlock(Chain(x->reshape(x,dense_in,:),Dense(dense_in,nx*n_in),x->reshape(x,nx,n_in,:)))
+L01 = CouplingLayerGlow(C0, RB_dense; logdet=true)
+L02 = CouplingLayerGlow(C, RB_dense0; logdet=true)
+
+# Gradient test w.r.t. input X0
+Y = L.forward(X)[1]
+f0, ΔX = loss_dense(L, X0, Y)[1:2]
+h = 0.1f0
+maxiter = 6
+err1 = zeros(Float32, maxiter)
+err2 = zeros(Float32, maxiter)
+
+print("\nGradient test coupling layer\n")
+for j=1:maxiter
+    f = loss_dense(L, X0 + h*dX, Y)[1]
+    err1[j] = abs(f - f0)
+    err2[j] = abs(f - f0 - h*dot(dX, ΔX))
+    print(err1[j], "; ", err2[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f0)
+@test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f0)
+
+
+# Gradient test w.r.t. weights of residual block
+Y = L.forward(X)[1]
+Lini = deepcopy(L02)
+dW1 = L.RB.params - L02.RB.params
+f0, ΔX, ΔW1 = loss_dense(L02, X, Y)
+h = 0.1f0
+maxiter = 4
+err3 = zeros(Float32, maxiter)
+err4 = zeros(Float32, maxiter)
+
+
+print("\nGradient test coupling layer\n")
+for j=1:maxiter
+    set_params!(L02.RB,Lini.RB.params + h*dW1)
+    f = loss_dense(L02, X, Y)[1]
+    err3[j] = abs(f - f0)
+    err4[j] = abs(f - f0 - h*dot(dW1[1].data, ΔW1))
+    print(err3[j], "; ", err4[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f0)
+@test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f0)
