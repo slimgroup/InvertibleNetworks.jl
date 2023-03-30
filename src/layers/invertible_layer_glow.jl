@@ -79,24 +79,20 @@ end
 CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerGlow(C, RB, logdet, activation)
 
 # Constructor from input dimensions
-function CouplingLayerGlow(n_in::Int64, n_hidden::Int64;nx=nothing, dense=false,freeze_conv=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
+function CouplingLayerGlow(n_in::Int64, n_hidden::Int64; nx=nothing, dense=false, freeze_conv=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in; freeze=freeze_conv)
    
+    split_num = Int(round(n_in/2))
+    in_chan   = n_in-split_num
+    out_chan  = 2*split_num
 
-
-    if dense #need to supply nx
+    if dense 
         isnothing(nx) && error("Dense network needs nx as kwarg input")
-        #dense_in  = nx*div(n_in,2) #make pretty for odd case later
-        #RB = FluxBlock(Chain(x->reshape(x,dense_in,:),Dense(dense_in,nx*n_in),x->reshape(x,nx,n_in,:)))
-
-        split_num = Int(round(n_in/2))
-        in_chan   = n_in-split_num
-        out_chan  = split_num*2
         RB = FluxBlock(Chain(x->reshape(x,nx*in_chan,:),Dense(nx*in_chan,nx*out_chan),x->reshape(x,nx,out_chan,:)))
     else 
-        RB = ResidualBlock(Int(n_in/2), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+        RB = ResidualBlock(in_chan, n_hidden;n_out=out_chan, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
     end
 
     return CouplingLayerGlow(C, RB, logdet, activation)
@@ -106,7 +102,6 @@ CouplingLayerGlow3D(args...;kw...) = CouplingLayerGlow(args...; kw..., ndims=3)
 
 # Forward pass: Input X, Output Y
 function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow) where {T,N}
-
     X_ = L.C.forward(X)
     X1, X2 = tensor_split(X_)
 

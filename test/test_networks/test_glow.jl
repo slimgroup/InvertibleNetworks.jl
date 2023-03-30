@@ -19,14 +19,14 @@ K = 2
 
 for split_scales = [true,false]
     for N in [(nx),(nx, ny), (nx, ny, nz)]
-        println("Testing Glow with dimensions $(N) and split_scales=$(split_scales)")
-        # Invertibility
-        dense = length(N)==1# test dense for (nx) size
+        dense = length(N)==1 # test dense for (nx) size
+        println("Testing Glow with dense=$(dense) dimensions $(N) and split_scales=$(split_scales)")
         
         # Network and input
-        G = NetworkGlow(n_in, n_hidden, L, K;dense=dense, nx=nx, split_scales=split_scales, ndims=length(N))
+        G = NetworkGlow(n_in, n_hidden, L, K; dense=dense, nx=nx, split_scales=split_scales, ndims=length(N))
         X = rand(Float32, N..., n_in, batchsize)
 
+        # Invertibility
         Y = G.forward(X)[1]
         X_ = G.inverse(Y)
 
@@ -41,7 +41,12 @@ for split_scales = [true,false]
         for p in P
             ~isnothing(p.grad) && (gsum += 1)
         end
-        @test isequal(gsum, L*K*10)
+        
+        param_factor = 10
+        if dense
+            param_factor = 7
+        end
+        @test isequal(gsum, L*K*param_factor)
 
         clear_grad!(G)
         gsum = 0

@@ -8,7 +8,7 @@ import Flux.Optimise.update!
 device = InvertibleNetworks.CUDA.functional() ? gpu : cpu
 
 # Define network
-nx = 64     # must be multiple of 2
+nx = 64     # if split_scale=true then nx / (2^L) needs to be a whole number
 ny = 64
 n_in = 4
 n_hidden = 32

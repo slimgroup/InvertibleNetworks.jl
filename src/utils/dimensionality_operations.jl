@@ -80,7 +80,7 @@ function squeeze(X::AbstractArray{T, N}; pattern="column") where {T, N}
     # Dimensions
     nc_in, batchsize = size(X)[N-1:N]
     if any([mod(nn, 2) == 1 for nn=size(X)[1:N-2]])
-        throw("Input dimensions must be multiple of 2")
+       throw("Input dimensions must be multiple of 2")
     end
     N_out = Tuple(nn÷2 for nn=size(X)[1:N-2])
     nc_out = size(X, N-1) * 2^(N-2)
