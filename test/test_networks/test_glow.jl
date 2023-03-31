@@ -17,9 +17,6 @@ batchsize = 2
 L = 2
 K = 2
 
-
-
-
 for split_scales = [true,false]
     for N in [(nx, ny), (nx, ny, nz)]
         println("Testing Glow with dimensions $(N) and split_scales=$(split_scales)")
@@ -274,4 +271,3 @@ end
 
 @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
 @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
-
