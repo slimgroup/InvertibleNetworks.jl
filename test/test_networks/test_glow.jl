@@ -17,13 +17,15 @@ batchsize = 2
 L = 2
 K = 2
 
+
+
+
 for split_scales = [true,false]
-    for N in [(nx),(nx, ny), (nx, ny, nz)]
-        dense = length(N)==1 # test dense for (nx) size
-        println("Testing Glow with dense=$(dense) dimensions $(N) and split_scales=$(split_scales)")
+    for N in [(nx, ny), (nx, ny, nz)]
+        println("Testing Glow with dimensions $(N) and split_scales=$(split_scales)")
         
         # Network and input
-        G = NetworkGlow(n_in, n_hidden, L, K; dense=dense, nx=nx, split_scales=split_scales, ndims=length(N))
+        G = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
         X = rand(Float32, N..., n_in, batchsize)
 
         # Invertibility
@@ -43,9 +45,6 @@ for split_scales = [true,false]
         end
         
         param_factor = 10
-        if dense
-            param_factor = 7
-        end
         @test isequal(gsum, L*K*param_factor)
 
         clear_grad!(G)
@@ -68,9 +67,9 @@ for split_scales = [true,false]
         end
 
         # Gradient test w.r.t. input
-        G = NetworkGlow(n_in, n_hidden, L, K)
-        X = rand(Float32, nx, ny, n_in, batchsize)
-        X0 = rand(Float32, nx, ny, n_in, batchsize)
+        G = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
+        X = rand(Float32, N..., n_in, batchsize)
+        X0 = rand(Float32, N..., n_in, batchsize)
         dX = X - X0
 
         f0, ΔX = loss(G, X0)[1:2]
@@ -92,9 +91,9 @@ for split_scales = [true,false]
         @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
         # Gradient test w.r.t. parameters
-        X = rand(Float32, nx, ny, n_in, batchsize)
-        G = NetworkGlow(n_in, n_hidden, L, K)
-        G0 = NetworkGlow(n_in, n_hidden, L, K)
+        X = rand(Float32, N..., n_in, batchsize)
+        G = NetworkGlow(n_in, n_hidden, L, K;  split_scales=split_scales, ndims=length(N))
+        G0 = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
         Gini = deepcopy(G0)
 
         # Test one parameter from residual block and 1x1 conv
@@ -128,16 +127,16 @@ for split_scales = [true,false]
         # Gradient test
 
         # Initialization
-        G = NetworkGlow(n_in, n_hidden, L, K); G.forward(randn(Float32, nx, ny, n_in, batchsize))
+        G = NetworkGlow(n_in, n_hidden, L, K; ndims=length(N)); G.forward(randn(Float32, N..., n_in, batchsize))
         θ = deepcopy(get_params(G))
-        G0 = NetworkGlow(n_in, n_hidden, L, K); G0.forward(randn(Float32, nx, ny, n_in, batchsize))
+        G0 = NetworkGlow(n_in, n_hidden, L, K; ndims=length(N)); G0.forward(randn(Float32, N..., n_in, batchsize))
         θ0 = deepcopy(get_params(G0))
-        X = randn(Float32, nx, ny, n_in, batchsize)
+        X = randn(Float32, N..., n_in, batchsize)
 
         # Perturbation (normalized)
         dθ = θ-θ0
         dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
-        dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
+        dX = randn(Float32, N..., n_in, batchsize); dX *= norm(X)/norm(dX)
 
         # Jacobian eval
         dY, Y, _, _ = G.jacobian(dX, dθ, X)
@@ -169,6 +168,110 @@ for split_scales = [true,false]
         a = dot(dY, dY_)
         b = dot(dX, dX_) + dot(dθ, dθ_)
         @test isapprox(a, b; rtol=1f-3)
-
     end
 end
+
+# Test dense separately because RB is very different
+nx = 32
+ny = 32
+nz = 32
+n_in = 1
+N = (nx)
+split_scales = true
+dense = true
+
+println("Testing Dense Glow with dimensions $(N) and split_scales=$(split_scales)")
+# Network and input
+G = NetworkGlow(n_in, n_hidden, L, K; dense=dense, nx=nx, split_scales=split_scales, ndims=length(N))
+X = rand(Float32, N..., n_in, batchsize)
+
+# Invertibility
+Y = G.forward(X)[1]
+X_ = G.inverse(Y)
+
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
+
+###################################################################################################
+# Test gradients are set and cleared
+G.backward(Y, Y)
+
+P = get_params(G)
+gsum = 0
+for p in P
+    ~isnothing(p.grad) && (global gsum += 1)
+end
+
+param_factor = 7
+@test isequal(gsum, L*K*param_factor)
+
+clear_grad!(G)
+gsum = 0
+for p in P
+    ~isnothing(p.grad) && (global gsum += 1)
+end
+@test isequal(gsum, 0)
+
+
+###################################################################################################
+# Gradient test
+function loss_dense(L, X)
+    Y, logdet = L.forward(X)
+    f = -log_likelihood(Y) - logdet
+    ΔY = -∇log_likelihood(Y)
+    ΔX, X_ = L.backward(ΔY, Y)
+    return f, ΔX, L.CL[1,1].RB.params[1].grad
+end
+
+# Gradient test w.r.t. input
+G = NetworkGlow(n_in, n_hidden, L, K; dense=dense, nx=nx, split_scales=split_scales, ndims=length(N))
+X = rand(Float32, N..., n_in, batchsize)
+X0 = rand(Float32, N..., n_in, batchsize)
+dX = X - X0
+
+f0, ΔX = loss_dense(G, X0)[1:2]
+h = 0.1f0
+maxiter = 4
+err1 = zeros(Float32, maxiter)
+err2 = zeros(Float32, maxiter)
+
+print("\nGradient test glow: input\n")
+for j=1:maxiter
+    f = loss_dense(G, X0 + h*dX,)[1]
+    err1[j] = abs(f - f0)
+    err2[j] = abs(f - f0 - h*dot(dX, ΔX))
+    print(err1[j], "; ", err2[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
+
+# Gradient test w.r.t. parameters
+X = rand(Float32, N..., n_in, batchsize)
+G = NetworkGlow(n_in, n_hidden, L, K; dense=dense, nx=nx,  split_scales=split_scales, ndims=length(N))
+G0 = NetworkGlow(n_in, n_hidden, L, K; dense=dense, nx=nx, split_scales=split_scales, ndims=length(N))
+Gini = deepcopy(G0)
+
+# Test one parameter from residual block and 1x1 conv
+dW = G.CL[1,1].RB.params - G0.CL[1,1].RB.params
+
+f0, ΔX, ΔW = loss_dense(G0, X)
+h = 0.1f0
+maxiter = 4
+err3 = zeros(Float32, maxiter)
+err4 = zeros(Float32, maxiter)
+
+print("\nGradient test glow: input\n")
+for j=1:maxiter
+    set_params!(G0.CL[1,1].RB, Gini.CL[1,1].RB.params + h*dW)
+    f = loss_dense(G0, X)[1]
+    err3[j] = abs(f - f0)
+    err4[j] = abs(f - f0 - h*dot(dW[1].data, ΔW))
+    print(err3[j], "; ", err4[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f1)
+@test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f1)
+
