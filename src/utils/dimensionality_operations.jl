@@ -481,7 +481,11 @@ function split_states(Y::AbstractVector{T}, Z_dims) where {T}
     L = length(Z_dims) + 1
     inds = cumsum([1, [prod(Z_dims[j]) for j=1:L-1]...])
     Z_save = [reshape(Y[inds[j]:inds[j+1]-1], xy_dims(Z_dims[j], Val(j==L), Val(length(Z_dims[j])))) for j=1:L-1]
-    X = reshape(Y[inds[L]:end], xy_dims(Z_dims[end], Val(true), Val(length(Z_dims[end]))))
+    if L>2
+        X = reshape(Y[inds[L]:end], xy_dims(Z_dims[end], Val(true), Val(length(Z_dims[end]))))
+    else
+        X = reshape(Y[inds[L]:end], xy_dims(Z_dims[end], Val(false), Val(length(Z_dims[end]))))
+    end
     return Z_save, X
 end
 
