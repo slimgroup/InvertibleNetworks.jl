@@ -1,8 +1,9 @@
 using ChainRulesCore
-export logdetjac
-import ChainRulesCore: frule, rrule
+export logdetjac, getrrule
+import ChainRulesCore: frule, rrule, @non_differentiable
 
-
+@non_differentiable get_params(::Invertible)
+@non_differentiable get_params(::Reversed)
 ## Tape types and utilities
 
 """
@@ -81,7 +82,6 @@ function forward_update!(state::InvertibleOperationsTape, X::AbstractArray{T,N},
     if logdet isa Float32
         state.logdet === nothing ? (state.logdet = logdet) : (state.logdet += logdet)
     end
-
 end
 
 """
@@ -97,15 +97,13 @@ function backward_update!(state::InvertibleOperationsTape, X::AbstractArray{T,N}
         state.Y[state.counter_block] = X
         state.counter_layer -= 1
     end
-
     state.counter_block == 0 && reset!(state) # reset state when first block/first layer is reached
-
 end
 
 ## Chain rules for invertible networks
 # General pullback function
 function pullback(net::Invertible, ΔY::AbstractArray{T,N};
-                 state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
+                  state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
 
     # Check state coherency
     check_coherence(state, net)
@@ -114,19 +112,19 @@ function pullback(net::Invertible, ΔY::AbstractArray{T,N};
     T2 = typeof(current(state))
     ΔY = convert(T2, ΔY)
     # Backward pass
-    ΔX, X_ = net.backward(ΔY, current(state))
-
+    ΔX, X_ = net.backward(ΔY, current(state); set_grad=true)
+    Δθ = getfield.(get_params(net), :grad)
     # Update state
     backward_update!(state, X_)
 
-    return nothing, ΔX
+    return NoTangent(), NoTangent(), ΔX, Δθ
 end
 
 
 # Reverse-mode AD rule
-function ChainRulesCore.rrule(net::Invertible, X::AbstractArray{T, N};
+function ChainRulesCore.rrule(::typeof(forward_net), net::Invertible, X::AbstractArray{T, N}, θ...;
                               state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
-   
+
     # Forward pass
     net.logdet ? ((Y, logdet) = net.forward(X)) : (Y = net.forward(X); logdet = nothing)
 
@@ -143,3 +141,7 @@ end
 ## Logdet utilities for Zygote pullback
 
 logdetjac(; state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) = state.logdet
+
+## Utility to get the pullback directly for testing
+
+getrrule(net::Invertible, X::AbstractArray) = rrule(forward_net, net, X, getfield.(get_params(net), :data))
