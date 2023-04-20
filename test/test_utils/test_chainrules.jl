@@ -23,22 +23,22 @@ N10 = CouplingLayerHINT(n_ch, n_hidden; logdet=logdet, permute="full")
 
 # Forward pass + gathering pullbacks
 function fw(X)
-    X1, ∂1 = rrule(N1, X)
-    X2, ∂2 = rrule(N2, X1)
-    X3, ∂3 = rrule(N3, X2)
+    X1, ∂1 = getrrule(N1, X)
+    X2, ∂2 = getrrule(N2, X1)
+    X3, ∂3 = getrrule(N3, X2)
     X5, ∂5 = Flux.Zygote.pullback(Chain(N4, N5), X3)
-    X6, ∂6 = rrule(N6, X5)
-    X7, ∂7 = rrule(N7, X6)
+    X6, ∂6 = getrrule(N6, X5)
+    X7, ∂7 = getrrule(N7, X6)
     X9, ∂9 = Flux.Zygote.pullback(Chain(N8, N9), X7)
-    X10, ∂10 = rrule(N10, X9)
-    d1 = x -> ∂1(x)[2]
-    d2 = x -> ∂2(x)[2]
-    d3 = x -> ∂3(x)[2]
+    X10, ∂10 = getrrule(N10, X9)
+    d1 = x -> ∂1(x)[3]
+    d2 = x -> ∂2(x)[3]
+    d3 = x -> ∂3(x)[3]
     d5 = x -> ∂5(x)[1]
-    d6 = x -> ∂6(x)[2]
-    d7 = x -> ∂7(x)[2]
+    d6 = x -> ∂6(x)[3]
+    d7 = x -> ∂7(x)[3]
     d9 = x -> ∂9(x)[1]
-    d10 = x -> ∂10(x)[2]
+    d10 = x -> ∂10(x)[3]
     return X10, ΔY -> d1(d2(d3(d5(d6(d7(d9(d10(ΔY))))))))
 end
 
@@ -65,9 +65,9 @@ g2 = gradient(X -> loss(X), X)
 ## test Reverse network AD
 
 Nrev = reverse(N10)
-Xrev, ∂rev = rrule(Nrev, X)
+Xrev, ∂rev = getrrule(Nrev, X)
 grev = ∂rev(Xrev-Y0)
 
 g2rev = gradient(X -> 0.5f0*norm(Nrev(X) - Y0)^2, X)
 
-@test grev[2] ≈ g2rev[1] rtol=1f-6
+@test grev[3] ≈ g2rev[1] rtol=1f-6

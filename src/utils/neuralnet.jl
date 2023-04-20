@@ -33,7 +33,7 @@ end
 getproperty(I::Invertible, s::Symbol) = _get_property(I, Val{s}())
 
 _get_property(I::Invertible, ::Val{s}) where {s} = getfield(I, s)
-_get_property(R::Reversed, ::Val{:I}) where s = getfield(R, :I)
+_get_property(R::Reversed, ::Val{:I}) = getfield(R, :I)
 _get_property(R::Reversed, ::Val{s}) where s = _get_property(R.I, Val{s}())
 
 for m ∈ _INet_modes
@@ -128,4 +128,5 @@ function set_params!(N::Invertible, θnew::Array{Parameter, 1})
 end
 
 # Make invertible nets callable objects
-(N::Invertible)(X::AbstractArray{T,N} where {T, N}) = N.forward(X)
+(net::Invertible)(X::AbstractArray{T,N} where {T, N}) = forward_net(net, X, getfield.(get_params(net), :data))
+forward_net(net::Invertible, X::AbstractArray{T,N}, ::Any) where {T, N} = net.forward(X)
