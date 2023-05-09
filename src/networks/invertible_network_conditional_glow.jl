@@ -6,18 +6,20 @@
 export NetworkConditionalGlow, NetworkConditionalGlow3D
 
 """
-    G = NetworkGlow(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
+    G = NetworkGlow(n_in, n_cond, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
 
-    G = NetworkGlow3D(n_in, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
+    G = NetworkGlow3D(n_in, n_cond, n_hidden, L, K; k1=3, k2=1, p1=1, p2=0, s1=1, s2=1)
 
- Create an invertible network based on the Glow architecture. Each flow step in the inner loop 
+ Create a conditional invertible network based on the Glow architecture. Each flow step in the inner loop 
  consists of an activation normalization layer, followed by an invertible coupling layer with
  1x1 convolutions and a residual block. The outer loop performs a squeezing operation prior 
  to the inner loop, and a splitting operation afterwards.
 
  *Input*: 
 
- - 'n_in': number of input channels
+ - 'n_in': number of input channels of variable to sample
+
+ - 'n_cond': number of input channels of condition
 
  - `n_hidden`: number of hidden units in residual blocks
 
@@ -46,9 +48,9 @@ export NetworkConditionalGlow, NetworkConditionalGlow3D
 
  *Usage:*
 
- - Forward mode: `Y, logdet = G.forward(X)`
+ - Forward mode: `ZX, ZC  logdet = G.forward(X, C)`
 
- - Backward mode: `ΔX, X = G.backward(ΔY, Y)`
+ - Backward mode: `ΔX, X, ΔC = G.backward(ΔZX, ZX, ZC)`
 
  *Trainable parameters:*
 
@@ -68,12 +70,13 @@ struct NetworkConditionalGlow <: InvertibleNetwork
     K::Int64
     squeezer::Squeezer
     split_scales::Bool
+    summary_net::Union{FluxBlock,InvertibleNetwork, Nothing}
 end
 
 @Flux.functor NetworkConditionalGlow
 
 # Constructor
-function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;freeze_conv=false,  split_scales=false, rb_activation::ActivationFunction=ReLUlayer(), k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
+function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; freeze_conv=false,  split_scales=false, summary_net = nothing, rb_activation::ActivationFunction=ReLUlayer(), k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     AN_C = ActNorm(n_cond; logdet=false)    # activation normalization for condition
     CL = Array{ConditionalLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
@@ -96,7 +99,7 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;freeze_conv=false, 
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales)
+    return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales, summary_net)
 end
 
 NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., ndims=3)
@@ -106,7 +109,7 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
     G.split_scales && (Z_save = array_of_array(X, G.L-1))
     orig_shape = size(X)
 
-    # Dont need logdet for condition
+    !isnothing(G.summary_net) && (C = G.summary_net.forward(C))
     C = G.AN_C.forward(C)
 
     logdet = 0
@@ -147,37 +150,36 @@ function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
 end
 
 # Backward pass and compute gradients
-function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow) where {T, N}
-    
+function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow; C_save=nothing) where {T, N}
     # Split data and gradients
     if G.split_scales
         ΔZ_save, ΔX = split_states(ΔX[:], G.Z_dims)
         Z_save, X = split_states(X[:], G.Z_dims)
     end
 
-    ΔC_total = T(0) .* C
-
+    ΔC = T(0) .* C
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X  = tensor_cat(X, Z_save[i])
             ΔX = tensor_cat(ΔX, ΔZ_save[i])
         end
         for j=G.K:-1:1
-            ΔX, X, ΔC = G.CL[i, j].backward(ΔX, X, C)
+            ΔX, X, ΔC_ = G.CL[i, j].backward(ΔX, X, C)
             ΔX, X = G.AN[i, j].backward(ΔX, X)   
-            ΔC_total += ΔC      
+            ΔC += ΔC_      
         end
 
         if G.split_scales 
             C = G.squeezer.inverse(C)
-            ΔC_total = G.squeezer.inverse(ΔC_total) 
+            ΔC = G.squeezer.inverse(ΔC) 
             X = G.squeezer.inverse(X)
             ΔX = G.squeezer.inverse(ΔX)
 
         end
     end
 
-    ΔC_total, C = G.AN_C.backward(ΔC_total, C)
+    ΔC, C = G.AN_C.backward(ΔC, C)
+    !isnothing(G.summary_net) && (ΔC = G.summary_net.backward(ΔC, C_save))
 
-    return ΔX, X
+    return ΔX, X, ΔC
 end
