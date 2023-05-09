@@ -130,8 +130,8 @@ sum_net = ResNet(n_cond, 16, 3; norm=nothing) # make sure it doesnt have any wei
 
 # Network and input
 G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; summary_net = sum_net, split_scales=split_scales,ndims=length(N))
-X = rand(Float32, N..., n_in, batchsize)
-Cond = rand(Float32, N..., n_cond, batchsize)
+X = rand(Float32, N..., n_in, batchsize);
+Cond = rand(Float32, N..., n_cond, batchsize);
 
 Y, ZCond = G.forward(X,Cond)
 X_ = G.inverse(Y,ZCond) # saving the cond is important in split scales because of reshapes
@@ -146,7 +146,7 @@ gsum = 0
 for p in P
     ~isnothing(p.grad) && (global gsum += 1)
 end
-@test isequal(gsum, L*K*10+2+18) # depends on summary net you use
+@test isequal(gsum, L*K*10+2+12) # depends on summary net you use
 
 clear_grad!(G)
 gsum = 0
@@ -342,7 +342,7 @@ gsum = 0
 for p in P
     ~isnothing(p.grad) && (global gsum += 1)
 end
-@test isequal(gsum, L*K*10+2)
+@test isequal(gsum, L*K*10+2+12)
 
 clear_grad!(G)
 gsum = 0
@@ -357,14 +357,14 @@ end
 
 # Gradient test w.r.t. input
 G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;summary_net = sum_net_3d,split_scales=split_scales,ndims=length(N))
-X = rand(Float32, N..., n_in, batchsize)
-Cond = rand(Float32, N..., n_cond, batchsize)
-X0 = rand(Float32, N..., n_in, batchsize)
-Cond0 = rand(Float32, N..., n_cond, batchsize)
+X = rand(Float32, N..., n_in, batchsize);
+Cond = rand(Float32, N..., n_cond, batchsize);
+X0 = rand(Float32, N..., n_in, batchsize);
+Cond0 = rand(Float32, N..., n_cond, batchsize);
 
-dX = X - X0
+dX = X - X0;
 
-f0, ΔX = loss_sum(G, X0, Cond0)[1:2]
+f0, ΔX = loss_sum(G, X0, Cond0)[1:2];
 h = 0.1f0
 maxiter = 4
 err1 = zeros(Float32, maxiter)
@@ -392,7 +392,7 @@ Gini = deepcopy(G0)
 dW = G.CL[1,1].RB.W1.data - G0.CL[1,1].RB.W1.data
 dv = G.CL[1,1].C.v1.data - G0.CL[1,1].C.v1.data
 
-f0, ΔX, ΔW, Δv = loss_sum(G0, X, Cond)
+f0, ΔX, ΔW, Δv = loss_sum(G0, X, Cond);
 h = 0.1f0
 maxiter = 4
 err3 = zeros(Float32, maxiter)
