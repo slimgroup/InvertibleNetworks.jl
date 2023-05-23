@@ -5,7 +5,7 @@
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
 # Random seed
-Random.seed!(4);
+Random.seed!(5);
 
 # Define network
 n_in = 1
@@ -99,7 +99,7 @@ for (nx,L) in [(32,2),(2,1)] # nx=2 is difficult because can only do one multisc
     err3 = zeros(Float32, maxiter)
     err4 = zeros(Float32, maxiter)
 
-    print("\nGradient test glow: input\n")
+    print("\nGradient test glow: parameters\n")
     for j=1:maxiter
         set_params!(G0.CL[1,1].RB, Gini.CL[1,1].RB.params + h*dW)
         f = loss_dense(G0, X)[1]
