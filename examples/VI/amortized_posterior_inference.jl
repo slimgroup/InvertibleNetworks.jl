@@ -14,7 +14,7 @@ end
 
 # train using samples from joint distribution x,y ~ p(x,y) where x=[μ, σ] -> y = N(μ, σ)
 # rows: μ, σ, y
-num_params = 2; num_obs = 50; n_train = 10000
+num_params = 2; num_obs = 51; n_train = 10000
 training_data = mapreduce(x -> generate_data(num_obs), hcat, 1:n_train);
 
 ############ train some data
@@ -97,26 +97,22 @@ hist(X_post[1,1,2,:]; alpha=0.7,density=true,label="Posterior")
 axvline(x_ground_truth[2], color="k", linewidth=1,label="Ground truth")
 xlabel(L"\sigma"); ylabel("Density");
 legend()
-
 tight_layout()
 
 
 # Look at training curve
-sum_train = loss_l2 + logdet_train
-sum_test = loss_l2 + logdet_train
-
 fig = figure("training logs ", figsize=(10,12))
-subplot(3,1,1); title("L2 Term: train="*string(loss_l2[end])*" test="*string(loss_test[end]))
+subplot(3,1,1); title("L2 Term")
 plot(loss_l2, label="train"); 
 axhline(y=1,color="red",linestyle="--",label="Standard Normal")
 xlabel("Parameter Update"); legend();
 
-subplot(3,1,2); title("Logdet Term: train="*string(logdet_train[end])*" test="*string(logdet_test[end]))
+subplot(3,1,2); title("Logdet Term")
 plot(logdet_train);
 xlabel("Parameter Update") ;
 
-subplot(3,1,3); title("Total Objective: train="*string(sum_train[end])*" test="*string(sum_test[end]))
-plot(sum_train); 
+subplot(3,1,3); title("Total Objective")
+plot(loss_l2 + logdet_train); 
 xlabel("Parameter Update") ;
 tight_layout()
 
