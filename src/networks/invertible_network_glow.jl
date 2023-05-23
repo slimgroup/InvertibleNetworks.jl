@@ -124,7 +124,8 @@ end
 
 # Inverse pass 
 function inverse(Z::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
-    G.split_scales && ((Z_save, X) = split_states(Z, G.Z_dims))
+    X = Z
+    G.split_scales && ((Z_save, X) = split_states(X, G.Z_dims;L_net=G.L))
     for i=G.L:-1:1
         if G.split_scales && (i < G.L || G.L == 1)
             X = tensor_cat(X, Z_save[i])
@@ -141,11 +142,12 @@ end
 
 # Backward pass and compute gradients
 function backward(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, G::NetworkGlow; set_grad::Bool=true) where {T, N}
-    
+    ΔX = ΔZ
+    X = Z
     # Split data and gradients
     if G.split_scales
-        ΔX_save, ΔX = split_states(ΔZ, G.Z_dims)
-        X_save, X = split_states(Z, G.Z_dims)
+        ΔX_save, ΔX = split_states(ΔX, G.Z_dims;L_net=G.L)
+        X_save, X = split_states(X, G.Z_dims;L_net=G.L)
     end
 
     if ~set_grad

@@ -477,11 +477,11 @@ end
 
 # Split and reshape 1D vector Y in latent space back to states Zi
 # where Zi is the split tensor at each multiscale level.
-function split_states(Y::AbstractVector{T}, Z_dims) where {T}
+function split_states(Y::AbstractVector{T}, Z_dims; L_net=2) where {T, N}
     L = length(Z_dims) + 1
     inds = cumsum([1, [prod(Z_dims[j]) for j=1:L-1]...])
     Z_save = [reshape(Y[inds[j]:inds[j+1]-1], xy_dims(Z_dims[j], Val(j==L), Val(length(Z_dims[j])))) for j=1:L-1]
-    if L>2
+    if L_net>1
         X = reshape(Y[inds[L]:end], xy_dims(Z_dims[end], Val(true), Val(length(Z_dims[end]))))
     else
         X = reshape(Y[inds[L]:end], xy_dims(Z_dims[end], Val(false), Val(length(Z_dims[end]))))
