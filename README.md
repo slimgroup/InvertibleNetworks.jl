@@ -133,11 +133,13 @@ This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl),
 
 ## Authors
 
- - Philipp Witte, Georgia Institute of Technolgy (now Microsoft)
+ - Philipp Witte, Georgia Institute of Technology (now Microsoft)
 
  - Gabrio Rizzuti, Utrecht University
 
  - Mathias Louboutin, Georgia Institute of Technology
+
+ - Rafael Orozco, Georgia Institute of Technology 
 
  - Ali Siahkoohi, Georgia Institute of Technology
 

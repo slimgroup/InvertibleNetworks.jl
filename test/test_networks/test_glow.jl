@@ -7,6 +7,7 @@ using InvertibleNetworks, LinearAlgebra, Test, Random
 # Random seed
 Random.seed!(1);
 
+
 # Define network
 nx = 32
 ny = 32
@@ -19,13 +20,13 @@ K = 2
 
 for split_scales = [true,false]
     for N in [(nx, ny), (nx, ny, nz)]
-        ###########################################Test with split_scales = false #########################
-        # Invertibility
-
+        println("Testing Glow with dimensions $(N) and split_scales=$(split_scales)")
+        
         # Network and input
         G = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
         X = rand(Float32, N..., n_in, batchsize)
 
+        # Invertibility
         Y = G.forward(X)[1]
         X_ = G.inverse(Y)
 
@@ -40,7 +41,9 @@ for split_scales = [true,false]
         for p in P
             ~isnothing(p.grad) && (gsum += 1)
         end
-        @test isequal(gsum, L*K*10)
+        
+        param_factor = 10
+        @test isequal(gsum, L*K*param_factor)
 
         clear_grad!(G)
         gsum = 0
@@ -62,9 +65,9 @@ for split_scales = [true,false]
         end
 
         # Gradient test w.r.t. input
-        G = NetworkGlow(n_in, n_hidden, L, K)
-        X = rand(Float32, nx, ny, n_in, batchsize)
-        X0 = rand(Float32, nx, ny, n_in, batchsize)
+        G = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
+        X = rand(Float32, N..., n_in, batchsize)
+        X0 = rand(Float32, N..., n_in, batchsize)
         dX = X - X0
 
         f0, ΔX = loss(G, X0)[1:2]
@@ -86,9 +89,9 @@ for split_scales = [true,false]
         @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
         # Gradient test w.r.t. parameters
-        X = rand(Float32, nx, ny, n_in, batchsize)
-        G = NetworkGlow(n_in, n_hidden, L, K)
-        G0 = NetworkGlow(n_in, n_hidden, L, K)
+        X = rand(Float32, N..., n_in, batchsize)
+        G = NetworkGlow(n_in, n_hidden, L, K;  split_scales=split_scales, ndims=length(N))
+        G0 = NetworkGlow(n_in, n_hidden, L, K; split_scales=split_scales, ndims=length(N))
         Gini = deepcopy(G0)
 
         # Test one parameter from residual block and 1x1 conv
@@ -122,16 +125,16 @@ for split_scales = [true,false]
         # Gradient test
 
         # Initialization
-        G = NetworkGlow(n_in, n_hidden, L, K); G.forward(randn(Float32, nx, ny, n_in, batchsize))
+        G = NetworkGlow(n_in, n_hidden, L, K; ndims=length(N)); G.forward(randn(Float32, N..., n_in, batchsize))
         θ = deepcopy(get_params(G))
-        G0 = NetworkGlow(n_in, n_hidden, L, K); G0.forward(randn(Float32, nx, ny, n_in, batchsize))
+        G0 = NetworkGlow(n_in, n_hidden, L, K; ndims=length(N)); G0.forward(randn(Float32, N..., n_in, batchsize))
         θ0 = deepcopy(get_params(G0))
-        X = randn(Float32, nx, ny, n_in, batchsize)
+        X = randn(Float32, N..., n_in, batchsize)
 
         # Perturbation (normalized)
         dθ = θ-θ0
         dθ .*= norm.(θ0)./(norm.(dθ).+1f-10)
-        dX = randn(Float32, nx, ny, n_in, batchsize); dX *= norm(X)/norm(dX)
+        dX = randn(Float32, N..., n_in, batchsize); dX *= norm(X)/norm(dX)
 
         # Jacobian eval
         dY, Y, _, _ = G.jacobian(dX, dθ, X)
@@ -163,6 +166,5 @@ for split_scales = [true,false]
         a = dot(dY, dY_)
         b = dot(dX, dX_) + dot(dθ, dθ_)
         @test isapprox(a, b; rtol=1f-3)
-
     end
 end
