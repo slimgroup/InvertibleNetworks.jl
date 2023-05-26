@@ -81,6 +81,13 @@ function set_params!(pold::Array{Parameter, 1}, pnew::Array{Parameter, 1})
     end
 end
 
+function set_params!(pold::Array{Parameter, 1}, pnew::Array{Any, 1})
+    for i = 1:length(pold)
+        set_params!(pold[i], pnew[i])
+    end
+end
+
+
 
 ## Algebraic utilities for parameters
 
