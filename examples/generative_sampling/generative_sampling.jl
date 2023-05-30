@@ -24,7 +24,7 @@ if isfile(data_path) == false
     Downloads.download("ftp://slim.gatech.edu/data/synth/Compass/compass_samples_64.jld2", data_path)
 end
 
-#X_3d  = jldopen(data_path, "r")["X"][:,:,:,:,1:(end-4)]
+X_3d  = jldopen(data_path, "r")["X"][:,:,:,:,1:(end-4)]
 
 #take out water to focus on more interesting features
 inds_no_water = []
@@ -99,7 +99,7 @@ logdet_test = [];
 
 for e=1:n_epochs
 	idx_e = reshape(randperm(n_train), batch_size, n_batches)
-	for b = 1:5#n_batches # batch loop
+	for b = 1:n_batches # batch loop
 			X = X_train[:, :, :, idx_e[:,b]]
 			X .+= noise_lev*randn(Float32, size(X))
 
