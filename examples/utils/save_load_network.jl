@@ -6,7 +6,7 @@ L = 2
 K = 2 
 n_hidden = 8
 n_chan_params = 2
-G = NetworkGlow(n_chan_params, n_hidden,  L, K; );
+G = NetworkGlow(n_chan_params, n_hidden,  L, K;);
 G = G |> device;
 
 # Update network parameters by training
