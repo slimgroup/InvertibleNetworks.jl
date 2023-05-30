@@ -14,12 +14,14 @@ end
 
 # train using samples from joint distribution x,y ~ p(x,y) where x=[μ, σ] -> y = N(μ, σ)
 # rows: μ, σ, y
-num_params = 2; num_obs = 51; n_train = 10000
+num_params = 2; num_obs = 51;
+n_c_params = 1; n_c_obs = 1;
+n_train = 10000
 training_data = mapreduce(x -> generate_data(num_obs), hcat, 1:n_train);
 
 ############ train some data
-X_train = reshape(training_data[1:num_params,:], (1,1,num_params,:));
-Y_train = reshape(training_data[(num_params+1):end,:], (1,1,num_obs,:));
+X_train = reshape(training_data[1:num_params,:], (num_params,n_c_params,:));
+Y_train = reshape(training_data[(num_params+1):end,:], (num_obs,n_c_obs,:));
 
 n_epochs   = 2
 batch_size = 200
@@ -31,7 +33,7 @@ using InvertibleNetworks, LinearAlgebra, Flux
 L = 3 # RealNVP multiscale layers
 K = 4 # Coupling layers per scale
 n_hidden = 32 # Hidden channels in coupling layers' neural network
-G = NetworkConditionalGlow(num_params, num_obs, n_hidden,  L, K;);
+G = NetworkConditionalGlow(n_c_params, n_c_obs, n_hidden,  L, K; nx=nx, ndims=1);
 opt = ADAM(4f-3)
 
 # Training logs 
@@ -40,8 +42,8 @@ loss_l2   = []; logdet_train = [];
 for e=1:n_epochs # epoch loop
     idx_e = reshape(1:n_train, batch_size, n_batches) 
     for b = 1:n_batches # batch loop
-        X = X_train[:, :, :, idx_e[:,b]];
-        Y = Y_train[:, :, :, idx_e[:,b]];
+        X = X_train[:, :,  idx_e[:,b]];
+        Y = Y_train[:, :,  idx_e[:,b]];
      
         # Forward pass of normalizing flow
         Zx, Zy, lgdet = G.forward(X, Y)
