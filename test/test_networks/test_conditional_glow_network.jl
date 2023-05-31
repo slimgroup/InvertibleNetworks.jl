@@ -129,7 +129,9 @@ end
 sum_net = ResNet(n_cond, 16, 3; norm=nothing) # make sure it doesnt have any weird normalizati8ons
 
 # Network and input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; summary_net = sum_net, split_scales=split_scales,ndims=length(N))
+flow = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N))
+G = SummarizedNet(flow, sum_net)
+
 X = rand(Float32, N..., n_in, batchsize);
 Cond = rand(Float32, N..., n_cond, batchsize);
 
@@ -139,7 +141,7 @@ X_ = G.inverse(Y,ZCond) # saving the cond is important in split scales because o
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 # Test gradients are set and cleared
-G.backward(Y, Y, ZCond; C_save = Cond)
+G.backward(Y, Y, ZCond; Y_save = Cond)
 
 P = get_params(G)
 gsum = 0
@@ -161,12 +163,11 @@ function loss_sum(G, X, Cond)
     Y, ZC, logdet = G.forward(X, Cond)
     f = -log_likelihood(Y) - logdet
     ΔY = -∇log_likelihood(Y)
-    ΔX, X_ = G.backward(ΔY, Y, ZC; C_save=Cond)
-    return f, ΔX, G.CL[1,1].RB.W1.grad, G.CL[1,1].C.v1.grad
+    ΔX, X_ = G.backward(ΔY, Y, ZC; Y_save=Cond)
+    return f, ΔX, G.cond_net.CL[1,1].RB.W1.grad, G.cond_net.CL[1,1].C.v1.grad
 end
 
 # Gradient test w.r.t. input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;summary_net = sum_net, split_scales=split_scales,ndims=length(N))
 X = rand(Float32, N..., n_in, batchsize);
 Cond = rand(Float32, N..., n_cond, batchsize);
 X0 = rand(Float32, N..., n_in, batchsize);
@@ -195,13 +196,13 @@ end
 
 # Gradient test w.r.t. parameters
 X = rand(Float32, N..., n_in, batchsize)
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;summary_net = sum_net, split_scales=split_scales,ndims=length(N))
-G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;summary_net = sum_net, split_scales=split_scales,ndims=length(N))
+flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N))
+G0 = SummarizedNet(flow0, sum_net)
 Gini = deepcopy(G0)
 
 # Test one parameter from residual block and 1x1 conv
-dW = G.CL[1,1].RB.W1.data - G0.CL[1,1].RB.W1.data
-dv = G.CL[1,1].C.v1.data - G0.CL[1,1].C.v1.data
+dW = G.cond_net.CL[1,1].RB.W1.data - G0.cond_net.CL[1,1].RB.W1.data
+dv = G.cond_net.CL[1,1].C.v1.data - G0.cond_net.CL[1,1].C.v1.data
 
 f0, ΔX, ΔW, Δv = loss_sum(G0, X, Cond)
 h = 0.1f0
@@ -211,8 +212,8 @@ err4 = zeros(Float32, maxiter)
 
 print("\nGradient test glow: input\n")
 for j=1:maxiter
-    G0.CL[1,1].RB.W1.data = Gini.CL[1,1].RB.W1.data + h*dW
-    G0.CL[1,1].C.v1.data = Gini.CL[1,1].C.v1.data + h*dv
+    G0.cond_net.CL[1,1].RB.W1.data = Gini.cond_net.CL[1,1].RB.W1.data + h*dW
+    G0.cond_net.CL[1,1].C.v1.data = Gini.cond_net.CL[1,1].C.v1.data + h*dv
 
     f = loss_sum(G0, X, Cond)[1]
     err3[j] = abs(f - f0)
@@ -325,7 +326,9 @@ end
 sum_net_3d = ResNet(n_cond, 16, 3; ndims=3, norm=nothing) # make sure it doesnt have any weird normalizati8ons
 
 # Network and input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; summary_net = sum_net_3d, split_scales=split_scales,ndims=length(N));
+flow = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N));
+G = SummarizedNet(flow, sum_net_3d)
+
 X = rand(Float32, N..., n_in, batchsize);
 Cond = rand(Float32, N..., n_cond, batchsize);
 
@@ -335,7 +338,7 @@ X_ = G.inverse(Y,ZCond); # saving the cond is important in split scales because 
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 # Test gradients are set and cleared
-G.backward(Y, Y, ZCond; C_save=Cond)
+G.backward(Y, Y, ZCond; Y_save=Cond)
 
 P = get_params(G)
 gsum = 0
@@ -356,7 +359,6 @@ end
 
 
 # Gradient test w.r.t. input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;summary_net = sum_net_3d,split_scales=split_scales,ndims=length(N))
 X = rand(Float32, N..., n_in, batchsize);
 Cond = rand(Float32, N..., n_cond, batchsize);
 X0 = rand(Float32, N..., n_in, batchsize);
@@ -384,13 +386,13 @@ end
 
 # Gradient test w.r.t. parameters
 X = rand(Float32, N..., n_in, batchsize)
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;summary_net = sum_net_3d, split_scales=split_scales,ndims=length(N))
-G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;summary_net = sum_net_3d, split_scales=split_scales,ndims=length(N))
+flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N))
+G0 = SummarizedNet(flow0, sum_net_3d)
 Gini = deepcopy(G0)
 
 # Test one parameter from residual block and 1x1 conv
-dW = G.CL[1,1].RB.W1.data - G0.CL[1,1].RB.W1.data
-dv = G.CL[1,1].C.v1.data - G0.CL[1,1].C.v1.data
+dW = G.cond_net.CL[1,1].RB.W1.data - G0.cond_net.CL[1,1].RB.W1.data
+dv = G.cond_net.CL[1,1].C.v1.data - G0.cond_net.CL[1,1].C.v1.data
 
 f0, ΔX, ΔW, Δv = loss_sum(G0, X, Cond);
 h = 0.1f0
@@ -400,8 +402,8 @@ err4 = zeros(Float32, maxiter)
 
 print("\nGradient test glow: input\n")
 for j=1:maxiter
-    G0.CL[1,1].RB.W1.data = Gini.CL[1,1].RB.W1.data + h*dW
-    G0.CL[1,1].C.v1.data = Gini.CL[1,1].C.v1.data + h*dv
+    G0.cond_net.CL[1,1].RB.W1.data = Gini.cond_net.CL[1,1].RB.W1.data + h*dW
+    G0.cond_net.CL[1,1].C.v1.data = Gini.cond_net.CL[1,1].C.v1.data + h*dv
 
     f = loss_sum(G0, X, Cond)[1]
     err3[j] = abs(f - f0)

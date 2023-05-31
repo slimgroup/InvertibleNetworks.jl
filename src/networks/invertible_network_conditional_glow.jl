@@ -70,13 +70,12 @@ struct NetworkConditionalGlow <: InvertibleNetwork
     K::Int64
     squeezer::Squeezer
     split_scales::Bool
-    summary_net::Union{FluxBlock,InvertibleNetwork, Nothing}
 end
 
 @Flux.functor NetworkConditionalGlow
 
 # Constructor
-function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; freeze_conv=false,  split_scales=false, summary_net = nothing, rb_activation::ActivationFunction=ReLUlayer(), k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
+function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; freeze_conv=false,  split_scales=false,  rb_activation::ActivationFunction=ReLUlayer(), k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
     AN_C = ActNorm(n_cond; logdet=false)    # activation normalization for condition
     CL = Array{ConditionalLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
@@ -99,7 +98,7 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; freeze_conv=false,
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales, summary_net)
+    return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales)
 end
 
 NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., ndims=3)
@@ -109,7 +108,6 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
     G.split_scales && (Z_save = array_of_array(X, G.L-1))
     orig_shape = size(X)
 
-    !isnothing(G.summary_net) && (C = G.summary_net.forward(C))
     C = G.AN_C.forward(C)
 
     logdet = 0
@@ -150,7 +148,7 @@ function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
 end
 
 # Backward pass and compute gradients
-function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow; C_save=nothing) where {T, N}
+function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow;) where {T, N}
     # Split data and gradients
     if G.split_scales
         ΔZ_save, ΔX = split_states(ΔX[:], G.Z_dims)
@@ -179,7 +177,5 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
     end
 
     ΔC, C = G.AN_C.backward(ΔC, C)
-    !isnothing(G.summary_net) && (ΔC = G.summary_net.backward(ΔC, C_save))
-
     return ΔX, X, ΔC
 end
