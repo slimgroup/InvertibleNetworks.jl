@@ -39,6 +39,7 @@ end
 
 function checkboard_inds(N::NTuple{n, Int}, d::Integer) where n
     indsX = [ix+1:2:N[1] for ix=[(i+1)%2      for i=1:2^(d-2)]]
+    d == 3 && (return zip(indsX))
     indsY = [iy+1:2:N[2] for iy=[div(i-1,2)%2 for i=1:2^(d-2)]]
     d == 4 && (return zip(indsX, indsY))
     indsZ = [iz+1:2:N[3] for iz=[div(i-1,4)%2 for i=1:2^(d-2)]]
@@ -79,7 +80,7 @@ function squeeze(X::AbstractArray{T, N}; pattern="column") where {T, N}
     # Dimensions
     nc_in, batchsize = size(X)[N-1:N]
     if any([mod(nn, 2) == 1 for nn=size(X)[1:N-2]])
-        throw("Input dimensions must be multiple of 2")
+       throw("Input dimensions must be multiple of 2")
     end
     N_out = Tuple(nn÷2 for nn=size(X)[1:N-2])
     nc_out = size(X, N-1) * 2^(N-2)
@@ -461,6 +462,7 @@ function tensor_cat!(out::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::Abstra
 end
 
 @inline xy_dims(dims::Array, ::Val{false}, ::Any) = tuple(dims...)
+@inline xy_dims(dims::Array, ::Val{true}, ::Val{3}) = tuple(Int.(dims .* (.5, 2, 1))...)
 @inline xy_dims(dims::Array, ::Val{true}, ::Val{4}) = tuple(Int.(dims .* (.5, .5, 4, 1))...)
 @inline xy_dims(dims::Array, ::Val{true}, ::Val{5}) = tuple(Int.(dims .* (.5, .5, .5, 8, 1))...)
 
@@ -475,11 +477,15 @@ end
 
 # Split and reshape 1D vector Y in latent space back to states Zi
 # where Zi is the split tensor at each multiscale level.
-function split_states(Y::AbstractVector{T}, Z_dims) where {T}
+function split_states(Y::AbstractVector{T}, Z_dims; L_net=2) where {T, N}
     L = length(Z_dims) + 1
     inds = cumsum([1, [prod(Z_dims[j]) for j=1:L-1]...])
     Z_save = [reshape(Y[inds[j]:inds[j+1]-1], xy_dims(Z_dims[j], Val(j==L), Val(length(Z_dims[j])))) for j=1:L-1]
-    X = reshape(Y[inds[L]:end], xy_dims(Z_dims[end], Val(true), Val(length(Z_dims[end]))))
+    if L_net>1
+        X = reshape(Y[inds[L]:end], xy_dims(Z_dims[end], Val(true), Val(length(Z_dims[end]))))
+    else
+        X = reshape(Y[inds[L]:end], xy_dims(Z_dims[end], Val(false), Val(length(Z_dims[end]))))
+    end
     return Z_save, X
 end
 

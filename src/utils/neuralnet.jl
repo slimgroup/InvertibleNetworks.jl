@@ -127,6 +127,11 @@ function set_params!(N::Invertible, θnew::Array{Parameter, 1})
     set_params!(get_params(N), θnew)
 end
 
+# Set parameters with BSON loaded params
+function set_params!(N::Invertible, θnew::Array{Any, 1})
+    set_params!(get_params(N), θnew)
+end
+
 # Make invertible nets callable objects
 (net::Invertible)(X::AbstractArray{T,N} where {T, N}) = forward_net(net, X, getfield.(get_params(net), :data))
 forward_net(net::Invertible, X::AbstractArray{T,N}, ::Any) where {T, N} = net.forward(X)

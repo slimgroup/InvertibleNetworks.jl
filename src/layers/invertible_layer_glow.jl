@@ -79,11 +79,21 @@ end
 CouplingLayerGlow(C::Conv1x1, RB::FluxBlock; logdet=false, activation::ActivationFunction=SigmoidLayer()) = CouplingLayerGlow(C, RB, logdet, activation)
 
 # Constructor from input dimensions
-function CouplingLayerGlow(n_in::Int64, n_hidden::Int64; freeze_conv=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
+function CouplingLayerGlow(n_in::Int64, n_hidden::Int64; nx=nothing, dense=false, freeze_conv=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), ndims=2)
 
     # 1x1 Convolution and residual block for invertible layer
     C = Conv1x1(n_in; freeze=freeze_conv)
-    RB = ResidualBlock(Int(n_in/2), n_hidden; k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+   
+    split_num = Int(round(n_in/2))
+    in_chan   = n_in-split_num
+    out_chan  = 2*split_num
+
+    if dense 
+        isnothing(nx) && error("Dense network needs nx as kwarg input")
+        RB = FluxBlock(Chain(x->reshape(x,nx*in_chan,:),Dense(nx*in_chan,n_in*n_hidden,relu),Dense(n_in*n_hidden,n_in*n_hidden,relu),Dense(n_in*n_hidden,nx*out_chan,relu),x->reshape(x,nx,out_chan,:)))
+    else 
+        RB = ResidualBlock(in_chan, n_hidden;n_out=out_chan, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+    end
 
     return CouplingLayerGlow(C, RB, logdet, activation)
 end
@@ -92,7 +102,6 @@ CouplingLayerGlow3D(args...;kw...) = CouplingLayerGlow(args...; kw..., ndims=3)
 
 # Forward pass: Input X, Output Y
 function forward(X::AbstractArray{T, N}, L::CouplingLayerGlow) where {T,N}
-
     X_ = L.C.forward(X)
     X1, X2 = tensor_split(X_)
 
@@ -175,17 +184,19 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X, L::Cou
     Y2 = copy(X2)
     ΔY2 = copy(ΔX2)
     ΔlogS_T, logS_T = L.RB.jacobian(ΔX2, Δθ[4:end], X2)
-    Sm = L.activation.forward(logS_T[:,:,1:k,:])
-    ΔS = L.activation.backward(ΔlogS_T[:,:,1:k,:], nothing;x=logS_T[:,:,1:k,:])
-    Tm = logS_T[:, :, k+1:end, :]
-    ΔT = ΔlogS_T[:, :, k+1:end, :]
+    ΔlogS, ΔlogT = tensor_split(ΔlogS_T)
+    logS, logT = tensor_split(logS_T)
+    Sm = L.activation.forward(logS)
+    ΔS = L.activation.backward(ΔlogS, nothing;x=logS)
+    Tm = logT
+    ΔT = ΔlogT
     Y1 = Sm.*X1 + Tm
     ΔY1 = ΔS.*X1 + Sm.*ΔX1 + ΔT
     Y = tensor_cat(Y1, Y2)
     ΔY = tensor_cat(ΔY1, ΔY2)
 
     # Gauss-Newton approximation of logdet terms
-    JΔθ = L.RB.jacobian(cuzeros(ΔX2, size(ΔX2)), Δθ[4:end], X2)[1][:, :, 1:k, :]
+    JΔθ,_ = tensor_split(L.RB.jacobian(cuzeros(ΔX2, size(ΔX2)), Δθ[4:end], X2)[1])#[:, :, 1:k, :]
     GNΔθ = cat(0f0*Δθ[1:3], -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, Sm), zeros(Float32, size(Sm))), X2)[2]; dims=1)
 
     L.logdet ? (return ΔY, Y, glow_logdet_forward(Sm), GNΔθ) : (return ΔY, Y)
