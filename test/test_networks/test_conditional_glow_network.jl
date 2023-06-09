@@ -6,7 +6,7 @@ using InvertibleNetworks, LinearAlgebra, Test, Random
 using Flux 
 
 # Random seed
-Random.seed!(2);
+Random.seed!(3);
 
 # Define network
 nx = 32
