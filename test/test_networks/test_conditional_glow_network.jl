@@ -126,7 +126,7 @@ end
 
 ########################################### Test with split_scales = true N = (nx,ny) and summary network #########################
 # Invertibility
-sum_net = ResNet(n_cond, 16, 3; norm=nothing) # make sure it doesnt have any weird normalizati8ons
+sum_net = ResNet(n_cond, 16, 3; norm=nothing) # make sure it doesnt have any weird normalizations
 
 # Network and input
 flow = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N))
