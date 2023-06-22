@@ -75,10 +75,13 @@ end
 
 # Constructor from input dimensions
 function ConditionalLayerGlow(n_in::Int64, n_cond::Int64, n_hidden::Int64;freeze_conv=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, logdet=false, activation::ActivationFunction=SigmoidLayer(), rb_activation::ActivationFunction=RELUlayer(), ndims=2)
-
-    # 1x1 Convolution and residual block for invertible layers
     C  = Conv1x1(n_in; freeze=freeze_conv)
-    RB = ResidualBlock(Int(n_in/2)+n_cond, n_hidden; n_out=n_in, activation=rb_activation, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
+
+    split_num = Int(round(n_in/2))
+    in_chan   = n_in-split_num
+    out_chan  = 2*split_num
+
+    RB = ResidualBlock(in_chan+n_cond, n_hidden; n_out=out_chan, activation=rb_activation, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
 
     return ConditionalLayerGlow(C, RB, logdet, activation)
 end
@@ -143,7 +146,10 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::AbstractA
 
     # Backpropagate RB
     ΔX2_ΔC = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), (tensor_cat(X2, C)))
-    ΔX2, ΔC = tensor_split(ΔX2_ΔC; split_index=Int(size(ΔY)[N-1]/2))
+
+    n_in = size(ΔY)[N-1]
+    split_num = Int(round(n_in/2))
+    ΔX2, ΔC = tensor_split(ΔX2_ΔC; split_index=n_in-split_num)
     ΔX2 += ΔY2
 
     # Backpropagate 1x1 conv
