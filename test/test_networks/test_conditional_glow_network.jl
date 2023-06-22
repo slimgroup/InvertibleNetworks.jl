@@ -5,8 +5,9 @@
 using InvertibleNetworks, LinearAlgebra, Test, Random
 using Statistics 
 
+
 # Random seed
-Random.seed!(10);
+Random.seed!(36);
 
 function loss(G, X, Cond;summarized=false)
     Y, ZC, logdet = G.forward(X, Cond)
@@ -78,8 +79,8 @@ for split_scales in [false,true]
 
         ###################################################################################################
         # Gradient test w.r.t. input
-        X0 = rand(Float32, N..., n_in, batchsize)
-        Cond0 = rand(Float32, N..., n_cond, batchsize)
+        X0 = randn(Float32, N..., n_in, batchsize)
+        Cond0 = randn(Float32, N..., n_cond, batchsize)
 
         dX = X - X0
 
@@ -101,7 +102,7 @@ for split_scales in [false,true]
         rate1 = err1[1:end-1]./err1[2:end]
         rate2 = err2[1:end-1]./err2[2:end]
 
-        @test isapprox(mean(rate1),2f0; atol=stol)
+        @test isapprox(mean(rate1), 2f0; atol=stol)
         @test isapprox(mean(rate2), 4f0; atol=stol)
 
         # Gradient test w.r.t. parameters
@@ -148,7 +149,7 @@ for split_scales in [false,true]
         G = SummarizedNet(G, sum_net)
 
         X = randn(Float32, N..., n_in, batchsize)
-        Cond = rand(Float32, N..., n_cond, batchsize)
+        Cond = randn(Float32, N..., n_cond, batchsize)
 
         # Invertibility
         XZ, CondZ = G.forward(X,Cond)
@@ -161,8 +162,8 @@ for split_scales in [false,true]
 
         ###################################################################################################
         # Gradient test w.r.t. input
-        X0 = rand(Float32, N..., n_in, batchsize)
-        Cond0 = rand(Float32, N..., n_cond, batchsize)
+        X0 = randn(Float32, N..., n_in, batchsize)
+        Cond0 = randn(Float32, N..., n_cond, batchsize)
 
         dX = X - X0
 
