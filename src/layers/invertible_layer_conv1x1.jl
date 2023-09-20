@@ -39,7 +39,7 @@ export Conv1x1
 
  See also: [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct Conv1x1 <: NeuralNetLayer
+struct Conv1x1 <: InvertibleNetwork
     k::Integer
     v1::Parameter
     v2::Parameter

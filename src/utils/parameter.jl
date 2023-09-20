@@ -42,7 +42,7 @@ length(x::Parameter) = length(x.data)
 @Flux.functor Parameter
 
 """
-    clear_grad!(NL::NeuralNetLayer)
+    clear_grad!(NL::InvertibleNetwork)
 
 or
 

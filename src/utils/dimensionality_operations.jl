@@ -9,7 +9,7 @@ export ShuffleLayer, WaveletLayer, HaarLayer
 ###############################################################################
 # Custom type for squeezer functions
 
-struct Squeezer
+struct Squeezer <: InvertibleFunction
     forward::Function
     inverse::Function
 end
@@ -477,7 +477,7 @@ end
 
 # Split and reshape 1D vector Y in latent space back to states Zi
 # where Zi is the split tensor at each multiscale level.
-function split_states(Y::AbstractVector{T}, Z_dims; L_net=2) where {T, N}
+function split_states(Y::AbstractVector{T}, Z_dims; L_net=2) where T
     L = length(Z_dims) + 1
     inds = cumsum([1, [prod(Z_dims[j]) for j=1:L-1]...])
     Z_save = [reshape(Y[inds[j]:inds[j+1]-1], xy_dims(Z_dims[j], Val(j==L), Val(length(Z_dims[j])))) for j=1:L-1]

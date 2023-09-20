@@ -46,7 +46,7 @@ or
 
  See also: [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct ConditionalResidualBlock <: NeuralNetLayer
+struct ConditionalResidualBlock <: InvertibleNetwork
     W0::Parameter
     W1::Parameter
     W2::Parameter

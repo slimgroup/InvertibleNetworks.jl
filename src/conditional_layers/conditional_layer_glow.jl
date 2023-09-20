@@ -58,7 +58,7 @@ or
 
  See also: [`Conv1x1`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct ConditionalLayerGlow <: NeuralNetLayer
+struct ConditionalLayerGlow <: InvertibleNetwork
     C::Conv1x1
     RB::ResidualBlock
     logdet::Bool

@@ -6,7 +6,7 @@ export ComposedInvertibleNetwork, Composition
 import Base.length, Base.∘
 
 struct ComposedInvertibleNetwork <: InvertibleNetwork
-    layers::Array{T, 1} where {T <: Invertible}
+    layers::Array{T, 1} where {T <: InvertibleNetwork}
     logdet_array::Array{Bool, 1}
     logdet::Bool
     npars::Array{Int64, 1}
@@ -54,15 +54,15 @@ function ∘(net1::ComposedInvertibleNetwork, net2::ComposedInvertibleNetwork)
     return Composition(cat(net1.layers[end:-1:1], net2.layers[end:-1:1]; dims=1)...)
 end
 
-function ∘(net1::Union{NeuralNetLayer, InvertibleNetwork}, net2::Union{NeuralNetLayer, InvertibleNetwork})
+function ∘(net1::Union{InvertibleNetwork, InvertibleNetwork}, net2::Union{InvertibleNetwork, InvertibleNetwork})
     return Composition(cat(net1, net2; dims=1)...)
 end
 
-function ∘(net1::Union{NeuralNetLayer, InvertibleNetwork}, net2::ComposedInvertibleNetwork)
+function ∘(net1::Union{InvertibleNetwork, InvertibleNetwork}, net2::ComposedInvertibleNetwork)
     return Composition(cat(net1, net2.layers[end:-1:1]; dims=1)...)
 end
 
-function ∘(net1::ComposedInvertibleNetwork, net2::Union{NeuralNetLayer, InvertibleNetwork})
+function ∘(net1::ComposedInvertibleNetwork, net2::Union{InvertibleNetwork, InvertibleNetwork})
     return Composition(cat(net1.layers[end:-1:1], net2; dims=1)...)
 end
 

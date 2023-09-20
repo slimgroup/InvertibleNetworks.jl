@@ -50,7 +50,7 @@ export CouplingLayerHINT, CouplingLayerHINT3D
 
  See also: [`CouplingLayerBasic`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-mutable struct CouplingLayerHINT <: NeuralNetLayer
+mutable struct CouplingLayerHINT <: InvertibleNetwork
     CL::AbstractArray{CouplingLayerBasic, 1}
     C::Union{Conv1x1, Nothing}
     logdet::Bool

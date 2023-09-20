@@ -38,12 +38,13 @@ end
 
 # Utils
 include("utils/parameter.jl")
+include("utils/neuralnet.jl")
 include("utils/objective_functions.jl")
 include("utils/dimensionality_operations.jl")
 include("utils/activation_functions.jl")
 include("utils/test_distributions.jl")
-include("utils/neuralnet.jl")
 include("utils/invertible_network_sequential.jl")
+
 # AD rules
 include("utils/chainrules.jl")
 
