@@ -79,7 +79,7 @@ function get_params(I::InvertibleNetwork)
     params
 end
 
-get_params(::Nothing) = Array{Parameter}(undef, 0)
+get_params(::Any) = Array{Parameter}(undef, 0)
 get_params(A::AbstractArray{T}) where {T <: Union{InvertibleNetwork, Nothing}} = vcat([get_params(A[i]) for i in 1:length(A)]...)
 get_params(A::AbstractMatrix{T}) where {T <: Union{InvertibleNetwork, Nothing}} = vcat([get_params(A[i, j]) for i=1:size(A, 1) for j in 1:size(A, 2)]...)
 get_params(RN::ReversedNetwork) = get_params(RN.I)

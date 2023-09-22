@@ -9,6 +9,7 @@ using LinearAlgebra, Random
 using Statistics, Wavelets
 using JOLI
 using NNlib, Flux, ChainRulesCore
+using ExponentialUtilities
 
 # Overloads and reexports
 import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!, Base.getproperty
@@ -61,6 +62,7 @@ include("layers/invertible_layer_irim.jl")
 include("layers/invertible_layer_glow.jl")
 include("layers/invertible_layer_hyperbolic.jl")
 include("layers/invertible_layer_hint.jl")
+include("layers/learnable_squeezer.jl")
 
 # Invertible network architectures
 include("networks/invertible_network_hint_multiscale.jl")
