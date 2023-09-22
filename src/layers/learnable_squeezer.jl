@@ -19,10 +19,11 @@ end
 
 # Constructor
 
-function LearnableSqueezer(stencil_size::Integer...; logdet::Bool=false)
+function LearnableSqueezer(stencil_size::Integer...; logdet::Bool=false, zero_init::Bool=false)
 
     σ = prod(stencil_size)
-    stencil_pars = vec2par(randn(Float32, div(σ*(σ-1), 2)), (div(σ*(σ-1), 2), ))
+    zero_init ? (stencil_pars = vec2par(zeros(Float32, div(σ*(σ-1), 2)), (div(σ*(σ-1), 2), ))) :
+                (stencil_pars = vec2par(glorot_uniform(div(σ*(σ-1), 2)), (div(σ*(σ-1), 2), )))
     pars2mat_idx = _skew_symmetric_indices(σ)
     return LearnableSqueezer(stencil_pars, pars2mat_idx, stencil_size, nothing, nothing, logdet, true, nothing)
 
@@ -62,13 +63,13 @@ end
 function backward(ΔY::AbstractArray{T,N}, Y::AbstractArray{T,N}, C::LearnableSqueezer; set_grad::Bool=true, trigger_recompute::Bool=true) where {T,N}
     C.reset && throw(ArgumentError("The learnable squeezer must be evaluated forward first!"))
 
-   # Convolution (adjoint)
+    # Convolution (adjoint)
     X  = ∇conv_data(Y,  C.stencil, C.cdims)
     ΔX = ∇conv_data(ΔY, C.stencil, C.cdims)
 
     # Parameter gradient
     Δstencil = _mat2stencil_adjoint(∇conv_filter(X, ΔY, C.cdims), C.stencil_size, size(X, N-1))
-    ΔA = _Frechet_exponential(C.log_mat', Δstencil)
+    ΔA = _Frechet_derivative_exponential(C.log_mat', Δstencil)
     Δstencil_pars = ΔA[C.pars2mat_idx[1]]-ΔA[C.pars2mat_idx[2]]
     set_grad && (C.stencil_pars.grad = Δstencil_pars)
 
@@ -120,20 +121,20 @@ function _exponential(A::AbstractMatrix{T}) where T
     return expA
 end
 
-function _skew_symmetric_indices(nσ::Integer)
-    CIs = reshape(1:nσ^2, nσ, nσ)
+function _skew_symmetric_indices(σ::Integer)
+    CIs = reshape(1:σ^2, σ, σ)
     idx_u = Vector{Int}(undef, 0)
     idx_l = Vector{Int}(undef, 0)
-    for i=1:nσ, j=i+1:nσ # Indices related to (strictly) upper triangular part
+    for i=1:σ, j=i+1:σ # Indices related to (strictly) upper triangular part
         push!(idx_u, CIs[i,j])
     end
-    for j=1:nσ, i=j+1:nσ # Indices related to (strictly) lower triangular part
+    for j=1:σ, i=j+1:σ # Indices related to (strictly) lower triangular part
         push!(idx_l, CIs[i,j])
     end
     return idx_u, idx_l
 end
 
-function _Frechet_exponential(A::AbstractMatrix{T}, ΔA::AbstractMatrix{T}; niter::Int=40) where T
+function _Frechet_derivative_exponential(A::AbstractMatrix{T}, ΔA::AbstractMatrix{T}; niter::Int=40) where T
     dA = copy(ΔA)
     Mk = copy(ΔA)
     Apowk = copy(A)
