@@ -56,7 +56,7 @@ input_type(x::Tuple) = eltype(x[1])
 # For networks and layers not needing the tag
 tag_as_reversed!(I::InvertibleNetwork, ::Bool) = I
 
-reverse(N::InvertibleNetwork) = Reversed(tag_as_reversed!(deepcopy(N), true))
+reverse(N::InvertibleNetwork) = ReversedNetwork(tag_as_reversed!(deepcopy(N), true))
 reverse(RL::ReversedNetwork) = tag_as_reversed!(deepcopy(RL.I), false)
 
 """
@@ -128,6 +128,9 @@ end
 function set_params!(N::InvertibleNetwork, θnew::AbstractVector{<:Any})
     set_params!(get_params(N), θnew)
 end
+
+# Set parameters for reversed networks
+set_params!(Nrev::ReversedNetwork, θnew::AbstractVector{<:Parameter}) = set_params!(Nrev.I, θnew)
 
 # Make Invertible nets callable objects
 (net::InvertibleNetwork)(X::AbstractArray{T,N} where {T, N}) = forward_net(net, X, getfield.(get_params(net), :data))

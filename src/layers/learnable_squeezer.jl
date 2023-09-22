@@ -4,15 +4,23 @@
 export LearnableSqueezer
 
 mutable struct LearnableSqueezer <: InvertibleNetwork
+
+    # Stencil-related fields
     stencil_pars::Parameter
     pars2mat_idx
     stencil_size
     stencil::Union{AbstractArray,Nothing}
     cdims::Union{DenseConvDims,Nothing}
+
+    # Internal flags
+    trigger_recompute::Bool
     logdet::Bool
-    reset::Bool
-    log_mat::Union{AbstractArray,Nothing}
-    niter_exp_derivative::Integer
+    reversed::Bool
+
+    # Intermediate computations related to the stencil exponential
+    _log_mat::Union{AbstractArray,Nothing}
+    _niter_exp_derivative::Integer
+
 end
 
 @Flux.functor LearnableSqueezer
@@ -20,13 +28,15 @@ end
 
 # Constructor
 
-function LearnableSqueezer(stencil_size::Integer...; logdet::Bool=false, zero_init::Bool=false, niter_exp_derivative::Integer=40)
+function LearnableSqueezer(stencil_size::Integer...; logdet::Bool=false, zero_init::Bool=false, niter_exp_derivative::Integer=40, reversed::Bool=false)
 
     σ = prod(stencil_size)
     zero_init ? (stencil_pars = vec2par(zeros(Float32, div(σ*(σ-1), 2)), (div(σ*(σ-1), 2), ))) :
                 (stencil_pars = vec2par(glorot_uniform(div(σ*(σ-1), 2)), (div(σ*(σ-1), 2), )))
     pars2mat_idx = _skew_symmetric_indices(σ)
-    return LearnableSqueezer(stencil_pars, pars2mat_idx, stencil_size, nothing, nothing, logdet, true, nothing,niter_exp_derivative)
+    return LearnableSqueezer(stencil_pars, pars2mat_idx, stencil_size, nothing, nothing,
+                             true, logdet, reversed,
+                             nothing, niter_exp_derivative)
 
 end
 
@@ -34,13 +44,14 @@ end
 # Forward/inverse/backward
 
 function forward(X::AbstractArray{T,N}, C::LearnableSqueezer; logdet::Union{Nothing,Bool}=nothing) where {T,N}
+    C.trigger_recompute && C.reversed && throw(ArgumentError("Must first compute forward to initialize reverse(LearnableSqueezer)"))
     isnothing(logdet) && (logdet = C.logdet)
 
     # Compute exponential stencil
-    if C.reset
+    if C.trigger_recompute
         _compute_exponential_stencil!(C, size(X, N-1); set_log=true)
         C.cdims = DenseConvDims(size(X), size(C.stencil); stride=C.stencil_size)
-        C.reset = false
+        C.trigger_recompute = false
     end
 
     # Convolution
@@ -51,8 +62,16 @@ function forward(X::AbstractArray{T,N}, C::LearnableSqueezer; logdet::Union{Noth
 end
 
 function inverse(Y::AbstractArray{T,N}, C::LearnableSqueezer; logdet::Union{Nothing,Bool}=nothing) where {T,N}
+    C.trigger_recompute && ~C.reversed && throw(ArgumentError("Must first compute forward to initialize LearnableSqueezer"))
     isnothing(logdet) && (logdet = C.logdet)
-    C.reset && throw(ArgumentError("The learnable squeezer must be evaluated forward first!"))
+
+    # Compute exponential stencil
+    if C.trigger_recompute
+        size_X = Int.(size(Y).*(C.stencil_size..., 1/prod(C.stencil_size), 1))
+        _compute_exponential_stencil!(C, size_X[N-1]; set_log=true)
+        C.cdims = DenseConvDims(size_X, size(C.stencil); stride=C.stencil_size)
+        C.trigger_recompute = false
+    end
 
     # Convolution (adjoint)
     Y = ∇conv_data(Y, C.stencil, C.cdims)
@@ -62,7 +81,7 @@ function inverse(Y::AbstractArray{T,N}, C::LearnableSqueezer; logdet::Union{Noth
 end
 
 function backward(ΔY::AbstractArray{T,N}, Y::AbstractArray{T,N}, C::LearnableSqueezer; set_grad::Bool=true, trigger_recompute::Bool=true) where {T,N}
-    C.reset && throw(ArgumentError("The learnable squeezer must be evaluated forward first!"))
+    C.trigger_recompute && ~C.reversed && throw(ArgumentError("Must first compute forward to initialize LearnableSqueezer"))
 
     # Convolution (adjoint)
     X  = ∇conv_data(Y,  C.stencil, C.cdims)
@@ -70,16 +89,40 @@ function backward(ΔY::AbstractArray{T,N}, Y::AbstractArray{T,N}, C::LearnableSq
 
     # Parameter gradient
     Δstencil = _mat2stencil_adjoint(∇conv_filter(X, ΔY, C.cdims), C.stencil_size, size(X, N-1))
-    ΔA = _Frechet_derivative_exponential(C.log_mat', Δstencil; niter=C.niter_exp_derivative)
+    ΔA = _Frechet_derivative_exponential(C._log_mat', Δstencil; niter=C._niter_exp_derivative)
     Δstencil_pars = ΔA[C.pars2mat_idx[1]]-ΔA[C.pars2mat_idx[2]]
     set_grad && (C.stencil_pars.grad = Δstencil_pars)
 
     # Trigger recomputation
-    trigger_recompute && (C.reset = true)
+    trigger_recompute && (C.trigger_recompute = true)
 
     return set_grad ? (ΔX, X) : (ΔX, Δstencil_pars, X)
 
 end
+
+function backward_inv(ΔX::AbstractArray{T,N}, X::AbstractArray{T,N}, C::LearnableSqueezer; set_grad::Bool=true, trigger_recompute::Bool=true) where {T,N}
+    C.trigger_recompute && C.reversed && throw(ArgumentError("Must first compute forward to initialize reverse(LearnableSqueezer)"))
+
+    # Convolution (adjoint)
+    Y  = conv(X,  C.stencil, C.cdims)
+    ΔY = conv(ΔX, C.stencil, C.cdims)
+
+    # Parameter gradient
+    Δstencil = _mat2stencil_adjoint(∇conv_filter(X, ΔY, C.cdims), C.stencil_size, size(X, N-1))
+    ΔA = _Frechet_derivative_exponential(C._log_mat', Δstencil; niter=C._niter_exp_derivative)
+    Δstencil_pars = ΔA[C.pars2mat_idx[1]]-ΔA[C.pars2mat_idx[2]]
+    set_grad && (C.stencil_pars.grad = -Δstencil_pars)
+
+    # Trigger recomputation
+    trigger_recompute && (C.trigger_recompute = true)
+
+    return set_grad ? (ΔY, Y) : (ΔY, -Δstencil_pars, Y)
+
+end
+
+tag_as_reversed!(C::LearnableSqueezer, tag::Bool) = (C.reversed = tag; return C)
+
+set_params!(C::LearnableSqueezer, θ::AbstractVector{<:Parameter}) = (C.stencil_pars = θ[1]; C.trigger_recompute = true)
 
 
 # Internal utilities for LearnableSqueezer
@@ -88,7 +131,7 @@ function _compute_exponential_stencil!(C::LearnableSqueezer, nc::Integer; set_lo
     n = prod(C.stencil_size)
     log_mat = _pars2skewsymm(C.stencil_pars.data, C.pars2mat_idx, n)
     C.stencil = _mat2stencil(_exponential(log_mat), C.stencil_size, nc)
-    set_log && (C.log_mat = log_mat)
+    set_log && (C._log_mat = log_mat)
 end
 
 function _mat2stencil(A::AbstractMatrix{T}, k::NTuple{N,Integer}, nc::Integer) where {T,N}
