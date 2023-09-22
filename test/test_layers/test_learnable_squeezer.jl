@@ -11,11 +11,8 @@ k = (2, 3, 4)
 
 for N = 1:3
 
-    # Initialize operator
-    C = LearnableSqueezer(k[1:N]...) |> device
-
-
     # Test invertibility
+    C = LearnableSqueezer(k[1:N]...) |> device
     X = randn(Float32, n[1:N]..., nc, batchsize) |> device
     Y = randn(Float32, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize) |> device
     @test X ≈ C.inverse(C.forward(X)) rtol=1f-6
