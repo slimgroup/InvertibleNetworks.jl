@@ -12,6 +12,7 @@ mutable struct LearnableSqueezer <: InvertibleNetwork
     logdet::Bool
     reset::Bool
     log_mat::Union{AbstractArray,Nothing}
+    niter_exp_derivative::Integer
 end
 
 @Flux.functor LearnableSqueezer
@@ -19,13 +20,13 @@ end
 
 # Constructor
 
-function LearnableSqueezer(stencil_size::Integer...; logdet::Bool=false, zero_init::Bool=false)
+function LearnableSqueezer(stencil_size::Integer...; logdet::Bool=false, zero_init::Bool=false, niter_exp_derivative::Integer=40)
 
     σ = prod(stencil_size)
     zero_init ? (stencil_pars = vec2par(zeros(Float32, div(σ*(σ-1), 2)), (div(σ*(σ-1), 2), ))) :
                 (stencil_pars = vec2par(glorot_uniform(div(σ*(σ-1), 2)), (div(σ*(σ-1), 2), )))
     pars2mat_idx = _skew_symmetric_indices(σ)
-    return LearnableSqueezer(stencil_pars, pars2mat_idx, stencil_size, nothing, nothing, logdet, true, nothing)
+    return LearnableSqueezer(stencil_pars, pars2mat_idx, stencil_size, nothing, nothing, logdet, true, nothing,niter_exp_derivative)
 
 end
 
@@ -69,7 +70,7 @@ function backward(ΔY::AbstractArray{T,N}, Y::AbstractArray{T,N}, C::LearnableSq
 
     # Parameter gradient
     Δstencil = _mat2stencil_adjoint(∇conv_filter(X, ΔY, C.cdims), C.stencil_size, size(X, N-1))
-    ΔA = _Frechet_derivative_exponential(C.log_mat', Δstencil)
+    ΔA = _Frechet_derivative_exponential(C.log_mat', Δstencil; niter=C.niter_exp_derivative)
     Δstencil_pars = ΔA[C.pars2mat_idx[1]]-ΔA[C.pars2mat_idx[2]]
     set_grad && (C.stencil_pars.grad = Δstencil_pars)
 
