@@ -49,7 +49,7 @@ for N = 1:3
     ΔX = randn(Float32, n[1:N]..., nc, batchsize) |> device
     Y = randn(Float32, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize) |> device
     X = C.inverse(Y)
-    ΔY_, _ = C.backward_inv(ΔX, X; trigger_recompute=false)
+    ΔY_, _ = C.backward_inv(ΔX, X)
     @test dot(ΔY, ΔY_) ≈ dot(C.inverse(ΔY), ΔX) rtol=1f-4
 
 
