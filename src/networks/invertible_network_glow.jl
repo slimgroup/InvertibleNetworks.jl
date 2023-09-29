@@ -40,6 +40,8 @@ export NetworkGlow, NetworkGlow3D
 
  - `squeeze_type` : squeeze type that happens at each multiscale level
 
+ - `logdet` : boolean to turn on/off logdet term tracking and gradient calculation
+
  *Output*:
  
  - `G`: invertible Glow network.
@@ -67,12 +69,13 @@ struct NetworkGlow <: InvertibleNetwork
     K::Int64
     squeezer::Squeezer
     split_scales::Bool
+    logdet::Bool
 end
 
 @Flux.functor NetworkGlow
 
 # Constructor
-function NetworkGlow(n_in, n_hidden, L, K; nx=nothing, dense=false, freeze_conv=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
+function NetworkGlow(n_in, n_hidden, L, K; logdet=true,nx=nothing, dense=false, freeze_conv=false, split_scales=false, k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     (n_in == 1) && (split_scales = true) # Need extra channels for coupling layer
     (dense && isnothing(nx)) && error("Dense network needs nx as kwarg input") 
 
@@ -91,29 +94,28 @@ function NetworkGlow(n_in, n_hidden, L, K; nx=nothing, dense=false, freeze_conv=
         n_in *= channel_factor # squeeze if split_scales is turned on
         (dense && split_scales) && (nx = Int64(nx/2))
         for j=1:K
-            AN[i, j] = ActNorm(n_in; logdet=true)
-            CL[i, j] = CouplingLayerGlow(n_in, n_hidden; nx=nx, dense=dense, freeze_conv=freeze_conv, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=true, activation=activation, ndims=ndims)
+            AN[i, j] = ActNorm(n_in; logdet=logdet)
+            CL[i, j] = CouplingLayerGlow(n_in, n_hidden; nx=nx, dense=dense, freeze_conv=freeze_conv, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, logdet=logdet, activation=activation, ndims=ndims)
         end
         (i < L && split_scales) && (n_in = Int64(n_in/2); ) # split
     end
 
-    return NetworkGlow(AN, CL, Z_dims, L, K, squeezer, split_scales)
+    return NetworkGlow(AN, CL, Z_dims, L, K, squeezer, split_scales,logdet)
 end
 
 NetworkGlow3D(args; kw...) = NetworkGlow(args...; kw..., ndims=3)
 
 # Forward pass and compute logdet
-function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
+function forward(X::AbstractArray{T, N}, G::NetworkGlow;) where {T, N}
     G.split_scales && (Z_save = array_of_array(X, max(G.L-1,1)))
 
-
-    logdet = 0
+    logdet_ = 0
     for i=1:G.L
         (G.split_scales) && (X = G.squeezer.forward(X))
         for j=1:G.K            
-            X, logdet1 = G.AN[i, j].forward(X)
-            X, logdet2 = G.CL[i, j].forward(X)
-            logdet += (logdet1 + logdet2)
+            G.logdet ? (X, logdet1) = G.AN[i, j].forward(X) : X = G.AN[i, j].forward(X)
+            G.logdet ? (X, logdet2) = G.CL[i, j].forward(X) : X = G.CL[i, j].forward(X)
+            G.logdet && (logdet_ += (logdet1 + logdet2))
         end
         if G.split_scales && (i < G.L || i == 1)    # don't split after last iteration
             X, Z = tensor_split(X)
@@ -122,7 +124,8 @@ function forward(X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
         end
     end
     G.split_scales && (X = cat_states(Z_save, X))
-    return X, logdet
+
+    G.logdet ? (return X, logdet_) : (return X)
 end
 
 # Inverse pass 
