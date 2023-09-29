@@ -54,13 +54,12 @@ for N = 1:3
 
 
     # Gradient test (parameters)
-    using CUDA
     T = Float64
-    C = LearnableSqueezer(k[1:N]...) |> device; C.stencil_pars.data = cu(C.stencil_pars.data)
-    X  = CUDA.randn(T, n[1:N]..., nc, batchsize)
-    ΔY_ = CUDA.randn(T, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize)
+    C = LearnableSqueezer(k[1:N]...) |> device; C.stencil_pars.data = InvertibleNetworks.CUDA.cu(C.stencil_pars.data)
+    X  = InvertibleNetworks.CUDA.randn(T, n[1:N]..., nc, batchsize)
+    ΔY_ = InvertibleNetworks.CUDA.randn(T, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize)
     θ = copy(C.stencil_pars.data)
-    Δθ = CUDA.randn(T, size(θ)); Δθ *= norm(θ)/norm(Δθ)
+    Δθ = InvertibleNetworks.CUDA.randn(T, size(θ)); Δθ *= norm(θ)/norm(Δθ)
 
     t = T(1e-5)
     set_params!(C, [Parameter(θ+t*Δθ/2)])
@@ -77,13 +76,12 @@ for N = 1:3
 
 
     # Gradient test (parameters, inv)
-    using CUDA
     T = Float64
-    Crev = reverse(LearnableSqueezer(k[1:N]...)) |> device; Crev.stencil_pars.data = cu(Crev.stencil_pars.data)
-    Y   = CUDA.randn(T, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize)
-    ΔX_ = CUDA.randn(T, n[1:N]..., nc, batchsize)
+    Crev = reverse(LearnableSqueezer(k[1:N]...)) |> device; Crev.stencil_pars.data = InvertibleNetworks.CUDA.cu(Crev.stencil_pars.data)
+    Y   = InvertibleNetworks.CUDA.randn(T, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize)
+    ΔX_ = InvertibleNetworks.CUDA.randn(T, n[1:N]..., nc, batchsize)
     θ = deepcopy(Crev.stencil_pars.data)
-    Δθ = CUDA.randn(T, size(θ)); Δθ *= norm(θ)/norm(Δθ)
+    Δθ = InvertibleNetworks.CUDA.randn(T, size(θ)); Δθ *= norm(θ)/norm(Δθ)
 
     t = T(1e-5)
     set_params!(Crev, [Parameter(θ+t*Δθ/2)])
