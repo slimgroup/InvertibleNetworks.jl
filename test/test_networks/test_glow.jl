@@ -5,7 +5,7 @@
 using InvertibleNetworks, LinearAlgebra, Test, Random
 
 # Random seed
-Random.seed!(1);
+m = MersenneTwister()
 
 # Define network
 nx = 32
@@ -24,7 +24,7 @@ for logdet_bool = [true,false] #logdet is not tested in Jacobian yet.
             
             # Network and input
             G = NetworkGlow(n_in, n_hidden, L, K;logdet=logdet_bool, split_scales=split_scales, ndims=length(N))
-            X = rand(Float32, N..., n_in, batchsize)
+            X = rand(m,Float32, N..., n_in, batchsize)
 
             # Invertibility
             if logdet_bool
@@ -76,8 +76,8 @@ for logdet_bool = [true,false] #logdet is not tested in Jacobian yet.
 
             # Gradient test w.r.t. input
             G = NetworkGlow(n_in, n_hidden, L, K;logdet=logdet_bool, split_scales=split_scales, ndims=length(N))
-            X = rand(Float32, N..., n_in, batchsize)
-            X0 = rand(Float32, N..., n_in, batchsize)
+            X = rand(m,Float32, N..., n_in, batchsize)
+            X0 = rand(m,Float32, N..., n_in, batchsize)
             dX = X - X0
 
             f0, ΔX = loss(G, X0)[1:2]
@@ -99,7 +99,7 @@ for logdet_bool = [true,false] #logdet is not tested in Jacobian yet.
             @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f1)
 
             # Gradient test w.r.t. parameters
-            X = rand(Float32, N..., n_in, batchsize)
+            X = rand(m,Float32, N..., n_in, batchsize)
             G = NetworkGlow(n_in, n_hidden, L, K; logdet=logdet_bool, split_scales=split_scales, ndims=length(N))
             G0 = NetworkGlow(n_in, n_hidden, L, K;logdet=logdet_bool, split_scales=split_scales, ndims=length(N))
             Gini = deepcopy(G0)
