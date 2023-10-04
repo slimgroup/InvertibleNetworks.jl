@@ -148,14 +148,13 @@ function inverse(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
 end
 
 # Backward pass and compute gradients
-function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow;) where {T, N}
+function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, ΔC::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkConditionalGlow;) where {T, N}
     # Split data and gradients
     if G.split_scales
         ΔZ_save, ΔX = split_states(ΔX[:], G.Z_dims)
         Z_save, X = split_states(X[:], G.Z_dims)
     end
 
-    ΔC = T(0) .* C
     for i=G.L:-1:1
         if G.split_scales && i < G.L
             X  = tensor_cat(X, Z_save[i])

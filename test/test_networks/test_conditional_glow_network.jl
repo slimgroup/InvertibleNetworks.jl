@@ -2,6 +2,7 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
+using Revise
 using InvertibleNetworks, LinearAlgebra, Test, Random
 using Flux 
 
@@ -26,16 +27,16 @@ N = (nx,ny)
 
 # Network and input
 G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
-X = rand(Float32, N..., n_in, batchsize)
-Cond = rand(Float32, N..., n_cond, batchsize)
+X = rand(Float32, N..., n_in, batchsize);
+Cond = rand(Float32, N..., n_cond, batchsize);
 
-Y, Cond = G.forward(X,Cond)
-X_ = G.inverse(Y,Cond) # saving the cond is important in split scales because of reshapes
+Y, Cond = G.forward(X,Cond);
+X_ = G.inverse(Y,Cond); # saving the cond is important in split scales because of reshapes
 
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 # Test gradients are set and cleared
-G.backward(Y, Y, Cond)
+G.backward(Y, Y, Cond, Cond);
 
 P = get_params(G)
 gsum = 0
@@ -54,14 +55,55 @@ end
 ###################################################################################################
 # Gradient test
 
+
+# Gradient test
+function loss_y(G, X, Cond)
+    Y, ZC, logdet = G.forward(X, Cond)
+    f = -log_likelihood(Y) -log_likelihood(ZC) - logdet
+    ΔY  = -∇log_likelihood(Y)
+    ΔZC = -∇log_likelihood(ZC)
+    ΔX, X_, ΔY = G.backward(ΔY, Y, ΔZC, ZC)
+    return f, ΔX, ΔY, G.CL[1,1].RB.W1.grad, G.CL[1,1].C.v1.grad
+end
+
+# Gradient test w.r.t. condition input
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
+X = rand(Float32, N..., n_in, batchsize);
+Cond = rand(Float32, N..., n_cond, batchsize);
+X0 = rand(Float32, N..., n_in, batchsize);
+Cond0 = rand(Float32, N..., n_cond, batchsize);
+
+dCond = Cond - Cond0
+
+f0, ΔX, ΔY = loss_y(G, X0, Cond0)[1:3]
+h = 0.1f0
+maxiter = 4
+err1 = zeros(Float32, maxiter)
+err2 = zeros(Float32, maxiter)
+
+print("\nGradient test glow: input\n")
+for j=1:maxiter
+    f = loss_y(G, X0, Cond0 + h*dCond)[1]
+    err1[j] = abs(f - f0)
+    err2[j] = abs(f - f0 - h*dot(dCond, ΔY))
+    print(err1[j], "; ", err2[j], "\n")
+    global h = h/2f0
+end
+
+@test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f0)
+@test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f0)
+
+
+
+
+
 function loss(G, X, Cond)
     Y, ZC, logdet = G.forward(X, Cond)
     f = -log_likelihood(Y) - logdet
     ΔY = -∇log_likelihood(Y)
-    ΔX, X_ = G.backward(ΔY, Y, ZC)
+    ΔX, X_ = G.backward(ΔY, Y, 0f0 .* ZC, ZC)
     return f, ΔX, G.CL[1,1].RB.W1.grad, G.CL[1,1].C.v1.grad
 end
-
 
 # Gradient test w.r.t. input
 G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
@@ -89,6 +131,14 @@ end
 
 @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f0)
 @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f0)
+
+
+
+
+
+
+
+
 
 
 # Gradient test w.r.t. parameters
@@ -141,7 +191,7 @@ X_ = G.inverse(Y,ZCond) # saving the cond is important in split scales because o
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 # Test gradients are set and cleared
-G.backward(Y, Y, ZCond; Y_save = Cond)
+G.backward(Y, Y, ZCond, ZCond; Y_save = Cond)
 
 P = get_params(G)
 gsum = 0
@@ -163,7 +213,7 @@ function loss_sum(G, X, Cond)
     Y, ZC, logdet = G.forward(X, Cond)
     f = -log_likelihood(Y) - logdet
     ΔY = -∇log_likelihood(Y)
-    ΔX, X_ = G.backward(ΔY, Y, ZC; Y_save=Cond)
+    ΔX, X_ = G.backward(ΔY, Y,  ZC; Y_save=Cond)
     return f, ΔX, G.cond_net.CL[1,1].RB.W1.grad, G.cond_net.CL[1,1].C.v1.grad
 end
 
@@ -241,7 +291,7 @@ X_ = G.inverse(Y,Cond) # saving the cond is important in split scales because of
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 # Test gradients are set and cleared
-G.backward(Y, Y, Cond)
+G.backward(Y, Y, Cond,Cond)
 
 P = get_params(G)
 gsum = 0
@@ -338,7 +388,7 @@ X_ = G.inverse(Y,ZCond); # saving the cond is important in split scales because 
 @test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
 
 # Test gradients are set and cleared
-G.backward(Y, Y, ZCond; Y_save=Cond)
+G.backward(Y, Y,ZCond; Y_save=Cond)
 
 P = get_params(G)
 gsum = 0
