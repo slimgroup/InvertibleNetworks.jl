@@ -3,6 +3,37 @@
 
 export LearnableSqueezer
 
+"""
+    LS = LearnableSqueezer(stencil_size::Integer...; logdet=false, zero_init=false, reversed=false)
+
+ Create invertible down-sampling orthogonal transformation with learnable stencils. To build up-sampling operators use the `reversed` flag (or `reverse(LS)` after having initialized the learnable squeezer).
+
+ *Input*:
+
+ - `stencil_size`: N-dimensional tuple that describes the size of the squeezer stencil (typically, `(2,2)` or `(2,2,2)`)
+
+ - `logdet`: flag for logdet computation (*note*, in either cases `logdet=0`!)
+
+ - `zero_init`: flag for initializing the learnable squeezer as a [`ShuffleLayer`](@ref)
+
+ - `reversed`: flag for constructing down-sampling (`reversed=false`) or up-sampling operators (`reversed=false`)
+
+ *Output*:
+
+ - `LS`: invertible learnable squeezer
+
+ *Usage:*
+
+ - Forward mode: `Y, logdet = LS.forward(X)` (if constructed with `logdet=true`)
+
+ - Inverse mode: `X = LS.inverse(Y)`
+
+ - Backward mode: `ΔX, X = LS.backward(ΔY, Y)`
+
+ *Trainable parameters:*
+
+ - `LS.stencil_pars`: they represent the upper triangular part of a skew-symmetric matrix of size `(prod(stencil_size), prod(stencil_size))`
+"""
 mutable struct LearnableSqueezer <: InvertibleNetwork
 
     # Stencil-related fields
