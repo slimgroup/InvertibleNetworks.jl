@@ -9,7 +9,7 @@ export ShuffleLayer, WaveletLayer, HaarLayer
 ###############################################################################
 # Custom type for squeezer functions
 
-struct Squeezer <: InvertibleFunction
+struct Squeezer
     forward::Function
     inverse::Function
 end

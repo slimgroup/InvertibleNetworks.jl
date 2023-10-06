@@ -21,7 +21,7 @@ function Composition(layer...)
 
     # Initializing output
     depth = length(layer)
-    net_array = Array{Invertible, 1}(undef, depth)
+    net_array = Array{InvertibleNetwork, 1}(undef, depth)
     logdet_array = Array{Bool, 1}(undef, depth)
     logdet = false
     npars = Array{Int64, 1}(undef, depth)

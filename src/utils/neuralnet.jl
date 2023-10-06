@@ -2,8 +2,7 @@ export InvertibleNetwork
 export get_grads
 
 # Invertible network abstract type
-abstract type InvertibleFunction end
-abstract type InvertibleNetwork <: InvertibleFunction end
+abstract type InvertibleNetwork end
 
 # Reversed invertible network type (concrete)
 struct ReversedNetwork <: InvertibleNetwork
