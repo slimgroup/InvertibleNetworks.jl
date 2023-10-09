@@ -46,7 +46,7 @@ length(x::Parameter) = length(x.data)
 
 or
 
-    clear_grad!(P::AbstractAbstractVector{<:Parameter})
+    clear_grad!(P::AbstractVector{<:Parameter})
 
  Set gradients of each `Parameter` in the network layer to `nothing`.
 """
@@ -94,16 +94,16 @@ end
 dot(p1::Parameter, p2::Parameter) = dot(p1.data, p2.data)
 norm(p::Parameter) = norm(p.data)
 +(p1::Parameter, p2::Parameter) = Parameter(p1.data+p2.data)
-+(p1::Parameter, p2::T) where {T<:Real} = Parameter(p1.data+p2)
-+(p1::T, p2::Parameter) where {T<:Real} = p2+p1
++(p1::Parameter, p2::T) where {T<:Number} = Parameter(p1.data+p2)
++(p1::T, p2::Parameter) where {T<:Number} = p2+p1
 -(p1::Parameter, p2::Parameter) = Parameter(p1.data-p2.data)
--(p1::Parameter, p2::T) where {T<:Real} = Parameter(p1.data-p2)
--(p1::T, p2::Parameter) where {T<:Real} = -(p2-p1)
+-(p1::Parameter, p2::T) where {T<:Number} = Parameter(p1.data-p2)
+-(p1::T, p2::Parameter) where {T<:Number} = -(p2-p1)
 -(p::Parameter) = Parameter(-p.data)
-*(p1::Parameter, p2::T) where {T<:Real} = Parameter(p1.data*p2) 
-*(p1::T, p2::Parameter) where {T<:Real} = p2*p1
-/(p1::Parameter, p2::T) where {T<:Real} = Parameter(p1.data/p2)
-/(p1::T, p2::Parameter) where {T<:Real} = Parameter(p1/p2.data)
+*(p1::Parameter, p2::T) where {T<:Number} = Parameter(p1.data*p2) 
+*(p1::T, p2::Parameter) where {T<:Number} = p2*p1
+/(p1::Parameter, p2::T) where {T<:Number} = Parameter(p1.data/p2)
+/(p1::T, p2::Parameter) where {T<:Number} = Parameter(p1/p2.data)
 
 # Shape manipulation
 
