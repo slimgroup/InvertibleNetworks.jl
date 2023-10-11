@@ -54,15 +54,15 @@ function ∘(net1::ComposedInvertibleNetwork, net2::ComposedInvertibleNetwork)
     return Composition(cat(net1.layers[end:-1:1], net2.layers[end:-1:1]; dims=1)...)
 end
 
-function ∘(net1::Union{InvertibleNetwork, InvertibleNetwork}, net2::Union{InvertibleNetwork, InvertibleNetwork})
+function ∘(net1::NeuralNetwork, net2::NeuralNetwork)
     return Composition(cat(net1, net2; dims=1)...)
 end
 
-function ∘(net1::Union{InvertibleNetwork, InvertibleNetwork}, net2::ComposedInvertibleNetwork)
+function ∘(net1::NeuralNetwork, net2::ComposedInvertibleNetwork)
     return Composition(cat(net1, net2.layers[end:-1:1]; dims=1)...)
 end
 
-function ∘(net1::ComposedInvertibleNetwork, net2::Union{InvertibleNetwork, InvertibleNetwork})
+function ∘(net1::ComposedInvertibleNetwork, net2::NeuralNetwork)
     return Composition(cat(net1.layers[end:-1:1], net2; dims=1)...)
 end
 
