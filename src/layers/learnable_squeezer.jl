@@ -4,9 +4,9 @@
 export LearnableSqueezer
 
 """
-    LS = LearnableSqueezer(stencil_size::Integer...; logdet=false, zero_init=false, reversed=false)
+    LS = LearnableSqueezer(stencil_size::Integer...; logdet=false, zero_init=false)
 
- Create invertible down-sampling orthogonal transformation with learnable stencils. To build up-sampling operators use the `reversed` flag (or `reverse(LS)` after having initialized the learnable squeezer).
+ Create invertible down-sampling orthogonal transformation with learnable stencils. To build up-sampling operators use `reverse(LS)`, after having initialized a learnable squeezer LS.
 
  *Input*:
 
@@ -15,8 +15,6 @@ export LearnableSqueezer
  - `logdet`: flag for logdet computation (*note*, in either cases `logdet=0`!)
 
  - `zero_init`: flag for initializing the learnable squeezer as a [`ShuffleLayer`](@ref)
-
- - `reversed`: flag for constructing down-sampling (`reversed=false`) or up-sampling operators (`reversed=false`)
 
  *Output*:
 
@@ -44,7 +42,7 @@ mutable struct LearnableSqueezer <: InvertibleNetwork
 
     # Internal flags
     logdet::Bool
-    reversed::Bool
+    is_reversed::Bool
 
     # Internal parameters related to the stencil exponential or derivative thereof
     log_mat::Union{AbstractArray,Nothing}
@@ -58,14 +56,14 @@ end
 
 # Constructor
 
-function LearnableSqueezer(stencil_size::Integer...; logdet::Bool=false, zero_init::Bool=false, niter_expder::Union{Nothing,Integer}=nothing, tol_expder::Union{Nothing,Real}=nothing, reversed::Bool=false)
+function LearnableSqueezer(stencil_size::Integer...; logdet::Bool=false, zero_init::Bool=false, niter_expder::Union{Nothing,Integer}=nothing, tol_expder::Union{Nothing,Real}=nothing)
 
     σ = prod(stencil_size)
     zero_init ? (stencil_pars = vec2par(zeros(Float32, div(σ*(σ-1), 2)), (div(σ*(σ-1), 2), ))) :
                 (stencil_pars = vec2par(glorot_uniform(div(σ*(σ-1), 2)), (div(σ*(σ-1), 2), )))
     pars2mat_idx = _skew_symmetric_indices(σ)
     return LearnableSqueezer(stencil_pars, pars2mat_idx, stencil_size, nothing,
-                             logdet, reversed,
+                             logdet, false,
                              nothing, niter_expder, tol_expder)
 
 end
@@ -73,8 +71,8 @@ end
 
 # Forward/inverse/backward
 
-function forward(X::AbstractArray{T,N}, C::LearnableSqueezer; logdet::Union{Nothing,Bool}=nothing) where {T,N}
-    isnothing(logdet) && (logdet = C.logdet)
+function forward(X::AbstractArray{T,N}, C::LearnableSqueezer; logdet=nothing) where {T,N}
+    isnothing(logdet) && (logdet = (C.logdet && ~C.is_reversed))
 
     # Compute exponential stencil
     isnothing(C.stencil) && _compute_exponential_stencil!(C, size(X, N-1); set_log=true)
@@ -87,8 +85,8 @@ function forward(X::AbstractArray{T,N}, C::LearnableSqueezer; logdet::Union{Noth
 
 end
 
-function inverse(Y::AbstractArray{T,N}, C::LearnableSqueezer; logdet::Union{Nothing,Bool}=nothing) where {T,N}
-    isnothing(logdet) && (logdet = C.logdet)
+function inverse(Y::AbstractArray{T,N}, C::LearnableSqueezer; logdet=nothing) where {T,N}
+    isnothing(logdet) && (logdet = (C.logdet && C.is_reversed))
 
     # Compute exponential stencil
     size_X = Int.(size(Y).*(C.stencil_size..., 1/prod(C.stencil_size), 1))
@@ -115,7 +113,7 @@ function backward(ΔY::AbstractArray{T,N}, Y::AbstractArray{T,N}, C::LearnableSq
 
     # Parameter gradient
     Δstencil = _mat2stencil_adjoint(∇conv_filter(X, ΔY, cdims), C.stencil_size, size(X, N-1))
-    ΔA = _Frechet_derivative_exponential(C.log_mat', Δstencil; niter=C.niter_expder, tol=tol=isnothing(C.tol_expder) ? nothing : T(C.tol_expder))
+    ΔA = _Frechet_derivative_exponential(C.log_mat', Δstencil; niter=C.niter_expder, tol=isnothing(C.tol_expder) ? nothing : T(C.tol_expder))
     Δstencil_pars = ΔA[C.pars2mat_idx[1]]-ΔA[C.pars2mat_idx[2]]
     set_grad && (C.stencil_pars.grad = Δstencil_pars)
 
@@ -143,7 +141,7 @@ function backward_inv(ΔX::AbstractArray{T,N}, X::AbstractArray{T,N}, C::Learnab
 
 end
 
-tag_as_reversed!(C::LearnableSqueezer, tag::Bool) = (C.reversed = tag; return C)
+tag_as_reversed!(C::LearnableSqueezer, tag::Bool) = (C.is_reversed = tag; return C)
 
 set_params!(C::LearnableSqueezer, θ::AbstractVector{<:Parameter}) = (C.stencil_pars = θ[1]; C.stencil = nothing)
 
