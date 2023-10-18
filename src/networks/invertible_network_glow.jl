@@ -187,6 +187,36 @@ function backward(ΔZ::AbstractArray{T, N}, Z::AbstractArray{T, N}, G::NetworkGl
     set_grad ? (return ΔX, X) : (return ΔX, vcat(ΔθAN, ΔθCL), X, vcat(∇logdetAN, ∇logdetCL))
 end
 
+# Backward reverse pass and compute gradients
+function backward_inv(ΔX::AbstractArray{T, N},  X::AbstractArray{T, N}, G::NetworkGlow) where {T, N}
+    G.split_scales && (X_save = array_of_array(X, G.L-1))
+    G.split_scales && (ΔX_save = array_of_array(ΔX, G.L-1))
+    orig_shape = size(X)
+
+    for i=1:G.L
+        G.split_scales && (ΔX = G.squeezer.forward(ΔX))
+        G.split_scales && (X  = G.squeezer.forward(X))
+        for j=1:G.K
+            ΔX_, X_ = backward_inv(ΔX, X, G.AN[i, j])
+            ΔX,  X  = backward_inv(ΔX_, X_, G.CL[i, j])
+        end
+
+        if G.split_scales && i < G.L    # don't split after last iteration
+            X, Z = tensor_split(X)
+            ΔX, ΔZx = tensor_split(ΔX)
+
+            X_save[i] = Z
+            ΔX_save[i] = ΔZx
+
+            G.Z_dims[i] = collect(size(X))
+        end
+    end
+
+    G.split_scales && (X = reshape(cat_states(X_save, X), orig_shape))
+    G.split_scales && (ΔX = reshape(cat_states(ΔX_save, ΔX), orig_shape))
+    return ΔX, X
+end
+
 
 ## Jacobian-related utils
 function jacobian(ΔX::AbstractArray{T, N}, Δθ::Vector{Parameter}, X, G::NetworkGlow) where {T, N}

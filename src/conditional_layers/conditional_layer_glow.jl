@@ -151,3 +151,34 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::AbstractA
 
     return ΔX, X, ΔC
 end
+
+function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N},C::AbstractArray{T, N}, L::ConditionalLayerGlow; ) where {T, N}
+    ΔX, X = L.C.forward((ΔX, X))
+    X1, X2 = tensor_split(X)
+    ΔX1, ΔX2 = tensor_split(ΔX)
+
+    # Recompute forward state
+    rb_input = tensor_cat(X2,C)
+    logS_T = L.RB.forward(rb_input)
+    logSm, Tm = tensor_split(logS_T)
+    Sm = L.activation.forward(logSm)
+    Y1 = Sm.*X1 + Tm
+
+    # Backpropagate residual
+    ΔT = -ΔX1 ./ Sm
+    ΔS =  X1 .* ΔT 
+    if L.logdet == true
+        ΔS += coupling_logdet_backward(Sm)
+    end
+
+    ΔY2_ΔC = L.RB.backward(tensor_cat(L.activation.backward(ΔS, Sm), ΔT), rb_input) 
+    ΔY2, ΔC = tensor_split(ΔY2_ΔC; split_index=Int(size(ΔX)[N-1]/2))
+    ΔY2 += ΔX2
+
+    ΔY1 = -ΔT
+
+    ΔY = tensor_cat(ΔY1, ΔY2)
+    Y  = tensor_cat(Y1, X2)
+
+    return ΔY, Y, ΔC
+end
