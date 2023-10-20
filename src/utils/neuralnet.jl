@@ -10,6 +10,8 @@ struct ReversedNetwork <: InvertibleNetwork
     I::InvertibleNetwork
 end
 
+@Flux.functor ReversedNetwork
+
 # Simple display
 Base.show(io::IO, m::NeuralNetwork) = print(io, typeof(m))
 Base.display(m::NeuralNetwork) = println(typeof(m))
