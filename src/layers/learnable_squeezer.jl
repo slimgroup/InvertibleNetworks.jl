@@ -10,7 +10,7 @@ export LearnableSqueezer
 
  *Input*:
 
- - `stencil_size`: N-dimensional tuple that describes the size of the squeezer stencil (typically, `(2,2)` or `(2,2,2)`)
+ - `stencil_size`: N-dimensional tuple that describes the size of the squeezer stencil (typically, `(2,2)` in 2D or `(2,2,2)` in 3D)
 
  - `logdet`: flag for logdet computation (*note*, in either cases `logdet=0`!)
 
@@ -116,6 +116,7 @@ function backward(ΔY::AbstractArray{T,N}, Y::AbstractArray{T,N}, C::LearnableSq
     ΔA = _Frechet_derivative_exponential(C.log_mat', Δstencil; niter=C.niter_expder, tol=isnothing(C.tol_expder) ? nothing : T(C.tol_expder))
     Δstencil_pars = ΔA[C.pars2mat_idx[1]]-ΔA[C.pars2mat_idx[2]]
     set_grad && (C.stencil_pars.grad = Δstencil_pars)
+    C.stencil = nothing # Trigger exp-stencil recomputation after each backward pass
 
     return set_grad ? (ΔX, X) : (ΔX, Δstencil_pars, X)
 
@@ -135,7 +136,8 @@ function backward_inv(ΔX::AbstractArray{T,N}, X::AbstractArray{T,N}, C::Learnab
     Δstencil = _mat2stencil_adjoint(∇conv_filter(X, ΔY, cdims), C.stencil_size, size(X, N-1))
     ΔA = _Frechet_derivative_exponential(C.log_mat', Δstencil; niter=C.niter_expder, tol=isnothing(C.tol_expder) ? nothing : T(C.tol_expder))
     Δstencil_pars = ΔA[C.pars2mat_idx[1]]-ΔA[C.pars2mat_idx[2]]
-    set_grad && (C.stencil_pars.grad = -Δstencil_pars)
+    set_grad && (C.stencil_pars.grad = -Δstencil_pars)    
+    C.stencil = nothing # Trigger exp-stencil recomputation after each backward pass
 
     return set_grad ? (ΔY, Y) : (ΔY, -Δstencil_pars, Y)
 

@@ -3,97 +3,110 @@ device = InvertibleNetworks.CUDA.functional() ? gpu : cpu
 Random.seed!(11)
 
 
+# Test utils for LearnableSqueezers
+
+function test_inv_LS(n::NTuple{N,Integer}, nc::Integer, batchsize::Integer, stencil_size::NTuple{N,Integer}, logdet::Bool, do_reverse::Bool) where N
+
+    # Init
+    C = LearnableSqueezer(stencil_size...; logdet=logdet) |> device
+    do_reverse && (C = reverse(C))
+    input_size = ~do_reverse ? (n..., nc, batchsize) : (div.(n, stencil_size)..., prod(stencil_size)*nc, batchsize)
+    output_size = do_reverse ? (n..., nc, batchsize) : (div.(n, stencil_size)..., prod(stencil_size)*nc, batchsize)
+    X = randn(Float32, input_size) |> device
+    Y = randn(Float32, output_size) |> device
+
+    # Test
+    if logdet
+        @test X ≈ C.inverse(C.forward(X)[1]) rtol=1f-6
+        @test Y ≈ C.forward(C.inverse(Y))[1] rtol=1f-6
+    else
+        @test X ≈ C.inverse(C.forward(X)) rtol=1f-6
+        @test Y ≈ C.forward(C.inverse(Y)) rtol=1f-6
+    end
+
+end
+
+function loss_LS(LS, X, B)
+    LS.logdet ? ((Y, logdet) = LS.forward(X)) : (Y = LS.forward(X))
+    LS.logdet ? (f = norm(Y-B)^2/2-logdet) : (f = norm(Y-B)^2/2)
+    ΔY = Y-B
+    ΔX, X_ = LS.backward(ΔY, Y)
+    return f, ΔX, LS.stencil_pars.grad, X_
+end
+
+function test_grad_input_LS(n::NTuple{N,Integer}, nc::Integer, batchsize::Integer, stencil_size::NTuple{N,Integer}, logdet::Bool, do_reverse::Bool) where N
+
+    # Init
+    C = LearnableSqueezer(stencil_size...; logdet=logdet) |> device
+    do_reverse && (C = reverse(C))
+    input_size = ~do_reverse ? (n..., nc, batchsize) : (div.(n, stencil_size)..., prod(stencil_size)*nc, batchsize)
+    output_size = do_reverse ? (n..., nc, batchsize) : (div.(n, stencil_size)..., prod(stencil_size)*nc, batchsize)
+    X = randn(Float32, input_size) |> device
+    Y = randn(Float32, output_size) |> device
+    
+    # Test
+    ΔY = randn(Float32, output_size) |> device
+    ΔX = randn(Float32, input_size) |> device
+    X  = randn(Float32, input_size) |> device
+    logdet ? (Y = C.forward(X)[1]) : (Y = C.forward(X))
+    logdet ? (ΔY_ = C.forward(ΔX)[1]) : (ΔY_ = C.forward(ΔX))
+    ΔX_ = C.backward(ΔY, Y)[1]
+    @test dot(ΔX, ΔX_) ≈ dot(ΔY_, ΔY) rtol=1f-4 # Note: Learnable squeezer is a linear operator
+
+end
+
+function test_grad_params_LS(n::NTuple{N,Integer}, nc::Integer, batchsize::Integer, stencil_size::NTuple{N,Integer}, logdet::Bool, do_reverse::Bool) where N
+
+    # Init
+    C0 = LearnableSqueezer(stencil_size...; logdet=logdet) |> device
+    do_reverse && (C0 = reverse(C0))
+    θ0 = copy(C0.stencil_pars.data)
+    C = LearnableSqueezer(stencil_size...; logdet=logdet) |> device
+    do_reverse && (C = reverse(C))
+    θ = copy(C.stencil_pars.data)
+    dθ = θ-θ0
+    input_size = ~do_reverse ? (n..., nc, batchsize) : (div.(n, stencil_size)..., prod(stencil_size)*nc, batchsize)
+    output_size = do_reverse ? (n..., nc, batchsize) : (div.(n, stencil_size)..., prod(stencil_size)*nc, batchsize)
+
+    # Parameter gradient    
+    X = randn(Float32, input_size) |> device
+    Y = C0.forward(X); logdet && (Y = Y[1])
+    B = randn(Float32, output_size) |> device
+    f0 = loss_LS(C0, X, B)[1]
+    ∇θ = copy(C0.stencil_pars.grad)
+
+    # Test
+    maxiter = 5
+    h = 1f0
+    err3 = zeros(Float32, maxiter)
+    err4 = zeros(Float32, maxiter)
+    f0 = loss_LS(C0, X, B)[1]
+    print("\nGradient test weights (LearnableSqueezer) for reverse=$(do_reverse), logdet=$(logdet)\n")
+    for j=1:maxiter
+        set_params!(C, [Parameter(θ0+h*dθ)])
+        f = loss_LS(C, X, B)[1]
+        err3[j] = abs(f-f0)
+        err4[j] = abs(f-f0-h*dot(∇θ, dθ))
+        print(err3[j], "; ", err4[j], "\n")
+        h = h/2f0
+    end
+    @test isapprox(err3[end] / (maximum(err3)/2^(maxiter-1)), 1f0; atol=1f1)
+    @test isapprox(err4[end] / (maximum(err4)/4^(maxiter-1)), 1f0; atol=1f1)
+
+end
+
+
 # Dimensions
-n = (2*17, 3*11, 4*7)
+n = (3*11, 2*17, 4*7)
 nc = 4
 batchsize = 3
-k = (2, 3, 4)
+stencil_size = (3, 2, 4)
 
-for N = 1:3
+# Tests
+for N = 1:3, logdet = [true, false], do_reverse = [false, true]
 
-    # Test invertibility
-    C = LearnableSqueezer(k[1:N]...) |> device
-    X = randn(Float32, n[1:N]..., nc, batchsize) |> device
-    Y = randn(Float32, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize) |> device
-    @test X ≈ C.inverse(C.forward(X)) rtol=1f-6
-    @test Y ≈ C.forward(C.inverse(Y)) rtol=1f-6
-
-
-    # Test backward/inverse coherence
-    ΔY = randn(Float32, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize) |> device
-    Y  = randn(Float32, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize) |> device
-    X_ = C.inverse(Y)
-    _, X = C.backward(ΔY, Y)
-    @test X ≈ X_ rtol=1f-6
-
-
-    # Test backward_inv/forward coherence
-    ΔX = randn(Float32, n[1:N]..., nc, batchsize) |> device
-    X  = randn(Float32, n[1:N]..., nc, batchsize) |> device
-    Y_ = C.forward(X)
-    _, Y = C.backward_inv(ΔX, X)
-    @test Y ≈ Y_ rtol=1f-6
-
-
-    # Gradient test (input)
-    ΔY = randn(Float32, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize) |> device
-    ΔX = randn(Float32, n[1:N]..., nc, batchsize) |> device
-    X  = randn(Float32, n[1:N]..., nc, batchsize) |> device
-    Y = C.forward(X)
-    ΔX_, _ = C.backward(ΔY, Y)
-    @test dot(ΔX, ΔX_) ≈ dot(C.forward(ΔX), ΔY) rtol=1f-4
-
-
-    # Gradient test (input, inv)
-    ΔY = randn(Float32, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize) |> device
-    ΔX = randn(Float32, n[1:N]..., nc, batchsize) |> device
-    Y = randn(Float32, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize) |> device
-    X = C.inverse(Y)
-    ΔY_, _ = C.backward_inv(ΔX, X)
-    @test dot(ΔY, ΔY_) ≈ dot(C.inverse(ΔY), ΔX) rtol=1f-4
-
-
-    # Gradient test (parameters)
-    T = Float64
-    C = LearnableSqueezer(k[1:N]...) |> device; C.stencil_pars.data = InvertibleNetworks.CUDA.cu(C.stencil_pars.data)
-    X  = InvertibleNetworks.CUDA.randn(T, n[1:N]..., nc, batchsize)
-    ΔY_ = InvertibleNetworks.CUDA.randn(T, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize)
-    θ = copy(C.stencil_pars.data)
-    Δθ = InvertibleNetworks.CUDA.randn(T, size(θ)); Δθ *= norm(θ)/norm(Δθ)
-
-    t = T(1e-5)
-    set_params!(C, [Parameter(θ+t*Δθ/2)])
-    Yp1 = C.forward(X)
-    set_params!(C, [Parameter(θ-t*Δθ/2)])
-    Ym1 = C.forward(X)
-    ΔY = (Yp1-Ym1)/t
-    set_params!(C, [Parameter(θ)])
-    Y = C.forward(X)
-    C.backward(ΔY_, Y)
-    Δθ_ = C.stencil_pars.grad
-
-    @test dot(ΔY, ΔY_) ≈ dot(Δθ, Δθ_) rtol=T(1e-4)
-
-
-    # Gradient test (parameters, inv)
-    T = Float64
-    Crev = reverse(LearnableSqueezer(k[1:N]...)) |> device; Crev.stencil_pars.data = InvertibleNetworks.CUDA.cu(Crev.stencil_pars.data)
-    Y   = InvertibleNetworks.CUDA.randn(T, div.(n, k)[1:N]..., prod(k[1:N])*nc, batchsize)
-    ΔX_ = InvertibleNetworks.CUDA.randn(T, n[1:N]..., nc, batchsize)
-    θ = deepcopy(Crev.stencil_pars.data)
-    Δθ = InvertibleNetworks.CUDA.randn(T, size(θ)); Δθ *= norm(θ)/norm(Δθ)
-
-    t = T(1e-5)
-    set_params!(Crev, [Parameter(θ+t*Δθ/2)])
-    Xp1 = Crev.forward(Y)
-    set_params!(Crev, [Parameter(θ-t*Δθ/2)])
-    Xm1 = Crev.forward(Y)
-    ΔX = (Xp1-Xm1)/t
-    set_params!(Crev, [Parameter(θ)])
-    X = Crev.forward(Y)
-    Crev.backward(ΔX_, X)
-    Δθ_ = Crev.stencil_pars.grad
-
-    @test dot(ΔX, ΔX_) ≈ dot(Δθ, Δθ_) rtol=T(1e-4)
+    test_inv_LS(n[1:N], nc, batchsize, stencil_size[1:N], logdet, do_reverse)
+    test_grad_input_LS(n[1:N], nc, batchsize, stencil_size[1:N], logdet, do_reverse)
+    test_grad_params_LS(n[1:N], nc, batchsize, stencil_size[1:N], logdet, do_reverse)
 
 end
