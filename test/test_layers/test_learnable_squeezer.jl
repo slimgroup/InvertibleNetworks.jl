@@ -1,6 +1,6 @@
 using InvertibleNetworks, LinearAlgebra, Test, Flux, Random
 device = InvertibleNetworks.CUDA.functional() ? gpu : cpu
-Random.seed!(11)
+Random.seed!(42)
 
 
 # Test utils for LearnableSqueezers
@@ -42,16 +42,26 @@ function test_grad_input_LS(n::NTuple{N,Integer}, nc::Integer, batchsize::Intege
     input_size = ~do_reverse ? (n..., nc, batchsize) : (div.(n, stencil_size)..., prod(stencil_size)*nc, batchsize)
     output_size = do_reverse ? (n..., nc, batchsize) : (div.(n, stencil_size)..., prod(stencil_size)*nc, batchsize)
     X = randn(Float32, input_size) |> device
-    Y = randn(Float32, output_size) |> device
+    ΔX = randn(Float32, input_size) |> device; ΔX .*= norm(X)/norm(ΔX)
+    B = randn(Float32, output_size) |> device
+    Y = C.forward(X); logdet && (Y = Y[1]); B .*= norm(Y)/norm(B)
     
     # Test
-    ΔY = randn(Float32, output_size) |> device
-    ΔX = randn(Float32, input_size) |> device
-    X  = randn(Float32, input_size) |> device
-    logdet ? (Y = C.forward(X)[1]) : (Y = C.forward(X))
-    logdet ? (ΔY_ = C.forward(ΔX)[1]) : (ΔY_ = C.forward(ΔX))
-    ΔX_ = C.backward(ΔY, Y)[1]
-    @test dot(ΔX, ΔX_) ≈ dot(ΔY_, ΔY) rtol=1f-4 # Note: Learnable squeezer is a linear operator
+    maxiter = 5
+    h = 0.01f0
+    err1 = zeros(Float32, maxiter)
+    err2 = zeros(Float32, maxiter)
+    f0, ΔX0 = loss_LS(C, X, B)[1:2]
+    print("\nGradient test input (LearnableSqueezer) for reverse=$(do_reverse), logdet=$(logdet)\n")
+    for j=1:maxiter
+        f = loss_LS(C, X+h*ΔX, B)[1]
+        err1[j] = abs(f-f0)
+        err2[j] = abs(f-f0-h*dot(ΔX, ΔX0))
+        print(err1[j], "; ", err2[j], "\n")
+        h = h/2f0
+    end
+    @test isapprox(err1[end] / (maximum(err1)/2^(maxiter-1)), 1f0; atol=1f1)
+    @test isapprox(err2[end] / (maximum(err2)/4^(maxiter-1)), 1f0; atol=1f1)
 
 end
 

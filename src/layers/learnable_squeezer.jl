@@ -182,11 +182,13 @@ function _pars2skewsymm(Apars::AbstractVector{T}, pars2mat_idx::NTuple{2,Abstrac
     return A
 end
 
-function _exponential(A::AbstractMatrix{T}) where T
-    expA = copy(A)
-    exponential!(expA)
-    return expA
-end
+# function _exponential(A::AbstractMatrix{T}) where T
+#     expA = copy(A)
+#     exponential!(expA)
+#     return expA
+# end
+
+_exponential(A::AbstractMatrix{T}) where T = A isa Array ? (return exp(A)) : (return typeof(A)(exp(Array(A))))
 
 function _skew_symmetric_indices(σ::Integer)
     CIs = reshape(1:σ^2, σ, σ)
@@ -200,6 +202,37 @@ function _skew_symmetric_indices(σ::Integer)
     end
     return idx_u, idx_l
 end
+
+# function _exponential(A::AbstractMatrix{T}; niter::Union{Nothing,Integer}=nothing, tol::Union{Nothing,T}=nothing) where T
+
+#     # Set default options
+#     isnothing(niter) && (niter = 100)
+#     isnothing(tol) && (tol = eps(T))
+
+#     # Allocating arrays
+#     expA = similar(A); fill!(expA, 0); expA[diagind(expA)] .= 1
+#     Mk = copy(expA)
+#     Mk_temp = copy(Mk)
+
+#     @inbounds for k = 1:niter-1
+
+#         # Truncated series
+#         Mk .= (Mk*A)/k
+#         expA .+= Mk
+
+#         # # Truncated series
+#         # mul!(expA, Mk, A, T(1)/k, T(1))
+#         # mul!(Mk_temp, Mk, A); Mk_temp ./= k
+#         # Mk .= Mk_temp
+
+#         # Convergence check
+#         ~isnothing(tol) && (norm(expA)/norm(Mk) < tol) && break
+
+#     end
+
+#     return expA
+
+# end
 
 function _Frechet_derivative_exponential(A::AbstractMatrix{T}, ΔA::AbstractMatrix{T}; niter::Union{Nothing,Integer}=nothing, tol::Union{Nothing,T}=nothing) where T
 

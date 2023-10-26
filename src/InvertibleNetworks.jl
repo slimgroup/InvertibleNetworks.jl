@@ -9,7 +9,6 @@ using LinearAlgebra, Random
 using Statistics, Wavelets
 using JOLI
 using NNlib, Flux, ChainRulesCore
-using ExponentialUtilities
 
 # Overloads and reexports
 import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!, Base.getproperty
