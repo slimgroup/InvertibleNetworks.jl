@@ -287,7 +287,7 @@ function invHaarLift(x::AbstractArray{T,N}, dim) where {T, N}
     return invHaarLift(tensor_split(x)..., dim)
 end
 
-function invHaarLift(L::AbstractArray{T,N}, H::AbstractArray{T,N},dim) where {T, N}
+function invHaarLift(L::AbstractArray{T,N}, H::AbstractArray{T,N}, dim) where {T, N}
     #inverse Haar lifting
 
     #inv normalize
@@ -311,15 +311,17 @@ end
 """
     Y = Haar_squeeze(X)
 
- Perform a 1-level channelwise 2D/3D (lifting) Haar transform of X and squeeze output of each
- transform to increase channels by factor of 4 in 4D tensor or by factor of 8 in 5D channels.
+ Perform a 1-level channelwise 1D/2D/3D (lifting) Haar transform of X and squeeze output of each
+ transform to increase channels by factor of 2 in 3D tensors, 4 in 4D tensors, or by factor of 8 in 5D tensors.
 
  *Input*:
 
- - `X`: 4D/5D input tensor of dimensions `nx` x `ny` (x `nz`) x `n_channel` x `batchsize`
+ - `X`: 3D/4D/5D input tensor of dimensions `nx` (x `ny` (x `nz`)) x `n_channel` x `batchsize`
 
  *Output*:
 
+ if 3D tensor:
+     - `Y`: Reshaped tensor of dimensions `nx/2` x `n_channel*2` x `batchsize`
  if 4D tensor:
  - `Y`: Reshaped tensor of dimensions `nx/2` x `ny/2` x `n_channel*4` x `batchsize`
   or if 5D tensor:
@@ -328,7 +330,7 @@ end
  See also: [`wavelet_unsqueeze`](@ref), [`Haar_unsqueeze`](@ref), [`HaarLift`](@ref), [`squeeze`](@ref), [`unsqueeze`](@ref)
 """
 function Haar_squeeze(x::AbstractArray{T, N}) where {T, N}
-
+    
         L, H = HaarLift(x, 2)
 
         a, h = HaarLift(L ,1)
@@ -342,21 +344,25 @@ function Haar_squeeze(x::AbstractArray{T, N}) where {T, N}
         return cat(a..., v..., h..., d...,dims=N-1)
 end
 
+Haar_squeeze(x::AbstractArray{T, 3}) where T = cat(HaarLift(x, 1)...; dims=2)
+
 
 """
     X = invHaar_unsqueeze(Y)
 
- Perform a 1-level inverse 2D/3D Haar transform of Y and unsqueeze output.
- This reduces the number of channels by factor of 4 in 4D tensors or by factor
- of 8 in 5D tensors and increases each spatial dimension by a factor of 2.
+ Perform a 1-level inverse 1D/2D/3D Haar transform of Y and unsqueeze output.
+ This reduces the number of channels by factor of 2in 3D tensors, 4 in 4D tensors, or by factor
+ of 8 in 5D tensors, and increases each spatial dimension by a factor of 2.
  Inverse operation of `Haar_squeeze`.
 
  *Input*:
 
- - `Y`: 4D/5D input tensor of dimensions `nx` x `ny` (x `nz`) x `n_channel` x `batchsize`
+ - `Y`: 3D/4D/5D input tensor of dimensions `nx` (x `ny` (x `nz`)) x `n_channel` x `batchsize`
 
  *Output*:
 
+ If 3D tensor:
+ - `X`: Reshaped tensor of dimensions `nx*2` x `n_channel/2` x `batchsize`
  If 4D tensor:
  - `X`: Reshaped tensor of dimensions `nx*2` x `ny*2` x `n_channel/4` x `batchsize`
  If 5D tensor:
@@ -382,6 +388,8 @@ function invHaar_unsqueeze(x::AbstractArray{T, N}) where {T, N}
 
         return x
 end
+
+invHaar_unsqueeze(x::AbstractArray{T, 3}) where T = invHaarLift(x, 1)
 
 ####################################################################################################
 # Split and concatenate
