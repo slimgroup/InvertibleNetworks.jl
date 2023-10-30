@@ -5,26 +5,36 @@
 export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, invHaar_unsqueeze 
 export tensor_split, tensor_cat
 export cat_states, split_states
-export ShuffleLayer, WaveletLayer, HaarLayer
+export Squeezer, ShuffleLayer, WaveletLayer, HaarLayer
+
+
 ###############################################################################
 # Custom type for squeezer functions
 
-struct Squeezer
+abstract type Squeezer end
+
+struct ShuffleLayer<:Squeezer
+    pattern
     forward::Function
     inverse::Function
 end
 
-function ShuffleLayer(;pattern="checkerboard")
-    return Squeezer(x -> squeeze(x;pattern=pattern), x -> unsqueeze(x;pattern=pattern))
+ShuffleLayer(; pattern="checkerboard") = ShuffleLayer(pattern, x -> squeeze(x; pattern=pattern), x -> unsqueeze(x;pattern=pattern))
+
+struct WaveletLayer<:Squeezer
+    type
+    forward::Function
+    inverse::Function
 end
 
-function WaveletLayer(;type=WT.db1)
-    return Squeezer(x -> wavelet_squeeze(x;type=type), x -> wavelet_unsqueeze(x;type=type))
+WaveletLayer(; type=WT.db1) = WaveletLayer(type, x -> wavelet_squeeze(x; type=type), x -> wavelet_unsqueeze(x; type=type))
+
+struct HaarLayer<:Squeezer
+    forward::Function
+    inverse::Function
 end
 
-function HaarLayer()
-    return Squeezer(x -> Haar_squeeze(x), x -> invHaar_unsqueeze(x))
-end
+HaarLayer() = HaarLayer(x -> Haar_squeeze(x), x -> invHaar_unsqueeze(x))
 
 
 ####################################################################################################
@@ -410,7 +420,7 @@ invHaar_unsqueeze(x::AbstractArray{T, 3}) where T = invHaarLift(x, 1)
 
  See also: [`tensor_cat`](@ref)
 """
-function tensor_split(X::AbstractArray{T, N}; split_index=nothing) where {T, N}
+function tensor_split(X::AbstractArray{T, N}; split_index=nothing, view::Bool=false) where {T, N}
     d = max(1, N-1)
     if isnothing(split_index)
         k = Int(round(size(X, d)/2))
@@ -421,7 +431,8 @@ function tensor_split(X::AbstractArray{T, N}; split_index=nothing) where {T, N}
     indsl = [i==d ? (1:k) : Colon() for i=1:N]
     indsr = [i==d ? (k+1:size(X, d)) : Colon() for i=1:N]
 
-    return X[indsl...], X[indsr...]
+    view ? (Xl = Base.view(X, indsl...); Xr = Base.view(X, indsr...)) : (Xl = X[indsl...]; Xr = X[indsr...])
+    return Xl, Xr
 end
 
 """
