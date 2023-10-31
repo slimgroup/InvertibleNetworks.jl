@@ -111,12 +111,6 @@ function squeeze(X::AbstractArray{T, N}; pattern="column") where {T, N}
         for (i, ix)=enumerate(iX)
             Y[cinds..., (i-1)*nc_in+1:i*nc_in, :] = X[ix..., :, :]
         end
-    elseif pattern == "Haar"
-        Y = cuzeros(X, N_out..., nc_out, batchsize)
-        iX = Haar_inds(size(X), N)
-        for (i, ix)=enumerate(iX)
-            Y[cinds..., (i-1)*nc_in+1:i*nc_in, :] = X[ix..., :, :]
-        end
     else
         throw("Specified pattern not defined.")
     end
