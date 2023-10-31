@@ -41,13 +41,14 @@ HaarLayer() = HaarLayer(x -> Haar_squeeze(x), x -> invHaar_unsqueeze(x))
 # Squeeze and unsqueeze
 function patch_inds(N::NTuple{n, Int}, d::Integer) where n
     indsX = [ix*N[1]+1:(ix+1)*N[1] for ix=[(i+1)%2 for i=1:2^(d-2)]]
+    d == 3 && (return zip(indsX))
     indsY = [iy*N[2]+1:(iy+1)*N[2] for iy=[div(i-1,2)%2 for i=1:2^(d-2)]]
     d == 4 && (return zip(indsX, indsY))
     indsZ = [iz*N[3]+1:(iz+1)*N[3] for iz=[div(i-1,4)%2 for i=1:2^(d-2)]]
     return zip(indsX, indsY, indsZ)
 end
 
-function checkboard_inds(N::NTuple{n, Int}, d::Integer) where n
+function checkerboard_inds(N::NTuple{n, Int}, d::Integer) where n
     indsX = [ix+1:2:N[1] for ix=[(i+1)%2      for i=1:2^(d-2)]]
     d == 3 && (return zip(indsX))
     indsY = [iy+1:2:N[2] for iy=[div(i-1,2)%2 for i=1:2^(d-2)]]
@@ -106,7 +107,13 @@ function squeeze(X::AbstractArray{T, N}; pattern="column") where {T, N}
         end
     elseif pattern == "checkerboard"
         Y = cuzeros(X, N_out..., nc_out, batchsize)
-        iX = checkboard_inds(size(X), N)
+        iX = checkerboard_inds(size(X), N)
+        for (i, ix)=enumerate(iX)
+            Y[cinds..., (i-1)*nc_in+1:i*nc_in, :] = X[ix..., :, :]
+        end
+    elseif pattern == "Haar"
+        Y = cuzeros(X, N_out..., nc_out, batchsize)
+        iX = Haar_inds(size(X), N)
         for (i, ix)=enumerate(iX)
             Y[cinds..., (i-1)*nc_in+1:i*nc_in, :] = X[ix..., :, :]
         end
@@ -165,7 +172,7 @@ function unsqueeze(Y::AbstractArray{T,N}; pattern="column") where {T, N}
         end
     elseif pattern == "checkerboard"
         X = cuzeros(Y, N_out..., nc_out, batchsize)
-        iX = checkboard_inds(N_out, N)
+        iX = checkerboard_inds(N_out, N)
         for (i, ix)=enumerate(iX)
             X[ix..., :, :] = Y[cinds..., (i-1)*nc_out+1:i*nc_out, :]
         end
