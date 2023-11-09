@@ -7,7 +7,7 @@ export LeakyReLU, LeakyReLUinv, LeakyReLUgrad
 export Sigmoid, SigmoidInv, SigmoidGrad
 export GaLU, GaLUgrad
 export ExpClamp, ExpClampInv, ExpClampGrad
-export ReLUlayer, LeakyReLUlayer, SigmoidLayer, Sigmoid2Layer, GaLUlayer, ExpClampLayer
+export ActivationFunction, ReLUlayer, LeakyReLUlayer, SigmoidLayer, Sigmoid2Layer, GaLUlayer, ExpClampLayer
 
 
 ###############################################################################
