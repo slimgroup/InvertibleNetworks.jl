@@ -46,7 +46,7 @@ function GaLUlayer()
 end
 
 function ExpClampLayer(; clamp=2)
-    return ActivationFunction(x -> ExpClamp(x; clamp=clamp), y -> ExpClampInv(y; clamp=clamp), (Δy, y) -> ExpClampGrad(Δy, y; clamp=clamp))
+    return ActivationFunction(x -> ExpClamp(x; clamp=clamp), y -> ExpClampInv(y; clamp=clamp), (Δy, y; x=nothing) -> ExpClampGrad(Δy, y; x=x, clamp=clamp))
 end
 
 
