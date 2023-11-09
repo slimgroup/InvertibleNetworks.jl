@@ -46,7 +46,7 @@ function GaLUlayer()
 end
 
 function ExpClampLayer()
-    return ActivationFunction(x -> ExpClamp(x), y -> ExpClampInv(y/2f0), (Δy, y) -> ExpClampGrad(Δy*2f0, y/2f0))
+    return ActivationFunction(x -> ExpClamp(x), y -> ExpClampInv(y), (Δy, y) -> ExpClampGrad(Δy, y))
 end
 
 
@@ -286,7 +286,7 @@ function ExpClampInv(y::AbstractArray{T, N}; clamp=T(2)) where {T, N}
     if any(y .≈ 0)
         throw(InputError("Input contains zeros."))
     else
-        return tan.(log.(y) / clamp / T(0.636))
+        return tan.(log.(y) / T(clamp) / T(0.636))
     end
 end
 
