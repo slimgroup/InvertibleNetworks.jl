@@ -57,6 +57,5 @@ end
 
 function backward_inv(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}, S::SummarizedNet; Y_save=nothing) where {T, N}
     ΔX, X, ΔY = S.cond_net.backward_inv(ΔX,X,Y)
-    #ΔY = S.sum_net.backward(ΔY, Y_save)
     return ΔX, X, ΔY
 end
