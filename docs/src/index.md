@@ -1,28 +1,26 @@
-Memory efficient inverible layers, networks and activation function for Machine learning.
 
 # InvertibleNetworks.jl documentation
 
-This documentation is work in progress and is being actively populated.
-
 ## About
 
-[InvertibleNetworks.jl](https://github.com/slimgroup/InvertibleNetworks.jl) is a package of invertible layers and networks for machine learning. The invertibility allow to backpropagate through the layers and networks without the need for storing the forward state that is recomputed on the fly, inverse propagating through it. This package is the first of its kind in Julia.
+[InvertibleNetworks.jl](https://github.com/slimgroup/InvertibleNetworks.jl) is a package of invertible layers and networks for machine learning. The invertibility allows to backpropagate through the layers and networks without the need for storing the forward state that is recomputed on the fly, inverse propagating through it. This package is the first of its kind in Julia with memory efficient invertible layers, networks and activation functions for machine learning.
 
-This package is developped and maintained by Felix J. Herrmann's [SlimGroup](https://slim.gatech.edu/) at Georgia Institute of Technology. In particular the main contributors of this package are:
+## Installation
 
+This package is registered in the Julia general registry and can be installed in the REPL package manager (`]`):
+
+```julia
+] add InvertibleNetworks
+```
+
+## Authors
+
+This package is developed and maintained by Felix J. Herrmann's [SlimGroup](https://slim.gatech.edu/) at Georgia Institute of Technology. The main contributors of this package are:
+ - Rafael Orozco, Georgia Institute of Technology (rorozco@gatech.edu)
  - Philipp Witte, Microsoft Corporation (pwitte@microsoft.com)
  - Gabrio Rizzuti, Utrecht University (g.rizzuti@umcutrecht.nl)
  - Mathias Louboutin, Georgia Institute of Technology (mlouboutin3@gatech.edu)
  - Ali Siahkoohi, Georgia Institute of Technology (alisk@gatech.edu)
-
-## Installation
-
-THis package is registered in the Julia general registry and can be directly installed in the julia REPL package manager (`]`):
-
-
-```julia
-] add/dev InvertibleNetworks
-```
 
 ## References
 
