@@ -81,7 +81,7 @@ end
 ####################################################################################################
 
 # Testing
-test_size = 500
+test_size = 250
 X = sample_banana(test_size)
 Y_ = forward(X)[1]
 Y = randn(Float32, 1, 1, 2, test_size)
@@ -157,7 +157,7 @@ for j=1:maxiter
 end
 
 # Testing
-test_size = 1000
+test_size = 250
 X = sample_banana(test_size)
 Y = reshape(A*reshape(X, :, test_size), nx, ny, n_in, test_size)
 Y += .2f0*randn(Float32, nx, ny, n_in, test_size)
