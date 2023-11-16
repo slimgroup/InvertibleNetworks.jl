@@ -4,7 +4,7 @@ We provide usage examples for all the layers and network in our [examples](https
 
 ## 2D Rosenbrock/banana distribution sampling w/ GLOW
 
-```@example banana
+```@example
 using LinearAlgebra, InvertibleNetworks, PyPlot, Flux, Random
 
 # Random seed
@@ -48,8 +48,6 @@ function backward(ΔX, X)
     end
     return ΔX, X
 end
-
-####################################################################################################
 
 # Loss
 function loss(X)
@@ -97,20 +95,21 @@ ax3 = subplot(2,2,3); plot(X_[1, 1, 1, :], X_[1, 1, 2, :], "g."); title(L"Data s
 ax3.set_xlim([-3.5,3.5]); ax3.set_ylim([0,50])
 ax4 = subplot(2,2,4); plot(Y[1, 1, 1, :], Y[1, 1, 2, :], "."); title(L"Latent space: $z \sim \hat{p}_Z$")
 ax4.set_xlim([-3.5, 3.5]); ax4.set_ylim([-3.5, 3.5])
-savefig("plot_banana.svg")
+savefig("../src/figures/plot_banana.svg")
+
 nothing
 ```
-![plot_banana.svg](plot_banana.svg)
-
-
-
+![plot_banana.svg](figures/plot_banana.svg)
 
 
 ## Conditional 2D Rosenbrock/banana distribution sampling w/ cHINT
 
 ```@example cbanana
 using InvertibleNetworks
-using Flux, LinearAlgebra, PyPlot
+using Flux, LinearAlgebra, PyPlot, Random
+
+# Random seed
+Random.seed!(11)
 
 # Define network
 nx = 1; ny = 1; n_in = 2
@@ -204,17 +203,11 @@ ax9.set_xlim([-3.5, 3.5]); ax9.set_ylim([-3.5, 3.5])
 ax10 = subplot(2,5,10); plot(Zx[1, 1, 1, :], Zx[1, 1, 2, :], "."); 
 plot(Zy_fixed[1, 1, 1, :], Zy_fixed[1, 1, 2, :], "r."); title(L"Latent space: $zx \sim \hat{p}_{zx}$")
 ax10.set_xlim([-3.5, 3.5]); ax10.set_ylim([-3.5, 3.5])
-savefig("plot_cbanana.svg")
+savefig("../src/figures/plot_cbanana.svg")
+
 nothing
 ```
-![plot_cbanana.svg](plot_cbanana.svg)
-
-
-
-
-
-
-
+![plot_cbanana.svg](figures/plot_cbanana.svg)
 
 
 ## Literature applications
