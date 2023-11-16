@@ -100,7 +100,7 @@ ax4.set_xlim([-3.5, 3.5]); ax4.set_ylim([-3.5, 3.5])
 savefig("plot_banana.svg")
 nothing
 ```
-![](plot_banana.svg)
+![plot_banana.svg](plot_banana.svg)
 
 
 
@@ -207,7 +207,7 @@ ax10.set_xlim([-3.5, 3.5]); ax10.set_ylim([-3.5, 3.5])
 savefig("plot_cbanana.svg")
 nothing
 ```
-![](plot_cbanana.svg)
+![plot_cbanana.svg](plot_cbanana.svg)
 
 
 
