@@ -39,7 +39,7 @@ export Conv1x1
 
  See also: [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct Conv1x1 <: NeuralNetLayer
+struct Conv1x1 <: InvertibleNetwork
     k::Integer
     v1::Parameter
     v2::Parameter
@@ -159,8 +159,8 @@ function conv1x1_grad_v(X::AbstractArray{T, N}, ΔY::AbstractArray{T, N},
     n_in, batchsize = size(X)[N-1:N]
     prod_res = cuzeros(X, size(dV1, 1))
     for i=1:batchsize
-        Xi = -2f0*reshape(selectdim(X, N, i), :, n_in)
-        ΔYi = reshape(selectdim(ΔY, N, i), :, n_in)
+        Xi = -2*reshape(selectdim(X, N, i), :, n_in)
+        ΔYi = 1*reshape(selectdim(ΔY, N, i), :, n_in) # 1* force conversion from ReshapedArray to array
         broadcast!(+, dv1, dv1, mat_tens_i(prod_res, Xi, dV1, ΔYi))
         broadcast!(+, dv2, dv2, mat_tens_i(prod_res, Xi, dV2, ΔYi))
         broadcast!(+, dv3, dv3, mat_tens_i(prod_res, Xi, dV3, ΔYi))

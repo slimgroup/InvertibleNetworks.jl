@@ -11,22 +11,22 @@ export Jacobian
 
 struct JacobianInvertibleNetwork{T} <: joAbstractLinearOperator{T, T}
     name::String
-    n::Int64
-    m::Int64
+    n::Integer
+    m::Integer
     fop::Function
     fop_T::Function
-    N::Invertible
+    N::InvertibleNetwork
     X::AbstractArray{T}
     Y::Union{Nothing, AbstractArray{T}}
 end
 
 struct JacobianInvertibleNetworkAdjoint{T} <: joAbstractLinearOperator{T, T}
     name::String
-    n::Int64
-    m::Int64
+    n::Integer
+    m::Integer
     fop::Function
     fop_T::Function
-    N::Union{NeuralNetLayer, InvertibleNetwork}
+    N::InvertibleNetwork
     X::AbstractArray{T}
     Y::Union{Nothing, AbstractArray{T}}
 end
@@ -34,7 +34,7 @@ end
 
 ## Constructor
 
-function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::AbstractArray{T};
+function Jacobian(N::InvertibleNetwork, X::AbstractArray{T};
                   Y::Union{Nothing, AbstractArray{T}}=nothing, save_Y::Bool=true,
                   io_mode::String="θ↦Y", name::String="Jacobian") where T
 
@@ -50,7 +50,7 @@ function Jacobian(N::Union{InvertibleNetwork, NeuralNetLayer}, X::AbstractArray{
     ((io_mode == "X×θ↦Y") || (io_mode == "X×θ↦Y")) && (n += m)
 
     # Forward evaluation
-    function fop(ΔX::Union{Nothing, AbstractArray{T}}, Δθ::Array{Parameter, 1}) where T
+    function fop(ΔX::Union{Nothing, AbstractArray{T}}, Δθ::AbstractVector{<:Parameter}) where T
         isnothing(ΔX) && (ΔX = cuzeros(X, size(X)...))
         out = N.jacobian(ΔX, Δθ, X)
         ((io_mode == "θ↦Y") || (io_mode == "X×θ↦Y")) && (return out[1])
@@ -90,7 +90,7 @@ end
 
 *(J::JacobianInvertibleNetwork{T}, Δθ::Array{Parameter,1}) where T = J.fop(nothing, Δθ)
 
-function *(J::JacobianInvertibleNetwork{T}, input::Tuple{AbstractArray{T2}, Array{Parameter,1}}) where {T, T2}
+function *(J::JacobianInvertibleNetwork{T}, input::Tuple{AbstractArray{T2}, AbstractVector{<:Parameter}}) where {T, T2}
     return J.fop(jo_convert(T, input[1], false), input[2])
 end
 

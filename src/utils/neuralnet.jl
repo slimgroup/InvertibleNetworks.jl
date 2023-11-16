@@ -1,20 +1,20 @@
-export NeuralNetLayer, InvertibleNetwork, ReverseLayer, ReverseNetwork
+export InvertibleNetwork
 export get_grads
 
-abstract type Invertible end
+# Invertible network abstract type
+abstract type NeuralNetwork end
+abstract type InvertibleNetwork <: NeuralNetwork end
 
-# Base Layer and network types with property getters
-abstract type NeuralNetLayer <: Invertible end
-abstract type InvertibleNetwork <: Invertible end
-
-# Concrete reversed types
-struct Reversed <: Invertible
-    I::Invertible
+# Reversed invertible network type (concrete)
+struct ReversedNetwork <: InvertibleNetwork
+    I::InvertibleNetwork
 end
 
+@Flux.functor ReversedNetwork
+
 # Simple display
-Base.show(io::IO, m::Invertible) = print(io, typeof(m))
-Base.display(m::Invertible) = println(typeof(m))
+Base.show(io::IO, m::NeuralNetwork) = print(io, typeof(m))
+Base.display(m::NeuralNetwork) = println(typeof(m))
 
 # Propagation modes
 _INet_modes = [:forward, :inverse, :backward, :backward_inv, :inverse_Y, :forward_Y,
@@ -30,22 +30,22 @@ function _predefined_mode(obj, sym::Symbol, args...; kwargs...)
 end
 
 # Base getproperty
-getproperty(I::Invertible, s::Symbol) = _get_property(I, Val{s}())
+getproperty(I::NeuralNetwork, s::Symbol) = _get_property(I, Val{s}())
 
-_get_property(I::Invertible, ::Val{s}) where {s} = getfield(I, s)
-_get_property(R::Reversed, ::Val{:I}) = getfield(R, :I)
-_get_property(R::Reversed, ::Val{s}) where s = _get_property(R.I, Val{s}())
+_get_property(I::NeuralNetwork, ::Val{s}) where {s} = getfield(I, s)
+_get_property(R::ReversedNetwork, ::Val{:I}) = getfield(R, :I)
+_get_property(R::ReversedNetwork, ::Val{s}) where s = _get_property(R.I, Val{s}())
 
 for m ∈ _INet_modes
-    @eval _get_property(I::Union{InvertibleNetwork,NeuralNetLayer}, ::Val{$(Meta.quot(m))}) = (args...; kwargs...) -> _predefined_mode(I, $(Meta.quot(m)), args...; kwargs...)
+    @eval _get_property(I::NeuralNetwork, ::Val{$(Meta.quot(m))}) = (args...; kwargs...) -> _predefined_mode(I, $(Meta.quot(m)), args...; kwargs...)
 end
 
 for (m, k) ∈ _RNet_modes
-    @eval _get_property(R::Reversed, ::Val{$(Meta.quot(m))}) = _get_property(R.I, Val{$(Meta.quot(k))}())
+    @eval _get_property(R::ReversedNetwork, ::Val{$(Meta.quot(m))}) = _get_property(R.I, Val{$(Meta.quot(k))}())
 end
 
 # Type conversions
-function convert_params!(::Type{T}, obj::Invertible) where T
+function convert_params!(::Type{T}, obj::NeuralNetwork) where T
     for p ∈ get_params(obj)
         convert_param!(T, p)
     end
@@ -56,20 +56,19 @@ input_type(x::Tuple) = eltype(x[1])
 
 # Reverse
 # For networks and layers not needing the tag
-tag_as_reversed!(I::Invertible, ::Bool) = I
+tag_as_reversed!(I::InvertibleNetwork, ::Bool) = I
 
-reverse(L::NeuralNetLayer) = Reversed(tag_as_reversed!(deepcopy(L), true))
-reverse(N::InvertibleNetwork) = Reversed(tag_as_reversed!(deepcopy(N), true))
-reverse(RL::Reversed) = tag_as_reversed!(deepcopy(RL.I), false)
+reverse(N::InvertibleNetwork) = ReversedNetwork(tag_as_reversed!(deepcopy(N), true))
+reverse(RL::ReversedNetwork) = tag_as_reversed!(deepcopy(RL.I), false)
 
 """
-    P = get_params(NL::Invertible)
+    P = get_params(NL::NeuralNetwork)
 
  Returns a cell array of all parameters in the network or layer. Each cell
  entry contains a reference to the original parameter; i.e. modifying
  the paramters in `P`, modifies the parameters in `NL`.
 """
-function get_params(I::Invertible)
+function get_params(I::NeuralNetwork)
     params = Vector{Parameter}(undef, 0)
     for (f, tp) ∈ zip(fieldnames(typeof(I)), typeof(I).types)
         p = getfield(I, f)
@@ -82,60 +81,63 @@ function get_params(I::Invertible)
     params
 end
 
-get_params(x) = Array{Parameter}(undef, 0)
-get_params(A::Array{T}) where T<:Union{Invertible, Nothing} = vcat([get_params(A[i]) for i in 1:length(A)]...)
-get_params(A::Matrix{T}) where T<:Union{Invertible, Nothing} = vcat([get_params(A[i, j]) for i=1:size(A, 1) for j in 1:size(A, 2)]...)
-get_params(RN::Reversed) = get_params(RN.I)
+get_params(::Any) = Array{Parameter}(undef, 0)
+get_params(A::AbstractArray{T}) where {T <: Union{NeuralNetwork, Nothing}} = vcat([get_params(A[i]) for i in 1:length(A)]...)
+get_params(A::AbstractMatrix{T}) where {T <: Union{NeuralNetwork, Nothing}} = vcat([get_params(A[i, j]) for i=1:size(A, 1) for j in 1:size(A, 2)]...)
+get_params(RN::ReversedNetwork) = get_params(RN.I)
 
 # reset! parameters
 """
-    P = reset!(NL::Invertible)
+    P = reset!(NL::NeuralNetwork)
 
  Resets the data of all the parameters in NL
 """
-function reset!(I::Invertible)
+function reset!(I::NeuralNetwork)
     for p ∈ get_params(I)
         p.data = nothing
     end
 end
 
-reset!(AI::Array{<:Invertible}) = for I ∈ AI reset!(I) end
+reset!(AI::AbstractArray{<:NeuralNetwork}) = for I ∈ AI reset!(I) end
 
 # Clear grad functionality for reversed layers/networks
 """
-    P = clear_grad!(NL::Invertible)
+    P = clear_grad!(NL::NeuralNetwork)
 
  Resets the gradient of all the parameters in NL
 """
-clear_grad!(I::Invertible) = clear_grad!(get_params(I))
+clear_grad!(I::NeuralNetwork) = clear_grad!(get_params(I))
 
 # Get gradients
 """
-    P = get_grads(NL::Invertible)
+    P = get_grads(NL::NeuralNetwork)
 
  Returns a cell array of all parameters gradients in the network or layer. Each cell
  entry contains a reference to the original parameter's gradient; i.e. modifying
  the paramters in `P`, modifies the parameters in `NL`.
 """
-get_grads(I::Invertible) = [Parameter(p.grad) for p ∈ get_params(I)]
-get_grads(A::Array{Union{Invertible, Nothing}}) = vcat([get_grads(A[i]) for i in 1:length(A)]...)
-get_grads(RL::Reversed)= get_grads(RL.I)
+get_grads(I::NeuralNetwork) = [Parameter(p.grad) for p ∈ get_params(I)]
+get_grads(A::AbstractArray{T}) where {T <: Union{NeuralNetwork, Nothing}} = vcat([get_grads(A[i]) for i in 1:length(A)]...)
+get_grads(RL::ReversedNetwork)= get_grads(RL.I)
 get_grads(::Nothing) = []
 
 # Set parameters
-function set_params!(N::Invertible, θnew::Array{Parameter, 1})
+function set_params!(N::NeuralNetwork, θnew::AbstractVector{<:Parameter})
     set_params!(get_params(N), θnew)
 end
 
 # Set parameters with BSON loaded params
-function set_params!(N::Invertible, θnew::Array{Any, 1})
+function set_params!(N::NeuralNetwork, θnew::AbstractVector{<:Any})
     set_params!(get_params(N), θnew)
 end
 
-# Make invertible nets callable objects
-(net::Invertible)(X::AbstractArray{T,N} where {T, N}) = forward_net(net, X, getfield.(get_params(net), :data))
-forward_net(net::Invertible, X::AbstractArray{T,N}, ::Any) where {T, N} = net.forward(X)
+# Set parameters for reversed networks
+set_params!(Nrev::ReversedNetwork, θnew::AbstractVector{<:Parameter}) = set_params!(Nrev.I, θnew)
 
-# Make conditional invertible nets callable objects
-(net::Invertible)(X::AbstractArray{T,N}, Y::AbstractArray{T,N}) where {T, N} = forward_net(net, X, Y, getfield.(get_params(net), :data))
-forward_net(net::Invertible, X::AbstractArray{T,N}, Y::AbstractArray{T,N}, ::Any) where {T, N} = net.forward(X,Y)
+# Make Invertible nets callable objects
+(net::NeuralNetwork)(X::AbstractArray{T,N} where {T, N}) = forward_net(net, X, getfield.(get_params(net), :data))
+forward_net(net::NeuralNetwork, X::AbstractArray{T,N}, ::Any) where {T, N} = net.forward(X)
+
+# Make conditional Invertible nets callable objects
+(net::NeuralNetwork)(X::AbstractArray{T,N}, Y::AbstractArray{T,N}) where {T, N} = forward_net(net, X, Y, getfield.(get_params(net), :data))
+forward_net(net::NeuralNetwork, X::AbstractArray{T,N}, Y::AbstractArray{T,N}, ::Any) where {T, N} = net.forward(X,Y)

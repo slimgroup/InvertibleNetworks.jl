@@ -50,7 +50,7 @@ export CouplingLayerHINT, CouplingLayerHINT3D
 
  See also: [`CouplingLayerBasic`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-mutable struct CouplingLayerHINT <: NeuralNetLayer
+mutable struct CouplingLayerHINT <: InvertibleNetwork
     CL::AbstractArray{CouplingLayerBasic, 1}
     C::Union{Conv1x1, Nothing}
     logdet::Bool
@@ -72,8 +72,8 @@ function get_depth(n_in)
 end
 
 # Constructor for given coupling layer and 1 x 1 convolution
-CouplingLayerHINT(CL::AbstractArray{CouplingLayerBasic, 1}, C::Union{Conv1x1, Nothing};
-    logdet=false, permute="none", activation::ActivationFunction=SigmoidLayer()) = CouplingLayerHINT(CL, C, logdet, permute, false)
+CouplingLayerHINT(CL::AbstractArray{CouplingLayerBasic, 1}, C::Union{Conv1x1, Nothing}; logdet=false, permute="none") =
+    CouplingLayerHINT(CL, C, logdet, permute, false)
 
 # 2D Constructor from input dimensions
 function CouplingLayerHINT(n_in::Int64, n_hidden::Int64; logdet=false, permute="none",

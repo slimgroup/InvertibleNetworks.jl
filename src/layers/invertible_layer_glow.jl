@@ -60,7 +60,7 @@ or
 
  See also: [`Conv1x1`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct CouplingLayerGlow <: NeuralNetLayer
+struct CouplingLayerGlow <: InvertibleNetwork
     C::Conv1x1
     RB::Union{ResidualBlock, FluxBlock}
     logdet::Bool

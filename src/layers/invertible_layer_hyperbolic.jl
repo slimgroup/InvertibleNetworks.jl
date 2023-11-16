@@ -53,7 +53,7 @@ Create an invertible hyperbolic coupling layer.
 
  See also: [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct HyperbolicLayer <: NeuralNetLayer
+struct HyperbolicLayer <: InvertibleNetwork
     W::Parameter
     b::Parameter
     α::Float32

@@ -39,7 +39,7 @@ export ActNorm, reset!
 
  See also: [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-mutable struct ActNorm <: NeuralNetLayer
+mutable struct ActNorm <: InvertibleNetwork
     k::Integer
     s::Parameter
     b::Parameter

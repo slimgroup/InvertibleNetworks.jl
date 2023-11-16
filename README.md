@@ -135,7 +135,7 @@ This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl),
 
  - Philipp Witte, Georgia Institute of Technology (now Microsoft)
 
- - Gabrio Rizzuti, Utrecht University
+ - Gabrio Rizzuti, Georgia Institute of Technology (now Shearwater Geoservices)
 
  - Mathias Louboutin, Georgia Institute of Technology
 

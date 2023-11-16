@@ -42,15 +42,15 @@ length(x::Parameter) = length(x.data)
 @Flux.functor Parameter
 
 """
-    clear_grad!(NL::NeuralNetLayer)
+    clear_grad!(NL::InvertibleNetwork)
 
 or
 
-    clear_grad!(P::AbstractArray{Parameter, 1})
+    clear_grad!(P::AbstractVector{<:Parameter})
 
  Set gradients of each `Parameter` in the network layer to `nothing`.
 """
-function clear_grad!(P::AbstractArray{Parameter, 1})
+function clear_grad!(P::AbstractVector{<:Parameter})
     for j=1:length(P)
         P[j].grad = nothing
     end
@@ -60,8 +60,8 @@ function get_grads(p::Parameter)
     return Parameter(p.grad)
 end
 
-function get_grads(pvec::Array{Parameter, 1})
-    g = Array{Parameter, 1}(undef, length(pvec))
+function get_grads(pvec::AbstractVector{<:Parameter})
+    g = Vector{Parameter}(undef, length(pvec))
     for i = 1:length(pvec)
         g[i] = get_grads(pvec[i])
     end
@@ -75,13 +75,13 @@ function set_params!(pold::Parameter, pnew::Parameter)
     pold.grad = pnew.grad
 end
 
-function set_params!(pold::Array{Parameter, 1}, pnew::Array{Parameter, 1})
+function set_params!(pold::AbstractVector{<:Parameter}, pnew::AbstractVector{<:Parameter})
     for i = 1:length(pold)
         set_params!(pold[i], pnew[i])
     end
 end
 
-function set_params!(pold::Array{Parameter, 1}, pnew::Array{Any, 1})
+function set_params!(pold::AbstractVector{<:Parameter}, pnew::AbstractVector{<:Any})
     for i = 1:length(pold)
         set_params!(pold[i], pnew[i])
     end
@@ -91,75 +91,37 @@ end
 
 ## Algebraic utilities for parameters
 
-function dot(p1::Parameter, p2::Parameter)
-    return dot(p1.data, p2.data)
-end
-
-function norm(p::Parameter)
-    return norm(p.data)
-end
-
-function +(p1::Parameter, p2::Parameter)
-    return Parameter(p1.data+p2.data)
-end
-
-function +(p1::Parameter, p2::T) where {T<:Real}
-    return Parameter(p1.data+p2)
-end
-
-function +(p1::T, p2::Parameter) where {T<:Real}
-    return p2+p1
-end
-
-function -(p1::Parameter, p2::Parameter)
-    return Parameter(p1.data-p2.data)
-end
-
-function -(p1::Parameter, p2::T) where {T<:Real}
-    return Parameter(p1.data-p2)
-end
-
-function -(p1::T, p2::Parameter) where {T<:Real}
-    return -(p2-p1)
-end
-
-function -(p::Parameter)
-    return Parameter(-p.data)
-end
-
-function *(p1::Parameter, p2::T) where {T<:Real}
-    return Parameter(p1.data*p2)
-end
-
-function *(p1::T, p2::Parameter) where {T<:Real}
-    return p2*p1
-end
-
-function /(p1::Parameter, p2::T) where {T<:Real}
-    return Parameter(p1.data/p2)
-end
-
-function /(p1::T, p2::Parameter) where {T<:Real}
-    return Parameter(p1/p2.data)
-end
+dot(p1::Parameter, p2::Parameter) = dot(p1.data, p2.data)
+norm(p::Parameter) = norm(p.data)
++(p1::Parameter, p2::Parameter) = Parameter(p1.data+p2.data)
++(p1::Parameter, p2::T) where {T<:Number} = Parameter(p1.data+p2)
++(p1::T, p2::Parameter) where {T<:Number} = p2+p1
+-(p1::Parameter, p2::Parameter) = Parameter(p1.data-p2.data)
+-(p1::Parameter, p2::T) where {T<:Number} = Parameter(p1.data-p2)
+-(p1::T, p2::Parameter) where {T<:Number} = -(p2-p1)
+-(p::Parameter) = Parameter(-p.data)
+*(p1::Parameter, p2::T) where {T<:Number} = Parameter(p1.data*p2) 
+*(p1::T, p2::Parameter) where {T<:Number} = p2*p1
+/(p1::Parameter, p2::T) where {T<:Number} = Parameter(p1.data/p2)
+/(p1::T, p2::Parameter) where {T<:Number} = Parameter(p1/p2.data)
 
 # Shape manipulation
 
 par2vec(x::Parameter) = vec(x.data), size(x.data)
 
 
-function vec2par(x::AbstractArray{T, 1}, s::NTuple{N, Int64}) where {T, N}
+function vec2par(x::AbstractVector{T}, s::NTuple{N, Integer}) where {T, N}
     return Parameter(reshape(x, s))
 end
 
-function par2vec(x::Array{Parameter, 1})
+function par2vec(x::AbstractVector{<:Parameter})
     v = cat([vec(x[i].data) for i=1:length(x)]..., dims=1)
     s = cat([size(x[i].data) for i=1:length(x)]..., dims=1)
     return v, s
 end
 
-function vec2par(x::AbstractArray{T, 1}, s::Array{Any, 1}) where T
-    xpar = Array{Parameter, 1}(undef, length(s))
+function vec2par(x::AbstractVector{T}, s::AbstractVector) where T
+    xpar = AbstractVector{<:Parameter}(undef, length(s))
     idx_i = 0
     for i = 1:length(s)
         xpar[i] = vec2par(x[idx_i+1:idx_i+prod(s[i])], s[i])

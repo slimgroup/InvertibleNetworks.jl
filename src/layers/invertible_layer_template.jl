@@ -18,7 +18,7 @@ export AffineLayer
 # parameters of our layer (in this case S and B) or any other building blocks that
 # you want to use in your layer (for example 1x1 convolutions). However, in this
 # case we only have parameters S and B.
-struct AffineLayer <: NeuralNetLayer
+struct AffineLayer <: InvertibleNetwork
     S::Parameter    # trainable parameters are defined as Parameters.
     B::Parameter    # both S and B have two fields: S.data and S.grad
     logdet::Bool    # bool to indicate whether you want to compute the logdet

@@ -28,7 +28,7 @@ Pages = ["dimensionality_operations.jl"]
 ```@autodocs
 Modules = [InvertibleNetworks]
 Order  = [:type]
-Filter = t -> t<:NeuralNetLayer
+Filter = t -> t<:InvertibleNetwork
 ```
 
 ## Networks

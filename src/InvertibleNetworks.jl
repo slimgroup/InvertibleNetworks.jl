@@ -9,6 +9,7 @@ using LinearAlgebra, Random
 using Statistics, Wavelets
 using JOLI
 using NNlib, Flux, ChainRulesCore
+using ExponentialUtilities
 
 # Overloads and reexports
 import Base.size, Base.length, Base.getindex, Base.reverse, Base.reverse!, Base.getproperty
@@ -38,12 +39,13 @@ end
 
 # Utils
 include("utils/parameter.jl")
+include("utils/neuralnet.jl")
 include("utils/objective_functions.jl")
 include("utils/dimensionality_operations.jl")
 include("utils/activation_functions.jl")
 include("utils/test_distributions.jl")
-include("utils/neuralnet.jl")
 include("utils/invertible_network_sequential.jl")
+
 # AD rules
 include("utils/chainrules.jl")
 
@@ -60,6 +62,7 @@ include("layers/invertible_layer_irim.jl")
 include("layers/invertible_layer_glow.jl")
 include("layers/invertible_layer_hyperbolic.jl")
 include("layers/invertible_layer_hint.jl")
+include("layers/learnable_squeezer.jl")
 
 # Invertible network architectures
 include("networks/invertible_network_hint_multiscale.jl")

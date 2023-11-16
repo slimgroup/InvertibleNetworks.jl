@@ -2,8 +2,8 @@ using ChainRulesCore
 export logdetjac, getrrule
 import ChainRulesCore: frule, rrule, @non_differentiable
 
-@non_differentiable get_params(::Invertible)
-@non_differentiable get_params(::Reversed)
+@non_differentiable get_params(::InvertibleNetwork)
+@non_differentiable get_params(::ReversedNetwork)
 ## Tape types and utilities
 
 """
@@ -12,11 +12,11 @@ import ChainRulesCore: frule, rrule, @non_differentiable
 Invertible global state type, it keeps track of invertible blocks of operations (each block being a sequence of contiguous invertible layers)
 """
 mutable struct InvertibleOperationsTape
-    Y::Array{Any,1}
-    layer_blocks::Array{Any,1}
-    counter_block::Int64
-    counter_layer::Int64
-    logdet::Union{Nothing,Float32}
+    Y::AbstractVector{<:Any}
+    layer_blocks::AbstractVector{<:Any}
+    counter_block::Integer
+    counter_layer::Integer
+    logdet::Union{Nothing,<:Real}
 end
 
 """
@@ -57,7 +57,7 @@ isa_newblock(state::InvertibleOperationsTape, X) = (state.counter_block == 0) ||
 """
 Error if mismatch between state and network
 """
-function check_coherence(state::InvertibleOperationsTape, net::Invertible)
+function check_coherence(state::InvertibleOperationsTape, net::InvertibleNetwork)
     if state.counter_block != 0 && state.counter_layer != 0 && state.layer_blocks[state.counter_block][state.counter_layer] != net
         reset!(state)
         throw(ArgumentError("Current state does not correspond to current layer, resetting state..."))
@@ -67,7 +67,7 @@ end
 """
 Update state in the forward pass.
 """
-function forward_update!(state::InvertibleOperationsTape, X::AbstractArray{T,N}, Y::AbstractArray{T,N}, logdet::Union{Nothing,T}, net::Invertible) where {T, N}
+function forward_update!(state::InvertibleOperationsTape, X::AbstractArray{T,N}, Y::AbstractArray{T,N}, logdet::Union{Nothing,T}, net::InvertibleNetwork) where {T, N}
 
     if isa_newblock(state, X)
         push!(state.Y, Y)
@@ -102,7 +102,7 @@ end
 
 ## Chain rules for invertible networks
 # General pullback function
-function pullback(net::Invertible, ΔY::AbstractArray{T,N};
+function pullback(net::InvertibleNetwork, ΔY::AbstractArray{T,N};
                   state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
 
     # Check state coherency
@@ -122,7 +122,7 @@ end
 
 
 # Reverse-mode AD rule
-function ChainRulesCore.rrule(::typeof(forward_net), net::Invertible, X::AbstractArray{T, N}, θ...;
+function ChainRulesCore.rrule(::typeof(forward_net), net::InvertibleNetwork, X::AbstractArray{T, N}, θ...;
                               state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) where {T, N}
 
     # Forward pass
@@ -144,4 +144,4 @@ logdetjac(; state::InvertibleOperationsTape=GLOBAL_STATE_INVOPS) = state.logdet
 
 ## Utility to get the pullback directly for testing
 
-getrrule(net::Invertible, X::AbstractArray) = rrule(forward_net, net, X, getfield.(get_params(net), :data))
+getrrule(net::InvertibleNetwork, X::AbstractArray) = rrule(forward_net, net, X, getfield.(get_params(net), :data))

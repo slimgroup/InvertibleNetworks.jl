@@ -36,7 +36,7 @@ export AffineLayer
 
  See also: [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-struct AffineLayer <: NeuralNetLayer
+struct AffineLayer <: InvertibleNetwork
     s::Parameter
     b::Parameter
     logdet::Bool

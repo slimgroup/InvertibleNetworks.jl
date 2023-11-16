@@ -29,7 +29,7 @@ export FluxBlock
 
  See also:  [`Chain`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-mutable struct FluxBlock <: NeuralNetLayer
+mutable struct FluxBlock <: NeuralNetwork
     model::Chain
     params::Array{Parameter, 1}
 end

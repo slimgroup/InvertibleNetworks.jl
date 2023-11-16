@@ -51,7 +51,7 @@ export ConditionalLayerHINT, ConditionalLayerHINT3D
 
  See also: [`CouplingLayerBasic`](@ref), [`ResidualBlock`](@ref), [`get_params`](@ref), [`clear_grad!`](@ref)
 """
-mutable struct ConditionalLayerHINT <: NeuralNetLayer
+mutable struct ConditionalLayerHINT <: InvertibleNetwork
     CL_X::CouplingLayerHINT
     CL_Y::CouplingLayerHINT
     CL_YX::CouplingLayerBasic
