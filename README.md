@@ -17,7 +17,7 @@ Building blocks for invertible neural networks in the [Julia] programming langua
 ## Installation
 
 
-InvertibleNetworks is registered and can be added like any standard julia package with the command:
+InvertibleNetworks is registered and can be added like any standard Julia package with the command:
 
 ```
 ] add InvertibleNetworks
