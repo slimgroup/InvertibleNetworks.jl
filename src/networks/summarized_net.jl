@@ -49,8 +49,8 @@ function inverse(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, S::SummarizedNe
 end
 
 # Backward pass and compute gradients
-function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, Y::AbstractArray{T, N}, S::SummarizedNet; Y_save=nothing) where {T, N}
-	ΔX, X, ΔY = S.cond_net.backward(ΔX,X,Y)
+function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, S::SummarizedNet; Y_save=nothing) where {T, N}
+	ΔX, X, ΔY = S.cond_net.backward(ΔX,X,ΔY,Y)
     ΔY = S.sum_net.backward(ΔY, Y_save)
     return ΔX, X, ΔY
 end
