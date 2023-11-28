@@ -9,16 +9,16 @@ tags:
 authors:
   - name: Rafael Orozco
     affiliation: 1
+  - name: Philipp Witte
+    affiliation: 4
   - name: Mathias Louboutin
     affiliation: 2
   - name: Ali Siahkoohi
     affiliation: 3
-  - name: Philipp Witte
-    affiliation: 4
-  - name: Bas Peters
-    affiliation: 5
   - name: Gabrio Rizzuti
     affiliation: 6
+  - name: Bas Peters
+    affiliation: 5
   - name: Felix J. Herrmann
     affiliation: 1
 affiliations:
