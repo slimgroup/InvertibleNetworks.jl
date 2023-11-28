@@ -1,40 +1,41 @@
 ---
-title: 'Gala: A Python package for galactic dynamics'
+title: 'InvertibleNetworks.jl: A Julia package for scalable normalizing flows'
 tags:
-  - Python
-  - astronomy
-  - dynamics
-  - galactic dynamics
-  - milky way
+  - Julia
+  - inverse problems
+  - Bayesian inference
+  - imaging
+  - normalizing flows
 authors:
-  - name: Adrian M. Price-Whelan
-    orcid: 0000-0000-0000-0000
-    equal-contrib: true
-    affiliation: "1, 2" # (Multiple affiliations must be quoted)
-  - name: Author Without ORCID
-    equal-contrib: true # (This is how you can denote equal contributions between multiple authors)
+  - name: Rafael Orozco
+    affiliation: 1
+  - name: Mathias Louboutin
     affiliation: 2
-  - name: Author with no affiliation
-    corresponding: true # (This is how to denote the corresponding author)
+  - name: Ali Siahkoohi
     affiliation: 3
-  - given-names: Ludwig
-    dropping-particle: van
-    surname: Beethoven
-    affiliation: 3
+  - name: Philipp Witte
+    affiliation: 4
+  - name: Bas Peters
+    affiliation: 5
+  - name: Gabrio Rizzuti
+    affiliation: 6
+  - name: Felix J. Herrmann
+    affiliation: 1
 affiliations:
- - name: Lyman Spitzer, Jr. Fellow, Princeton University, USA
+ - name: Georgia Institute of Technology (GT), USA
    index: 1
- - name: Institution Name, Country
+ - name: Main contribution done at GT now at Devito Codes, UK
    index: 2
- - name: Independent Researcher, Country
+ - name: Main contribution done at GT now at Rice University, USA
    index: 3
-date: 13 August 2017
+ - name: Main contribution done at GT now at Microsoft Research, USA
+   index: 4
+ - name: Main contribution done at GT now at Computational Geosciences Inc, Canada
+   index: 5
+ - name: Main contribution done at GT now at Shearwater GeoServices, UK
+   index: 6
+date:  28 November 2023  
 bibliography: paper.bib
-
-# Optional fields if submitting to a AAS journal too, see this blog post:
-# https://blog.joss.theoj.org/2018/12/a-new-collaboration-with-aas-publishing
-aas-doi: 10.3847/xxxxx <- update this with the DOI from AAS once you know it.
-aas-journal: Astrophysical Journal <- The name of the AAS journal.
 ---
 
 # Summary
