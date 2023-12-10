@@ -99,6 +99,7 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; freeze_conv=false,
     end
 
     return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales)
+    #return NetworkConditionalGlow(AN, CL, Z_dims, L, K, squeezer, split_scales)
 end
 
 NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., ndims=3)
