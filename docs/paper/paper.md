@@ -10,29 +10,29 @@ authors:
   - name: Rafael Orozco
     affiliation: 1
   - name: Philipp Witte
-    affiliation: 4
-  - name: Mathias Louboutin
     affiliation: 2
-  - name: Ali Siahkoohi
+  - name: Mathias Louboutin
     affiliation: 3
+  - name: Ali Siahkoohi
+    affiliation: 4
   - name: Gabrio Rizzuti
-    affiliation: 6
-  - name: Bas Peters
     affiliation: 5
+  - name: Bas Peters
+    affiliation: 6
   - name: Felix J. Herrmann
     affiliation: 1
 affiliations:
  - name: Georgia Institute of Technology (GT), USA
    index: 1
- - name: Main contribution done at GT now at Devito Codes, UK
+ - name: Microsoft Research, USA
    index: 2
- - name: Main contribution done at GT now at Rice University, USA
+ - name: Devito Codes, UK
    index: 3
- - name: Main contribution done at GT now at Microsoft Research, USA
+ - name: Rice University, USA
    index: 4
- - name: Main contribution done at GT now at Computational Geosciences Inc, Canada
+ - name: Shearwater GeoServices, UK
    index: 5
- - name: Main contribution done at GT now at Shearwater GeoServices, UK
+ - name: Computational Geosciences Inc, Canada
    index: 6
 date:  28 November 2023  
 bibliography: paper.bib
