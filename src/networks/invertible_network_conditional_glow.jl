@@ -63,7 +63,7 @@ export NetworkConditionalGlow, NetworkConditionalGlow3D
 """
 struct NetworkConditionalGlow <: InvertibleNetwork
     AN::AbstractArray{ActNorm, 2}
-    AN_C::ActNorm
+    #AN_C::ActNorm
     CL::AbstractArray{ConditionalLayerGlow, 2}
     Z_dims::Union{Array{Array, 1}, Nothing}
     L::Int64
@@ -77,7 +77,7 @@ end
 # Constructor
 function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; freeze_conv=false,  split_scales=false,  rb_activation::ActivationFunction=ReLUlayer(), k1=3, k2=1, p1=1, p2=0, s1=1, s2=1, ndims=2, squeezer::Squeezer=ShuffleLayer(), activation::ActivationFunction=SigmoidLayer())
     AN = Array{ActNorm}(undef, L, K)    # activation normalization
-    AN_C = ActNorm(n_cond; logdet=false)    # activation normalization for condition
+    #AN_C = ActNorm(n_cond; logdet=false)    # activation normalization for condition
     CL = Array{ConditionalLayerGlow}(undef, L, K)  # coupling layers w/ 1x1 convolution and residual block
  
     if split_scales
@@ -98,7 +98,8 @@ function NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; freeze_conv=false,
         (i < L && split_scales) && (n_in = Int64(n_in/2)) # split
     end
 
-    return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales)
+    #return NetworkConditionalGlow(AN, AN_C, CL, Z_dims, L, K, squeezer, split_scales)
+    return NetworkConditionalGlow(AN,  CL, Z_dims, L, K, squeezer, split_scales)
 end
 
 NetworkConditionalGlow3D(args; kw...) = NetworkConditionalGlow(args...; kw..., ndims=3)
@@ -108,7 +109,7 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, G::NetworkCondi
     G.split_scales && (Z_save = array_of_array(X, G.L-1))
     orig_shape = size(X)
 
-    C = G.AN_C.forward(C)
+    #C = G.AN_C.forward(C)
 
     logdet = 0
     for i=1:G.L
@@ -176,6 +177,6 @@ function backward(ΔX::AbstractArray{T, N}, X::AbstractArray{T, N}, C::AbstractA
         end
     end
 
-    ΔC, C = G.AN_C.backward(ΔC, C)
+   # ΔC, C = G.AN_C.backward(ΔC, C)
     return ΔX, X, ΔC
 end
