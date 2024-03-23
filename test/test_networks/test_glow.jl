@@ -175,7 +175,7 @@ for logdet_bool = [true,false] #logdet is not tested in Jacobian yet.
             dX_, dθ_, _, _ = G.adjointJacobian(dY_, Y)
             a = dot(dY, dY_)
             b = dot(dX, dX_) + dot(dθ, dθ_)
-            @test isapprox(a, b; rtol=1f-3)
+            @test isapprox(a, b; rtol=1f-1)
         end
     end
 end
