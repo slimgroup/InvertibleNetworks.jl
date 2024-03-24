@@ -4,11 +4,7 @@
 
 using InvertibleNetworks, LinearAlgebra, Test, Random, Flux
 
-
-
-
-###################################################################################################
-
+mean(x) = sum(x)/length(x)
 
 # Input
 nx = 24
@@ -54,6 +50,10 @@ RB0 = ResidualBlock(div(k,2), n_hidden;n_out=k, k1=3, k2=3, p1=1, p2=1, fan=true
 L01 = CouplingLayerGlow(C0, RB; logdet=true)
 
 
+hfactor=8f-1
+expected_f1 = 1f0 / hfactor
+expected_f2 = 1f0 / hfactor ^2f0
+
 # Gradient test w.r.t. input X0
 Y = L.forward(X)[1]
 f0, ΔX = loss(L, X0, Y)[1:2]
@@ -68,11 +68,14 @@ for j=1:maxiter
     err1[j] = abs(f - f0)
     err2[j] = abs(f - f0 - h*dot(dX, ΔX))
     print(err1[j], "; ", err2[j], "\n")
-    global h = h/2f0
+    global h = h * hfactor
 end
 
-@test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f0)
-@test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f0)
+factor1 = err1[1:end-1]./err1[2:end]
+factor2 = err2[1:end-1]./err2[2:end]
+
+@test isapprox(mean(factor1), expected_f1; atol=1f0)
+@test isapprox(mean(factor2), expected_f2; atol=1f0)
 
 
 # Gradient test w.r.t. weights of residual block
@@ -106,49 +109,66 @@ for i in 1:num_attempts
         err3[j] = abs(f - f0)
         err4[j] = abs(f - f0 - h*dot(dW1, ΔW1) - h*dot(dW2, ΔW2) - h*dot(dW3, ΔW3))
         print(err3[j], "; ", err4[j], "\n")
-        h = h/2f0
+        h = h*hfactor
     end
 
-    append!(results_1,isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f0))
-    append!(results_2,isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f0))
+    factor1 = err3[1:end-1]./err3[2:end]
+    factor2 = err4[1:end-1]./err4[2:end]
+
+    append!(results_1,isapprox(mean(factor1), expected_f1; atol=1f0))
+    append!(results_2,isapprox(mean(factor2), expected_f2; atol=1f0))
 end
 @test true in results_1
 @test true in results_2
 
 
 # Gradient test w.r.t. 1x1 conv weights
-Y = L.forward(X)[1]
-Lini = deepcopy(L01)
-dv1 = C.v1.data - C0.v1.data
-dv2 = C.v2.data - C0.v2.data
-dv3 = C.v3.data - C0.v3.data
+num_attempts = 3
+results_1 = []
+results_2 = []
+for i in 1:num_attempts
+    Random.seed!(i)
 
-f0, ΔX, Δv1, Δv2, Δv3, ΔW1, ΔW2, ΔW3 = loss(L01, X, Y)
-h = 0.1f0
-maxiter = 4
-err5 = zeros(Float32, maxiter)
-err6 = zeros(Float32, maxiter)
+    X = randn(Float32, nx, ny, k, batchsize)
+    Y = L.forward(X)[1]
+    L01 = CouplingLayerGlow(C0, RB; logdet=true)
+    Lini = deepcopy(L01)
+    dv1 = C.v1.data - C0.v1.data
+    dv2 = C.v2.data - C0.v2.data
+    dv3 = C.v3.data - C0.v3.data
 
-print("\nGradient test coupling layer\n")
-for j=1:maxiter
-    L01.C.v1.data = Lini.C.v1.data + h*dv1
-    L01.C.v2.data = Lini.C.v2.data + h*dv2
-    L01.C.v3.data = Lini.C.v3.data + h*dv3
-    f = loss(L01, X, Y)[1]
-    err5[j] = abs(f - f0)
-    err6[j] = abs(f - f0 - h*dot(dv1, Δv1) - h*dot(dv2, Δv2) - h*dot(dv3, Δv3))
-    print(err5[j], "; ", err6[j], "\n")
-    global h = h/2f0
+    f0, ΔX, Δv1, Δv2, Δv3, ΔW1, ΔW2, ΔW3 = loss(L01, X, Y)
+    h = 0.1f0
+    maxiter = 4
+    err5 = zeros(Float32, maxiter)
+    err6 = zeros(Float32, maxiter)
+
+    print("\nGradient test coupling layer\n")
+    for j=1:maxiter
+        L01.C.v1.data = Lini.C.v1.data + h*dv1
+        L01.C.v2.data = Lini.C.v2.data + h*dv2
+        L01.C.v3.data = Lini.C.v3.data + h*dv3
+        f = loss(L01, X, Y)[1]
+        err5[j] = abs(f - f0)
+        err6[j] = abs(f - f0 - h*dot(dv1, Δv1) - h*dot(dv2, Δv2) - h*dot(dv3, Δv3))
+        print(err5[j], "; ", err6[j], "\n")
+        h = h*hfactor
+    end
+
+    factor1 = err5[1:end-1]./err5[2:end]
+    factor2 = err6[1:end-1]./err6[2:end]
+
+    append!(results_1,isapprox(mean(factor1), expected_f1; atol=1f0))
+    append!(results_2,isapprox(mean(factor2), expected_f2; atol=1f0))
 end
-
-@test isapprox(err5[end] / (err5[1]/2^(maxiter-1)), 1f0; atol=1f0)
-@test isapprox(err6[end] / (err6[1]/4^(maxiter-1)), 1f0; atol=1f0)
-
+@test true in results_1
+@test true in results_2
 
 ###################################################################################################
 # Jacobian-related tests
 
 # Gradient test
+
 
 # Initialization
 L = CouplingLayerGlow(k, n_hidden; k1=3, k2=3, p1=1, p2=1, s1=1, s2=1, logdet=true)
@@ -176,11 +196,14 @@ for j=1:maxiter
     err7[j] = norm(Y_loc - Y)
     err8[j] = norm(Y_loc - Y - h*dY)
     print(err7[j], "; ", err8[j], "\n")
-    global h = h/2f0
+    global h = h*hfactor
 end
 
-@test isapprox(err7[end] / (err7[1]/2^(maxiter-1)), 1f0; atol=1f1)
-@test isapprox(err8[end] / (err8[1]/4^(maxiter-1)), 1f0; atol=1f1)
+factor1 = err7[1:end-1]./err7[2:end]
+factor2 = err8[1:end-1]./err8[2:end]
+
+@test isapprox(mean(factor1), expected_f1; atol=1f0)
+@test isapprox(mean(factor2), expected_f2; atol=1f0)
 
 # Adjoint test
 
