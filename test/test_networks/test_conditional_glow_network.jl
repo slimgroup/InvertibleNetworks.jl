@@ -2,16 +2,14 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
-using InvertibleNetworks, LinearAlgebra, Test, Random
-using Flux 
+using InvertibleNetworks, LinearAlgebra, Test,Flux, Random
+device = InvertibleNetworks.CUDA.functional() ? gpu : cpu
 
 # Random seed
 Random.seed!(3);
 
 # Define network
-nx = 32
-ny = 32
-nz = 32
+nx = 32; ny = 32; nz = 32
 n_in = 2
 n_cond = 2
 n_hidden = 4
@@ -25,9 +23,9 @@ N = (nx,ny)
 # Invertibility
 
 # Network and input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
-X = rand(Float32, N..., n_in, batchsize)
-Cond = rand(Float32, N..., n_cond, batchsize)
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
+X = rand(Float32, N..., n_in, batchsize)  |> device
+Cond = rand(Float32, N..., n_cond, batchsize)  |> device
 
 Y, Cond = G.forward(X,Cond)
 X_ = G.inverse(Y,Cond) # saving the cond is important in split scales because of reshapes
@@ -64,11 +62,11 @@ end
 
 
 # Gradient test w.r.t. input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
-X = rand(Float32, N..., n_in, batchsize)
-Cond = rand(Float32, N..., n_cond, batchsize)
-X0 = rand(Float32, N..., n_in, batchsize)
-Cond0 = rand(Float32, N..., n_cond, batchsize)
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))  |> device
+X = rand(Float32, N..., n_in, batchsize)  |> device
+Cond = rand(Float32, N..., n_cond, batchsize)  |> device
+X0 = rand(Float32, N..., n_in, batchsize)  |> device
+Cond0 = rand(Float32, N..., n_cond, batchsize)  |> device
 
 dX = X - X0
 
@@ -92,9 +90,9 @@ end
 
 
 # Gradient test w.r.t. parameters
-X = rand(Float32, N..., n_in, batchsize)
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
-G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
+X = rand(Float32, N..., n_in, batchsize) |> device
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
+G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
 Gini = deepcopy(G0)
 
 # Test one parameter from residual block and 1x1 conv
@@ -130,10 +128,10 @@ sum_net = ResNet(n_cond, 16, 3; norm=nothing) # make sure it doesnt have any wei
 
 # Network and input
 flow = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N))
-G = SummarizedNet(flow, sum_net)
+G = SummarizedNet(flow, sum_net)  |> device
 
-X = rand(Float32, N..., n_in, batchsize);
-Cond = rand(Float32, N..., n_cond, batchsize);
+X = rand(Float32, N..., n_in, batchsize) |> device;
+Cond = rand(Float32, N..., n_cond, batchsize) |> device;
 
 Y, ZCond = G.forward(X,Cond)
 X_ = G.inverse(Y,ZCond) # saving the cond is important in split scales because of reshapes
@@ -168,10 +166,10 @@ function loss_sum(G, X, Cond)
 end
 
 # Gradient test w.r.t. input
-X = rand(Float32, N..., n_in, batchsize);
-Cond = rand(Float32, N..., n_cond, batchsize);
-X0 = rand(Float32, N..., n_in, batchsize);
-Cond0 = rand(Float32, N..., n_cond, batchsize);
+X = rand(Float32, N..., n_in, batchsize) |> device;
+Cond = rand(Float32, N..., n_cond, batchsize) |> device;
+X0 = rand(Float32, N..., n_in, batchsize) |> device;
+Cond0 = rand(Float32, N..., n_cond, batchsize) |> device;
 
 dX = X - X0
 
@@ -195,9 +193,9 @@ end
 
 
 # Gradient test w.r.t. parameters
-X = rand(Float32, N..., n_in, batchsize)
-flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N))
-G0 = SummarizedNet(flow0, sum_net)
+X = rand(Float32, N..., n_in, batchsize) |> device
+flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N)) |> device
+G0 = SummarizedNet(flow0, sum_net) |> device
 Gini = deepcopy(G0)
 
 # Test one parameter from residual block and 1x1 conv
@@ -231,9 +229,9 @@ N = (nx,ny,nz)
 # Invertibility
 
 # Network and input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
-X = rand(Float32, N..., n_in, batchsize)
-Cond = rand(Float32, N..., n_cond, batchsize)
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
+X = rand(Float32, N..., n_in, batchsize) |> device
+Cond = rand(Float32, N..., n_cond, batchsize) |> device
 
 Y, Cond = G.forward(X,Cond)
 X_ = G.inverse(Y,Cond) # saving the cond is important in split scales because of reshapes
@@ -262,11 +260,11 @@ end
 
 
 # Gradient test w.r.t. input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
-X = rand(Float32, N..., n_in, batchsize)
-Cond = rand(Float32, N..., n_cond, batchsize)
-X0 = rand(Float32, N..., n_in, batchsize)
-Cond0 = rand(Float32, N..., n_cond, batchsize)
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
+X = rand(Float32, N..., n_in, batchsize) |> device
+Cond = rand(Float32, N..., n_cond, batchsize) |> device
+X0 = rand(Float32, N..., n_in, batchsize) |> device
+Cond0 = rand(Float32, N..., n_cond, batchsize) |> device
 
 dX = X - X0
 
@@ -290,9 +288,9 @@ end
 
 
 # Gradient test w.r.t. parameters
-X = rand(Float32, N..., n_in, batchsize)
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
-G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))
+X = rand(Float32, N..., n_in, batchsize) |> device
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
+G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
 Gini = deepcopy(G0)
 
 # Test one parameter from residual block and 1x1 conv
@@ -323,14 +321,14 @@ end
 
 ########################################### Test with split_scales = true N = (nx,ny,nz) and Summary network #########################
 # Invertibility
-sum_net_3d = ResNet(n_cond, 16, 3; ndims=3, norm=nothing) # make sure it doesnt have any weird normalizati8ons
+sum_net_3d = ResNet(n_cond, 16, 3; ndims=3, norm=nothing)  |> device# make sure it doesnt have any weird normalizati8ons
 
 # Network and input
-flow = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N));
-G = SummarizedNet(flow, sum_net_3d)
+flow = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N)) |> device;
+G = SummarizedNet(flow, sum_net_3d) |> device
 
-X = rand(Float32, N..., n_in, batchsize);
-Cond = rand(Float32, N..., n_cond, batchsize);
+X = rand(Float32, N..., n_in, batchsize) |> device;
+Cond = rand(Float32, N..., n_cond, batchsize) |> device;
 
 Y, ZCond = G.forward(X,Cond);
 X_ = G.inverse(Y,ZCond); # saving the cond is important in split scales because of reshapes
@@ -359,10 +357,10 @@ end
 
 
 # Gradient test w.r.t. input
-X = rand(Float32, N..., n_in, batchsize);
-Cond = rand(Float32, N..., n_cond, batchsize);
-X0 = rand(Float32, N..., n_in, batchsize);
-Cond0 = rand(Float32, N..., n_cond, batchsize);
+X = rand(Float32, N..., n_in, batchsize) |> device;
+Cond = rand(Float32, N..., n_cond, batchsize) |> device;
+X0 = rand(Float32, N..., n_in, batchsize) |> device;
+Cond0 = rand(Float32, N..., n_cond, batchsize) |> device;
 
 dX = X - X0;
 
@@ -385,9 +383,9 @@ end
 @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f0)
 
 # Gradient test w.r.t. parameters
-X = rand(Float32, N..., n_in, batchsize)
-flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N))
-G0 = SummarizedNet(flow0, sum_net_3d)
+X = rand(Float32, N..., n_in, batchsize) |> device
+flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N)) |> device
+G0 = SummarizedNet(flow0, sum_net_3d) |> device
 Gini = deepcopy(G0)
 
 # Test one parameter from residual block and 1x1 conv
