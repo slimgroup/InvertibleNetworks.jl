@@ -66,7 +66,7 @@ jobs:
       fail-fast: false
 
       matrix:
-        version: [1.10']
+        version: ['1.10']
         tests: ["basics", "layers", "networks"]
         os: [ubuntu-latest]
 
