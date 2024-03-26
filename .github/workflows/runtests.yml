@@ -11,7 +11,7 @@ on:
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.tests }} - ${{ matrix.os }}
-    runs-on: self-hosted
+    runs-on: ${{ matrix.os }} 
     env:
       test_suite:  ${{ matrix.tests }}
 
@@ -19,9 +19,14 @@ jobs:
       fail-fast: false
 
       matrix:
-        version: ['1.6', '1.7', '1.8', '1.10']
+        version: ['1.6', '1.7', '1.8', '1.9', '1.10']
         tests: ["basics", "layers", "networks"]
         os: [ubuntu-latest]
+
+        include:
+           - os: self-hosted
+              tests:  ["basics", "layers", "networks"]
+              version: '1.10'
 
     steps:
       - name: Checkout InvertibleNetworks.jl
