@@ -57,7 +57,7 @@ jobs:
           file: lcov.info
 
   test_gpu:
-    name: Julia ${{ matrix.version }} - ${{ matrix.tests }} - ${{ matrix.os }}
+    name: GPU Julia ${{ matrix.version }} - ${{ matrix.tests }} 
     runs-on: self-hosted
     env:
       test_suite:  ${{ matrix.tests }}
@@ -68,7 +68,6 @@ jobs:
       matrix:
         version: ['1.10']
         tests: ["basics", "layers", "networks"]
-        os: [ubuntu-latest]
 
     steps:
       - name: Checkout InvertibleNetworks.jl
