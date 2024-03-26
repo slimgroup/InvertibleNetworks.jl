@@ -22,7 +22,6 @@ jobs:
         version: ['1.6', '1.7', '1.8', '1.9', '1.10']
         tests: ["basics", "layers", "networks"]
         os: [ubuntu-latest]
-
         include:
            - os: self-hosted
               tests:  ["basics", "layers", "networks"]
