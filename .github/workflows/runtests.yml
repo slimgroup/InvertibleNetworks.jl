@@ -11,7 +11,7 @@ on:
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.tests }} - ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
     env:
       test_suite:  ${{ matrix.tests }}
 
