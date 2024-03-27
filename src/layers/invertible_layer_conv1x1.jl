@@ -110,7 +110,8 @@ end
 function mat_tens_i(out::AbstractVector{T}, Mat::AbstractArray{T, 2},
                     Tens::AbstractArray{T, 3}, Mat2::AbstractArray{T, 2}) where T
     # Computes sum( (Mat * tens) .* Mat2) for each element in the batch
-    copyto!(out, map(i -> dot(Mat * Tens[i, :, :], Mat2) , 1:size(Tens, 1)))
+    isa(Mat, CUDA.CuArray) && (Mat2 = CUDA.CuArray(Mat2)) #new Julia 1.10 subarrays require this
+    copyto!(out, map(i -> dot(Mat * Tens[i, :, :], Mat2), 1:size(Tens, 1)))
     return out
 end
 
@@ -260,6 +261,7 @@ function jacobian(ΔX::AbstractArray{T, N}, Δθ::Array{Parameter, 1}, X::Abstra
 
     for i=1:size(X, N)
         Xi = reshape(selectdim(X, N, i), :, n_in)
+        isa(X, CUDA.CuArray) && (Xi = CUDA.CuArray(Xi))
         Yi = chain_lr(Xi, v1, v2, v3)
         selectdim(Y, N, i) .= reshape(Yi, size(selectdim(Y, N, i) )...)
 
