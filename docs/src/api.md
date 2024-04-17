@@ -7,7 +7,7 @@ Order  = [:function]
 Pages = ["neuralnet.jl", "parameter.jl"]
 ```
 
-## Activations functions
+## Activation functions
 
 ```@autodocs
 Modules = [InvertibleNetworks]

@@ -4,6 +4,9 @@
 
 using InvertibleNetworks, LinearAlgebra, Test, Flux, Random
 device = InvertibleNetworks.CUDA.functional() ? gpu : cpu
+
+(device == gpu) && println("Testing on GPU"); 
+
 Random.seed!(11)
 ###################################################################################################
 # Initialize parameters

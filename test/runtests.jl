@@ -68,30 +68,14 @@ if test_suite == "all" || test_suite == "layers"
     end
 end
 
-max_attempts=3
 if test_suite == "all" || test_suite == "networks"
     @testset verbose = true "Networks" begin
         for t=networks
-            for attempt in 1:max_attempts
-                println("Running tests, attempt $attempt...")
-                try
-                    results =  @testset  "Test $t" begin
-                        @timeit TIMEROUTPUT "$t" begin include(t) end
-                    end
-
-                    if all(record->record.status == :pass, results.results)
-                        println("Tests passed on attempt $attempt.")
-                        return
-                    end
-                catch e
-                    println("Tests failed on attempt $attempt. Retrying...")
-                end
+            @testset  "Test $t" begin
+                @timeit TIMEROUTPUT "$t" begin include(t) end
             end
-            println("Tests failed after $max_attempts attempts.")
         end
     end
 end
-
-
 
 show(TIMEROUTPUT; compact=true, sortby=:firstexec)
