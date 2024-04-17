@@ -1,5 +1,5 @@
 data
 .vscode
-Manifest.toml
+# Manifest.toml
 settings.json
 *.png
