@@ -6,6 +6,7 @@ export squeeze, unsqueeze, wavelet_squeeze, wavelet_unsqueeze, Haar_squeeze, inv
 export tensor_split, tensor_cat
 export cat_states, split_states
 export ShuffleLayer, WaveletLayer, HaarLayer
+export Squeezer
 ###############################################################################
 # Custom type for squeezer functions
 
