@@ -2,12 +2,17 @@
 # Obtaining samples from posterior for the following problem:
 # y = Ax + ϵ, x ~ N(μ_x, Σ_x), ϵ ~ N(μ_ϵ, Σ_ϵ), A ~ N(0, I/|x|)
 
+using Pkg
+Pkg.add("InvertibleNetworks"); Pkg.add("Flux"); Pkg.add("PyPlot");
+Pkg.add("Distributions"); Pkg.add("Printf")
+
 using InvertibleNetworks, LinearAlgebra, Test
 using Distributions
 import Flux.Optimise.update!, Flux
 using PyPlot
 using Printf
 using Random
+
 Random.seed!(19)
 
 # Model and data dimension
@@ -102,9 +107,7 @@ end
 
 # Optimizer
 η = 0.01
-opt = Flux.ADAM(η)
-lr_step = 2000
-lr_decay_fn = Flux.ExpDecay(η, .3, lr_step, 0.)
+opt = Flux.Optimiser(Flux.ExpDecay(η, .3, 2000, 0.), Flux.ADAM(η))
 
 # Loss function
 function loss(z_in, y_in)

@@ -26,7 +26,7 @@ InvertibleNetworks is registered and can be added like any standard Julia packag
 ## Uncertainty-aware image reconstruction
 
 
-Due to its memory scaling InvertibleNetworks.jl has been particularily successful at Bayesian posterior sampling with simulation-based inference. To get started with this application refer to a simple example ([Conditional sampling for MNSIT inpainting](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/applications/application_conditional_mnist_inpainting.jl)) but feel free to modify this script for your application and please reach out to us if you run into any trouble. 
+Due to its memory scaling InvertibleNetworks.jl, has been particularily successful at Bayesian posterior sampling with simulation-based inference. To get started with this application refer to a simple example ([Conditional sampling for MNSIT inpainting](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/applications/conditional_sampling/amortized_glow_mnist_inpainting.jl)) but feel free to modify this script for your application and please reach out to us if you run into any trouble. 
 
 ![mnist_sampling_cond](docs/src/figures/mnist_sampling_cond.png)
 

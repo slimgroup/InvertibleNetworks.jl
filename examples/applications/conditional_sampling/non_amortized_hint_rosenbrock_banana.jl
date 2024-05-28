@@ -2,6 +2,9 @@
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
 
+using Pkg
+Pkg.add("InvertibleNetworks"); Pkg.add("Flux"); Pkg.add("PyPlot");
+
 using LinearAlgebra, InvertibleNetworks, PyPlot, Flux, Random
 import Flux.Optimise.update!
 
@@ -88,9 +91,8 @@ end
 
 # Training
 maxiter = 1000
-opt = Flux.ADAM(1f-3)
-lr_step = 50
-lr_decay_fn = Flux.ExpDecay(1f-3, .9, lr_step, 0.)
+opt = Flux.Optimiser(Flux.ExpDecay(1f-3, .9, 50, 0.), Flux.ADAM(1f-3))
+
 fval = zeros(Float32, maxiter)
 
 for j=1:maxiter
