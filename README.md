@@ -133,6 +133,12 @@ The following publications use [InvertibleNetworks.jl]:
     - paper: [http://arxiv.org/abs/1903.03942](http://arxiv.org/abs/1903.03942)
     - code: [SetIntersectionProjection.jl]
 
+## Contributing
+
+We welcome contributions and bug reports!
+Please see [CONTRIBUTING.md](https://github.com/slimgroup/InvertibleNetworks.jl/blob/master/CONTRIBUTING.md) for guidance.
+
+InvertibleNetworks.jl development subscribes to the [Julia Community Standards](https://julialang.org/community/standards/).
 
 ## Authors
 
@@ -145,6 +151,8 @@ The following publications use [InvertibleNetworks.jl]:
  - Mathias Louboutin, Georgia Institute of Technology
 
  - Ali Siahkoohi, Georgia Institute of Technology
+
+
 
 
  ## Acknowledgments
