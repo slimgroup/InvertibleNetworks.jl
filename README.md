@@ -16,7 +16,6 @@ Building blocks for invertible neural networks in the [Julia] programming langua
 
 ## Installation
 
-
 InvertibleNetworks is registered and can be added like any standard Julia package with the command:
 
 ```
@@ -24,37 +23,13 @@ InvertibleNetworks is registered and can be added like any standard Julia packag
 ```
 
 
-## Papers
+## Uncertainty-aware image reconstruction
 
-The following publications use [InvertibleNetworks.jl]:
 
-- **["Reliable amortized variational inference with physics-based latent distribution correction"]**
-    - paper: [https://arxiv.org/abs/2207.11640](https://arxiv.org/abs/2207.11640)
-    - [presentation](https://slim.gatech.edu/Publications/Public/Submitted/2022/siahkoohi2022ravi/slides.pdf)
-    - code: [ReliableAVI.jl]
+Due to its memory scaling InvertibleNetworks.jl has been particularily successful at Bayesian posterior sampling with simulation-based inference. To get started with this application refer to a simple example ([Conditional sampling for MNSIT inpainting](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/applications/application_conditional_mnist_inpainting.jl)) but feel free to modify this script for your application and please reach out to us if you run into any trouble. 
 
-- **["Learning by example: fast reliability-aware seismic imaging with normalizing flows"]**
-    - paper: [https://arxiv.org/abs/2104.06255](https://arxiv.org/abs/2104.06255)
-    - [presentation](https://slim.gatech.edu/Publications/Public/Conferences/KAUST/2021/siahkoohi2021EarthMLfar/siahkoohi2021EarthMLfar.pdf)
-    - code: [ReliabilityAwareImaging.jl]
+![mnist_sampling_cond](docs/src/figures/mnist_sampling_cond.png)
 
-- **["Enabling uncertainty quantification for seismic data pre-processing using normalizing flows (NF)—an interpolation example"]**
-    - [paper](https://slim.gatech.edu/Publications/Public/Conferences/SEG/2021/kumar2021SEGeuq/kumar2021SEGeuq.pdf)
-    - code: [WavefieldRecoveryUQ.jl]
-
-- **["Preconditioned training of normalizing flows for variational inference in inverse problems"]**
-    - paper: [https://arxiv.org/abs/2101.03709](https://arxiv.org/abs/2101.03709)
-    - [presentation](https://slim.gatech.edu/Publications/Public/Conferences/AABI/2021/siahkoohi2021AABIpto/siahkoohi2021AABIpto_pres.pdf)
-    - code: [FastApproximateInference.jl]
-
-- **["Parameterizing uncertainty by deep invertible networks, an application to reservoir characterization"]**
-    - paper: [https://arxiv.org/abs/2004.07871](https://arxiv.org/abs/2004.07871)
-    - [presentation](https://slim.gatech.edu/Publications/Public/Conferences/SEG/2020/rizzuti2020SEGuqavp/rizzuti2020SEGuqavp_pres.pdf)
-    - code: [https://github.com/slimgroup/Software.SEG2020](https://github.com/slimgroup/Software.SEG2020)
-
-- **["Generalized Minkowski sets for the regularization of inverse problems"]**
-    - paper: [http://arxiv.org/abs/1903.03942](http://arxiv.org/abs/1903.03942)
-    - code: [SetIntersectionProjection.jl]
 
 ## Building blocks
 
@@ -112,26 +87,62 @@ AN = ActNorm(k; logdet=true) |> gpu
 Y_, logdet = AN.forward(X)
 ```
 
-## Acknowledgments
+## Reference
 
-This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl), [Flux.jl](https://github.com/FluxML/Flux.jl) and [Wavelets.jl](https://github.com/JuliaDSP/Wavelets.jl)
+If you use InvertibleNetworks.jl in your research, we would be grateful if you cite us with the following bibtex:
+
+```
+@article{orozco2023invertiblenetworks,
+  title={InvertibleNetworks. jl: A Julia package for scalable normalizing flows},
+  author={Orozco, Rafael and Witte, Philipp and Louboutin, Mathias and Siahkoohi, Ali and Rizzuti, Gabrio and Peters, Bas and Herrmann, Felix J},
+  journal={arXiv preprint arXiv:2312.13480},
+  year={2023}
+}
+```
 
 
-## References
+## Papers
 
- - Yann Dauphin, Angela Fan, Michael Auli and David Grangier, "Language modeling with gated convolutional networks", Proceedings of the 34th International Conference on Machine Learning, 2017. https://arxiv.org/pdf/1612.08083.pdf
+The following publications use [InvertibleNetworks.jl]:
 
- - Laurent Dinh, Jascha Sohl-Dickstein and Samy Bengio, "Density estimation using Real NVP",  International Conference on Learning Representations, 2017, https://arxiv.org/abs/1605.08803
+- **["Reliable amortized variational inference with physics-based latent distribution correction"]**
+    - paper: [https://arxiv.org/abs/2207.11640](https://arxiv.org/abs/2207.11640)
+    - [presentation](https://slim.gatech.edu/Publications/Public/Submitted/2022/siahkoohi2022ravi/slides.pdf)
+    - code: [ReliableAVI.jl]
 
- - Diederik P. Kingma and Prafulla Dhariwal, "Glow: Generative Flow with Invertible 1x1 Convolutions", Conference on Neural Information Processing Systems, 2018. https://arxiv.org/abs/1807.03039
+- **["Learning by example: fast reliability-aware seismic imaging with normalizing flows"]**
+    - paper: [https://arxiv.org/abs/2104.06255](https://arxiv.org/abs/2104.06255)
+    - [presentation](https://slim.gatech.edu/Publications/Public/Conferences/KAUST/2021/siahkoohi2021EarthMLfar/siahkoohi2021EarthMLfar.pdf)
+    - code: [ReliabilityAwareImaging.jl]
 
- - Keegan Lensink, Eldad Haber and Bas Peters, "Fully Hyperbolic Convolutional Neural Networks", arXiv Computer Vision and Pattern Recognition, 2019. https://arxiv.org/abs/1905.10484
+- **["Enabling uncertainty quantification for seismic data pre-processing using normalizing flows (NF)—an interpolation example"]**
+    - [paper](https://slim.gatech.edu/Publications/Public/Conferences/SEG/2021/kumar2021SEGeuq/kumar2021SEGeuq.pdf)
+    - code: [WavefieldRecoveryUQ.jl]
 
- - Patrick Putzky and Max Welling, "Invert to learn to invert", Advances in Neural Information Processing Systems, 2019. https://arxiv.org/abs/1911.10914
+- **["Preconditioned training of normalizing flows for variational inference in inverse problems"]**
+    - paper: [https://arxiv.org/abs/2101.03709](https://arxiv.org/abs/2101.03709)
+    - [presentation](https://slim.gatech.edu/Publications/Public/Conferences/AABI/2021/siahkoohi2021AABIpto/siahkoohi2021AABIpto_pres.pdf)
+    - code: [FastApproximateInference.jl]
 
- - Jakob Kruse, Gianluca Detommaso, Robert Scheichl and Ullrich Köthe, "HINT: Hierarchical Invertible Neural Transport for Density Estimation and Bayesian Inference", arXiv Statistics and Machine Learning, 2020. https://arxiv.org/abs/1905.10687
+- **["Parameterizing uncertainty by deep invertible networks, an application to reservoir characterization"]**
+    - paper: [https://arxiv.org/abs/2004.07871](https://arxiv.org/abs/2004.07871)
+    - [presentation](https://slim.gatech.edu/Publications/Public/Conferences/SEG/2020/rizzuti2020SEGuqavp/rizzuti2020SEGuqavp_pres.pdf)
+    - code: [https://github.com/slimgroup/Software.SEG2020](https://github.com/slimgroup/Software.SEG2020)
+
+- **["Generalized Minkowski sets for the regularization of inverse problems"]**
+    - paper: [http://arxiv.org/abs/1903.03942](http://arxiv.org/abs/1903.03942)
+    - code: [SetIntersectionProjection.jl]
+
+## Contributing
+
+We welcome contributions and bug reports!
+Please see [CONTRIBUTING.md](https://github.com/slimgroup/InvertibleNetworks.jl/blob/master/CONTRIBUTING.md) for guidance.
+
+InvertibleNetworks.jl development subscribes to the [Julia Community Standards](https://julialang.org/community/standards/).
 
 ## Authors
+
+ - Rafael Orozco, Georgia Institute of Technology [rorozco@gatech.edu]
 
  - Philipp Witte, Georgia Institute of Technology (now Microsoft)
 
@@ -139,9 +150,14 @@ This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl),
 
  - Mathias Louboutin, Georgia Institute of Technology
 
- - Rafael Orozco, Georgia Institute of Technology 
-
  - Ali Siahkoohi, Georgia Institute of Technology
+
+
+
+
+ ## Acknowledgments
+
+This package uses functions from [NNlib.jl](https://github.com/FluxML/NNlib.jl), [Flux.jl](https://github.com/FluxML/Flux.jl) and [Wavelets.jl](https://github.com/JuliaDSP/Wavelets.jl)
 
 [Flux]:https://fluxml.ai
 [Julia]:https://julialang.org
