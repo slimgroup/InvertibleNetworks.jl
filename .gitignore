@@ -1,6 +1,6 @@
 data
 .vscode
-# Manifest.toml
+Manifest.toml
 settings.json
 *.png
 Project_copy.toml
