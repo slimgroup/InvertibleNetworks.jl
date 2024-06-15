@@ -82,7 +82,7 @@ function ConditionalLayerGlow(n_in::Int64, n_cond::Int64, n_hidden::Int64;Unet_t
     #RB = ResidualBlock(Int(n_in/2)+n_cond, n_hidden; unet=true, n_out=n_in, activation=rb_activation, k1=k1, k2=k2, p1=p1, p2=p2, s1=s1, s2=s2, fan=true, ndims=ndims)
     
     unet_lev = 2
-    h = Chain(Unet_t(Int(n_in/2)+n_cond, n_in, unet_lev;dims=2));
+    h = Chain(Unet_t(Int(n_in/2)+n_cond, n_in, unet_lev;));
     trainmode!(h, true);  #can we get rid of this? NO!!!!
     RB = FluxBlock(h) #|> device;
 
