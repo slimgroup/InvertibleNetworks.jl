@@ -56,7 +56,7 @@ function inverse(X::AbstractArray{T, N}, Y::AbstractArray{T, N}, S::SummarizedNe
     if !isnothing(S.squeezer)
         return S.squeezer.inverse(X)
     end
-    
+    return X
 end
 
 # Backward pass and compute gradients
