@@ -60,7 +60,7 @@ or
 """
 struct ConditionalLayerGlow <: NeuralNetLayer
     C::Conv1x1
-    RB::ResidualBlock
+    RB::Union{ResidualBlock,FluxBlock}
     logdet::Bool
     activation::ActivationFunction
 end
