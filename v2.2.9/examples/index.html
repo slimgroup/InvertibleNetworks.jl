@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · Invertible Networks</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">Invertible Networks</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li><a class="tocitem" href="#Further-examples"><span>Further examples</span></a></li><li><a class="tocitem" href="#D-Rosenbrock/banana-distribution-sampling-w/-GLOW"><span>2D Rosenbrock/banana distribution sampling w/ GLOW</span></a></li><li><a class="tocitem" href="#Conditional-2D-Rosenbrock/banana-distribution-sampling-w/-cHINT"><span>Conditional 2D Rosenbrock/banana distribution sampling w/ cHINT</span></a></li><li><a class="tocitem" href="#Literature-applications"><span>Literature applications</span></a></li></ul></li><li><a class="tocitem" href="../api/">API Reference</a></li><li><a class="tocitem" href="../LICENSE/">LICENSE</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/slimgroup/InvertibleNetworks.jl/blob/master/docs/src/examples.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h2 id="Further-examples"><a class="docs-heading-anchor" href="#Further-examples">Further examples</a><a id="Further-examples-1"></a><a class="docs-heading-anchor-permalink" href="#Further-examples" title="Permalink"></a></h2><p>We provide usage examples for all the layers and network in our <a href="https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples">examples</a> subfolder. Each of the example show how to setup and use the building block for simple random variables.</p><h2 id="D-Rosenbrock/banana-distribution-sampling-w/-GLOW"><a class="docs-heading-anchor" href="#D-Rosenbrock/banana-distribution-sampling-w/-GLOW">2D Rosenbrock/banana distribution sampling w/ GLOW</a><a id="D-Rosenbrock/banana-distribution-sampling-w/-GLOW-1"></a><a class="docs-heading-anchor-permalink" href="#D-Rosenbrock/banana-distribution-sampling-w/-GLOW" title="Permalink"></a></h2><pre><code class="language-">using LinearAlgebra, InvertibleNetworks, PyPlot, Flux, Random
+
+# Random seed
+Random.seed!(11)
+
+# Define network
+nx = 1; ny = 1; n_in = 2
+n_hidden = 64
+batchsize = 20
+depth = 4
+AN = Array{ActNorm}(undef, depth)
+L = Array{CouplingLayerGlow}(undef, depth)
+Params = Array{Parameter}(undef, 0)
+
+# Create layers
+for j=1:depth
+    AN[j] = ActNorm(n_in; logdet=true)
+    L[j] = CouplingLayerGlow(n_in, n_hidden; k1=1, k2=1, p1=0, p2=0, logdet=true)
+
+    # Collect parameters
+    global Params = cat(Params, get_params(AN[j]); dims=1)
+    global Params = cat(Params, get_params(L[j]); dims=1)
+end
+
+# Forward pass
+function forward(X)
+    logdet = 0f0
+    for j=1:depth
+        X_, logdet1 = AN[j].forward(X)
+        X, logdet2 = L[j].forward(X_)
+        logdet += (logdet1 + logdet2)
+    end
+    return X, logdet
+end
+
+# Backward pass
+function backward(ΔX, X)
+    for j=depth:-1:1
+        ΔX_, X_ = L[j].backward(ΔX, X)
+        ΔX, X = AN[j].backward(ΔX_, X_)
+    end
+    return ΔX, X
+end
+
+# Loss
+function loss(X)
+    Y, logdet = forward(X)
+    f = -log_likelihood(Y) - logdet
+    ΔY = -∇log_likelihood(Y)
+    ΔX = backward(ΔY, Y)[1]
+    return f, ΔX
+end
+
+# Training
+maxiter = 2000
+opt = Flux.ADAM(1f-3)
+fval = zeros(Float32, maxiter)
+
+for j=1:maxiter
+
+    # Evaluate objective and gradients
+    X = sample_banana(batchsize)
+    fval[j] = loss(X)[1]
+
+    # Update params
+    for p in Params
+        Flux.update!(opt, p.data, p.grad)
+    end
+    clear_grad!(Params)
+end
+
+####################################################################################################
+
+# Testing
+test_size = 250
+X = sample_banana(test_size)
+Y_ = forward(X)[1]
+Y = randn(Float32, 1, 1, 2, test_size)
+X_ = backward(Y, Y)[2]
+
+# Plot
+fig = figure(figsize=[8,8])
+ax1 = subplot(2,2,1); plot(X[1, 1, 1, :], X[1, 1, 2, :], &quot;.&quot;); title(L&quot;Data space: $x \sim \hat{p}_X$&quot;)
+ax1.set_xlim([-3.5,3.5]); ax1.set_ylim([0,50])
+ax2 = subplot(2,2,2); plot(Y_[1, 1, 1, :], Y_[1, 1, 2, :], &quot;g.&quot;); title(L&quot;Latent space: $z = f(x)$&quot;)
+ax2.set_xlim([-3.5, 3.5]); ax2.set_ylim([-3.5, 3.5])
+ax3 = subplot(2,2,3); plot(X_[1, 1, 1, :], X_[1, 1, 2, :], &quot;g.&quot;); title(L&quot;Data space: $x = f^{-1}(z)$&quot;)
+ax3.set_xlim([-3.5,3.5]); ax3.set_ylim([0,50])
+ax4 = subplot(2,2,4); plot(Y[1, 1, 1, :], Y[1, 1, 2, :], &quot;.&quot;); title(L&quot;Latent space: $z \sim \hat{p}_Z$&quot;)
+ax4.set_xlim([-3.5, 3.5]); ax4.set_ylim([-3.5, 3.5])
+savefig(&quot;../src/figures/plot_banana.svg&quot;)
+
+nothing</code></pre><p><img src="../figures/plot_banana.svg" alt="plot_banana.svg"/></p><h2 id="Conditional-2D-Rosenbrock/banana-distribution-sampling-w/-cHINT"><a class="docs-heading-anchor" href="#Conditional-2D-Rosenbrock/banana-distribution-sampling-w/-cHINT">Conditional 2D Rosenbrock/banana distribution sampling w/ cHINT</a><a id="Conditional-2D-Rosenbrock/banana-distribution-sampling-w/-cHINT-1"></a><a class="docs-heading-anchor-permalink" href="#Conditional-2D-Rosenbrock/banana-distribution-sampling-w/-cHINT" title="Permalink"></a></h2><pre><code class="language-">using InvertibleNetworks
+using Flux, LinearAlgebra, PyPlot, Random
+
+# Random seed
+Random.seed!(11)
+
+# Define network
+nx = 1; ny = 1; n_in = 2
+n_hidden = 64
+batchsize = 64
+depth = 8
+
+# Construct HINT network
+H = NetworkConditionalHINT(n_in, n_hidden, depth; k1=1, k2=1, p1=0, p2=0)
+
+# Linear forward operator
+A = randn(Float32,2,2)
+A = A / (2*opnorm(A))
+
+# Loss
+function loss(H, X, Y)
+    Zx, Zy, logdet = H.forward(X, Y)
+    f = -log_likelihood(tensor_cat(Zx, Zy)) - logdet
+    ΔZ = -∇log_likelihood(tensor_cat(Zx, Zy))
+    ΔZx, ΔZy = tensor_split(ΔZ)
+    ΔX, ΔY = H.backward(ΔZx, ΔZy, Zx, Zy)[1:2]
+    return f, ΔX, ΔY
+end
+
+# Training
+maxiter = 1000
+opt = Flux.ADAM(1f-3)
+fval = zeros(Float32, maxiter)
+
+for j=1:maxiter
+
+    # Evaluate objective and gradients
+    X = sample_banana(batchsize)
+    Y = reshape(A*reshape(X, :, batchsize), nx, ny, n_in, batchsize)
+    Y += .2f0*randn(Float32, nx, ny, n_in, batchsize)
+
+    fval[j] = loss(H, X, Y)[1]
+
+    # Update params
+    for p in get_params(H)
+        Flux.update!(opt, p.data, p.grad)
+    end
+    clear_grad!(H)
+end
+
+# Testing
+test_size = 250
+X = sample_banana(test_size)
+Y = reshape(A*reshape(X, :, test_size), nx, ny, n_in, test_size)
+Y += .2f0*randn(Float32, nx, ny, n_in, test_size)
+
+Zx_, Zy_ = H.forward(X, Y)[1:2]
+
+Zx = randn(Float32, nx, ny, n_in, test_size)
+Zy = randn(Float32, nx, ny, n_in, test_size)
+X_, Y_ = H.inverse(Zx, Zy)
+
+# Now select single fixed sample from all Ys
+X_fixed = sample_banana(1)
+Y_fixed = reshape(A*vec(X_fixed), nx, ny, n_in, 1)
+Y_fixed += .2f0*randn(Float32, size(X_fixed))
+
+Zy_fixed = H.forward_Y(Y_fixed)
+Zx = randn(Float32, nx, ny, n_in, test_size)
+
+X_post = H.inverse(Zx, Zy_fixed.*ones(Float32, nx, ny, n_in, test_size))[1]
+
+# Model/data spaces
+fig = figure(figsize=[16,6])
+ax1 = subplot(2,5,1); plot(X[1, 1, 1, :], X[1, 1, 2, :], &quot;.&quot;); title(L&quot;Model space: $x \sim \hat{p}_x$&quot;)
+ax1.set_xlim([-3.5, 3.5]); ax1.set_ylim([0,50])
+ax2 = subplot(2,5,2); plot(Y[1, 1, 1, :], Y[1, 1, 2, :], &quot;.&quot;); title(L&quot;Noisy data $y=Ax+n$ &quot;)
+
+ax3 = subplot(2,5,3); plot(X_[1, 1, 1, :], X_[1, 1, 2, :], &quot;g.&quot;); title(L&quot;Model space: $x = f(zx|zy)^{-1}$&quot;)
+ax3.set_xlim([-3.5, 3.5]); ax3.set_ylim([0,50])
+ax4 = subplot(2,5,4); plot(Y_[1, 1, 1, :], Y_[1, 1, 2, :], &quot;g.&quot;); title(L&quot;Data space: $y = f(zx|zy)^{-1}$&quot;)
+
+ax5 = subplot(2,5,5); plot(X_post[1, 1, 1, :], X_post[1, 1, 2, :], &quot;g.&quot;); 
+plot(X_fixed[1, 1, 1, :], X_fixed[1, 1, 2, :], &quot;r.&quot;); title(L&quot;Model space: $x = f(zx|zy_{fix})^{-1}$&quot;)
+ax5.set_xlim([-3.5, 3.5]); ax5.set_ylim([0,50])
+
+# Latent spaces
+ax6 = subplot(2,5,6); plot(Zx_[1, 1, 1, :], Zx_[1, 1, 2, :], &quot;g.&quot;); title(L&quot;Latent space: $zx = f(x|y)$&quot;)
+ax6.set_xlim([-3.5, 3.5]); ax6.set_ylim([-3.5, 3.5])
+ax7 = subplot(2,5,7); plot(Zy_[1, 1, 1, :], Zy[1, 1, 2, :], &quot;g.&quot;); title(L&quot;Latent space: $zy \sim \hat{p}_{zy}$&quot;)
+ax7.set_xlim([-3.5, 3.5]); ax7.set_ylim([-3.5, 3.5])
+ax8 = subplot(2,5,9); plot(Zx[1, 1, 1, :], Zx[1, 1, 2, :], &quot;.&quot;);  title(L&quot;Latent space: $zx \sim \hat{p}_{zy}$&quot;)
+ax8.set_xlim([-3.5, 3.5]); ax8.set_ylim([-3.5, 3.5])
+ax9 = subplot(2,5,8); plot(Zy[1, 1, 1, :], Zy[1, 1, 2, :], &quot;.&quot;); title(L&quot;Latent space: $zy \sim \hat{p}_{zy}$&quot;)
+ax9.set_xlim([-3.5, 3.5]); ax9.set_ylim([-3.5, 3.5])
+ax10 = subplot(2,5,10); plot(Zx[1, 1, 1, :], Zx[1, 1, 2, :], &quot;.&quot;); 
+plot(Zy_fixed[1, 1, 1, :], Zy_fixed[1, 1, 2, :], &quot;r.&quot;); title(L&quot;Latent space: $zx \sim \hat{p}_{zx}$&quot;)
+ax10.set_xlim([-3.5, 3.5]); ax10.set_ylim([-3.5, 3.5])
+savefig(&quot;../src/figures/plot_cbanana.svg&quot;)
+
+nothing</code></pre><p><img src="../figures/plot_cbanana.svg" alt="plot_cbanana.svg"/></p><h2 id="Literature-applications"><a class="docs-heading-anchor" href="#Literature-applications">Literature applications</a><a id="Literature-applications-1"></a><a class="docs-heading-anchor-permalink" href="#Literature-applications" title="Permalink"></a></h2><p>The following examples show the implementation of applications from the linked papers with [InvertibleNetworks.jl]:</p><ul><li><p>Invertible recurrent inference machines (Putzky and Welling, 2019) (<a href="https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/networks/network_irim.jl">generic example</a>)</p></li><li><p>Generative models with maximum likelihood via the change of variable formula (<a href="https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/applications/application_glow_banana_dist.jl">example</a>)</p></li><li><p>Glow: Generative flow with invertible 1x1 convolutions (Kingma and Dhariwal, 2018) (<a href="https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/networks/network_glow.jl">generic example</a>, <a href="https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/src/networks/invertible_network_glow.jl">source</a>)</p></li></ul></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../api/">API Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 24 July 2024 17:47">Wednesday 24 July 2024</span>. Using Julia version 1.10.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
