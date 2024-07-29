@@ -11,8 +11,51 @@ Random.seed!(3);
 
 # Define network
 nx = 32; ny = 32; nz = 32
-n_in = 2
-n_cond = 2
+n_in = 3
+n_cond = 3
+n_hidden = 4
+batchsize = 2
+L = 2
+K = 2
+split_scales = false
+N = (nx,ny)
+
+########################################### Test with split_scales = false N = (nx,ny) #########################
+# Invertibility
+
+# Network and input
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N)) |> device
+X = rand(Float32, N..., n_in, batchsize)  |> device
+Cond = rand(Float32, N..., n_cond, batchsize)  |> device
+
+Y, Cond = G.forward(X,Cond)
+X_ = G.inverse(Y,Cond) # saving the cond is important in split scales because of reshapes
+
+@test isapprox(norm(X - X_)/norm(X), 0f0; atol=1f-5)
+
+# Test gradients are set and cleared
+G.backward(Y, Y, Cond)
+
+P = get_params(G)
+gsum = 0
+for p in P
+    ~isnothing(p.grad) && (global gsum += 1)
+end
+@test isequal(gsum, L*K*10+2)
+
+clear_grad!(G)
+gsum = 0
+for p in P
+    ~isnothing(p.grad) && (global gsum += 1)
+end
+@test isequal(gsum, 0)
+
+
+Random.seed!(3);
+# Define network
+nx = 32; ny = 32; nz = 32
+n_in = 3
+n_cond = 3
 n_hidden = 4
 batchsize = 2
 L = 2
