@@ -1,0 +1,50 @@
+cff-version: "1.2.0"
+authors:
+- family-names: Orozco
+  given-names: Rafael
+- family-names: Witte
+  given-names: Philipp
+- family-names: Louboutin
+  given-names: Mathias
+- family-names: Siahkoohi
+  given-names: Ali
+- family-names: Rizzuti
+  given-names: Gabrio
+- family-names: Peters
+  given-names: Bas
+- family-names: Herrmann
+  given-names: Felix J.
+doi: 10.5281/zenodo.12810006
+message: If you use this software, please cite our article in the
+  Journal of Open Source Software.
+preferred-citation:
+  authors:
+  - family-names: Orozco
+    given-names: Rafael
+  - family-names: Witte
+    given-names: Philipp
+  - family-names: Louboutin
+    given-names: Mathias
+  - family-names: Siahkoohi
+    given-names: Ali
+  - family-names: Rizzuti
+    given-names: Gabrio
+  - family-names: Peters
+    given-names: Bas
+  - family-names: Herrmann
+    given-names: Felix J.
+  date-published: 2024-07-30
+  doi: 10.21105/joss.06554
+  issn: 2475-9066
+  issue: 99
+  journal: Journal of Open Source Software
+  publisher:
+    name: Open Journals
+  start: 6554
+  title: "InvertibleNetworks.jl: A Julia package for scalable
+    normalizing flows"
+  type: article
+  url: "https://joss.theoj.org/papers/10.21105/joss.06554"
+  volume: 9
+title: "InvertibleNetworks.jl: A Julia package for scalable normalizing
+  flows"
