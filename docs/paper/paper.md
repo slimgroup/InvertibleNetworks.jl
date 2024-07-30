@@ -74,6 +74,9 @@ Many publications have used InvertibleNetworks.jl for diverse applications inclu
 # Future work
 The neural network primitives (convolutions, non-linearities, pooling etc) are implemented in NNlib.jl abstractions, thus support for AMD, Intel, and Apple GPUs can be trivially extended. Also, while our package can currently handle 3D inputs and has been used on large volume-based medical imaging [@orozco2022memory], there are interesting avenues of research regarding the "channel explosion" seen in invertible down and upsampling used in invertible networks [@peters2019symmetric]. 
 
+# Acknowledgements
+
+The development of this package was carried out with the support of Georgia Research Alliance and partners of the ML4Seismic Center. This was also supported in part by the US National Science Foundation grant OAC 2203821 and the Department of Energy grant No. DE-SC0021515.
 
 # References
 
