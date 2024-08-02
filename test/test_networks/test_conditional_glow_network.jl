@@ -54,8 +54,8 @@ end
 Random.seed!(3);
 # Define network
 nx = 32; ny = 32; nz = 32
-n_in = 3
-n_cond = 3
+n_in = 2
+n_cond = 2
 n_hidden = 4
 batchsize = 2
 L = 2
