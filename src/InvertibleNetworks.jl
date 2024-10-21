@@ -7,7 +7,7 @@ module InvertibleNetworks
 # Dependencies
 using LinearAlgebra, Random
 using Statistics, Wavelets
-using JOLI
+# using JOLI
 using NNlib, Flux, ChainRulesCore
 
 # Overloads and reexports
@@ -78,8 +78,8 @@ include("networks/invertible_network_conditional_hint_multiscale.jl")
 
 include("networks/summarized_net.jl")
 
-# Jacobians
-include("utils/jacobian.jl")
+# # Jacobians
+# include("utils/jacobian.jl")
 
 # gpu
 include("utils/compute_utils.jl")
