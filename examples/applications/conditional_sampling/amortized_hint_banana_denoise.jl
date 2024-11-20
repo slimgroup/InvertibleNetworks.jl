@@ -1,6 +1,12 @@
-# Generative model using the change of variables formula
+# Method: Amortized posterior sampler / simulation based inference / Forwad KL variational inference
+# Application: sample from conditional distribution given noisy observations of the rosenbrock distribution.
+# Note: we currently recommend conditional glow architectures instead of HINT, unless you need the latent space of
+#       the observation. 
+
 # Author: Philipp Witte, pwitte3@gatech.edu
 # Date: January 2020
+using Pkg
+Pkg.add("InvertibleNetworks"); Pkg.add("Flux"); Pkg.add("PyPlot")
 
 using LinearAlgebra, InvertibleNetworks, PyPlot, Flux, Random, Test
 import Flux.Optimise.update!
@@ -35,9 +41,7 @@ end
 
 # Training
 maxiter = 1000
-opt = Flux.ADAM(1f-3)
-lr_step = 100
-lr_decay_fn = Flux.ExpDecay(1f-3, .9, lr_step, 0.)
+opt = Flux.Optimiser(Flux.ExpDecay(1f-3, .9, 100, 0.), Flux.ADAM(1f-3))
 fval = zeros(Float32, maxiter)
 
 for j=1:maxiter
@@ -51,7 +55,6 @@ for j=1:maxiter
     # Update params
     for p in get_params(H)
         update!(opt, p.data, p.grad)
-        update!(lr_decay_fn, p.data, p.grad)
     end
     clear_grad!(H)
 end
@@ -97,4 +100,3 @@ ax7.set_xlim([-3.5,3.5]); ax7.set_ylim([0,50])
 ax8 = subplot(2,4,8); plot(Zx[1, 1, 1, :], Zx[1, 1, 2, :], "."); 
 plot(Zy_fixed[1, 1, 1, :], Zy_fixed[1, 1, 2, :], "r."); title(L"Latent space: $zx \sim \hat{p}_{zx}$")
 ax8.set_xlim([-3.5, 3.5]); ax8.set_ylim([-3.5, 3.5])
-

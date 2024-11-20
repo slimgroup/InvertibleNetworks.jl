@@ -1,8 +1,9 @@
 # InvertibleNetworks.jl
 
-| **Documentation** | **Build Status**  |                  |
+| **Documentation** | **Build Status**  |  **JOSS paper**  |
 |:-----------------:|:-----------------:|:----------------:|
-|[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://slimgroup.github.io/InvertibleNetworks.jl/stable/) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://slimgroup.github.io/InvertibleNetworks.jl/dev/)| [![CI](https://github.com/slimgroup/InvertibleNetworks.jl/actions/workflows/runtests.yml/badge.svg)](https://github.com/slimgroup/InvertibleNetworks.jl/actions/workflows/runtests.yml)| [![DOI](https://zenodo.org/badge/239018318.svg)](https://zenodo.org/badge/latestdoi/239018318)
+|[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://slimgroup.github.io/InvertibleNetworks.jl/stable/) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://slimgroup.github.io/InvertibleNetworks.jl/dev/)| [![CI](https://github.com/slimgroup/InvertibleNetworks.jl/actions/workflows/runtests.yml/badge.svg)](https://github.com/slimgroup/InvertibleNetworks.jl/actions/workflows/runtests.yml)|  [![DOI](https://joss.theoj.org/papers/10.21105/joss.06554/status.svg)](https://doi.org/10.21105/joss.06554)
+
 
 Building blocks for invertible neural networks in the [Julia] programming language.
 
@@ -26,7 +27,7 @@ InvertibleNetworks is registered and can be added like any standard Julia packag
 ## Uncertainty-aware image reconstruction
 
 
-Due to its memory scaling InvertibleNetworks.jl has been particularily successful at Bayesian posterior sampling with simulation-based inference. To get started with this application refer to a simple example ([Conditional sampling for MNSIT inpainting](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/applications/application_conditional_mnist_inpainting.jl)) but feel free to modify this script for your application and please reach out to us if you run into any trouble. 
+Due to its memory scaling InvertibleNetworks.jl, has been particularily successful at Bayesian posterior sampling with simulation-based inference. To get started with this application refer to a simple example ([Conditional sampling for MNSIT inpainting](https://github.com/slimgroup/InvertibleNetworks.jl/tree/master/examples/applications/conditional_sampling/amortized_glow_mnist_inpainting.jl)) but feel free to modify this script for your application and please reach out to us for help. 
 
 ![mnist_sampling_cond](docs/src/figures/mnist_sampling_cond.png)
 
@@ -92,12 +93,7 @@ Y_, logdet = AN.forward(X)
 If you use InvertibleNetworks.jl in your research, we would be grateful if you cite us with the following bibtex:
 
 ```
-@article{orozco2023invertiblenetworks,
-  title={InvertibleNetworks. jl: A Julia package for scalable normalizing flows},
-  author={Orozco, Rafael and Witte, Philipp and Louboutin, Mathias and Siahkoohi, Ali and Rizzuti, Gabrio and Peters, Bas and Herrmann, Felix J},
-  journal={arXiv preprint arXiv:2312.13480},
-  year={2023}
-}
+@article{Orozco2024, doi = {10.21105/joss.06554}, url = {https://doi.org/10.21105/joss.06554}, year = {2024}, publisher = {The Open Journal}, volume = {9}, number = {99}, pages = {6554}, author = {Rafael Orozco and Philipp Witte and Mathias Louboutin and Ali Siahkoohi and Gabrio Rizzuti and Bas Peters and Felix J. Herrmann}, title = {InvertibleNetworks.jl: A Julia package for scalable normalizing flows}, journal = {Journal of Open Source Software} }
 ```
 
 

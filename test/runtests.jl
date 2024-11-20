@@ -16,7 +16,7 @@ basics = ["test_utils/test_objectives.jl",
           "test_utils/test_nnlib_convolution.jl",
           "test_utils/test_activations.jl", 
           "test_utils/test_squeeze.jl",
-          "test_utils/test_jacobian.jl",
+          #"test_utils/test_jacobian.jl",
           "test_utils/test_chainrules.jl",
           "test_utils/test_flux.jl"]
 

@@ -1,7 +1,7 @@
 name = "InvertibleNetworks"
 uuid = "b7115f24-5f92-4794-81e8-23b0ddb121d3"
 authors = ["Philipp Witte <p.witte@ymail.com>", "Ali Siahkoohi <alisk@gatech.edu>", "Mathias Louboutin <mlouboutin3@gatech.edu>", "Gabrio Rizzuti <g.rizzuti@umcutrecht.nl>", "Rafael Orozco <rorozco@gatech.edu>", "Felix J. Herrmann <fherrmann@gatech.edu>"]
-version = "2.2.8"
+version = "2.3.1"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -15,6 +15,11 @@ Wavelets = "29a6e085-ba6d-5f35-a997-948ac2efa89a"
 cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
 
 [compat]
+CUDA = "1, 2, 3, 4, 5"
+cuDNN = "1"
+ChainRulesCore = "0.8, 0.9, 0.10, 1"
+Flux = "0.11, 0.12, 0.13, 0.14"
+NNlib = "0.7, 0.8, 0.9"
 TimerOutputs = "0.5"
 Wavelets = "0.9, 0.10"
 
