@@ -80,6 +80,9 @@ function ConditionalLayerGlow(n_in::Int64, n_cond::Int64, n_hidden::Int64;freeze
     C  = Conv1x1(n_in; freeze=freeze_conv)
 
     split_num = Int(round(n_in/2))
+    if split_num == 0
+        split_num = 1
+    end
     in_split   = n_in-split_num
     out_chan  = 2*split_num
 
@@ -95,6 +98,9 @@ function forward(X::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalL
 
     X_ = L.C.forward(X)
     X1, X2 = tensor_split(X_)
+    if length(X1) == 0
+        X1, X2 = X2, X1
+    end
 
     Y2 = copy(X2)
 
@@ -115,6 +121,9 @@ end
 function inverse(Y::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalLayerGlow; save=false) where {T,N}
 
     Y1, Y2 = tensor_split(Y)
+    if length(Y1) == 0
+        Y1, Y2 = Y2, Y1
+    end
 
     X2 = copy(Y2)
     logS_T = L.RB.forward(tensor_cat(X2,C))
@@ -138,6 +147,9 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::AbstractA
 
     # Backpropagate residual
     ΔY1, ΔY2 = tensor_split(ΔY)
+    if length(ΔY1) == 0
+        ΔY1, ΔY2 = ΔY2, ΔY1
+    end
     ΔT = copy(ΔY1)
     ΔS = ΔY1 .* X1
     ΔX1 = ΔY1 .* S

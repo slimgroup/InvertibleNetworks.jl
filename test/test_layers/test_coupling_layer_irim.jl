@@ -105,7 +105,7 @@ dv2 = L.C.v2.data - L01.C.v2.data
 dv3 = L.C.v3.data - L01.C.v3.data
 
 f0, ΔX, Δv1, Δv2, Δv3, ΔW1, ΔW2, ΔW3 = loss(L01, X, Y)
-h = 0.1f0
+h = 0.2f0
 maxiter = 4
 err5 = zeros(Float32, maxiter)
 err6 = zeros(Float32, maxiter)
