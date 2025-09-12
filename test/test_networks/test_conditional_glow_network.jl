@@ -60,6 +60,7 @@ end
 
 
 # Gradient test w.r.t. input
+Random.seed!(4);
 G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))  |> device
 X = rand(Float32, N..., n_in, batchsize)  |> device
 Cond = rand(Float32, N..., n_cond, batchsize)  |> device
@@ -88,6 +89,7 @@ end
 
 
 # Gradient test w.r.t. parameters
+Random.seed!(5);
 X = rand(Float32, N..., n_in, batchsize) |> device
 G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
 G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
@@ -103,7 +105,7 @@ maxiter = 4
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 
-print("\nGradient test glow: input\n")
+print("\nGradient test glow: params\n")
 for j=1:maxiter
     G0.CL[1,1].RB.W1.data = Gini.CL[1,1].RB.W1.data + h*dW
     G0.CL[1,1].C.v1.data = Gini.CL[1,1].C.v1.data + h*dv
@@ -165,7 +167,9 @@ end
 @test isequal(gsum, 0)
 
 
+# Random seed
 Random.seed!(3);
+
 # Define network
 nx = 32; ny = 32; nz = 32
 n_in = 2
@@ -220,6 +224,7 @@ end
 
 
 # Gradient test w.r.t. input
+Random.seed!(4);
 G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N))  |> device
 X = rand(Float32, N..., n_in, batchsize)  |> device
 Cond = rand(Float32, N..., n_cond, batchsize)  |> device
@@ -246,8 +251,8 @@ end
 @test isapprox(err1[end] / (err1[1]/2^(maxiter-1)), 1f0; atol=1f0)
 @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f0)
 
-
 # Gradient test w.r.t. parameters
+Random.seed!(5);
 X = rand(Float32, N..., n_in, batchsize) |> device
 G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
 G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
@@ -263,7 +268,7 @@ maxiter = 4
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 
-print("\nGradient test glow: input\n")
+print("\nGradient test glow: params\n")
 for j=1:maxiter
     G0.CL[1,1].RB.W1.data = Gini.CL[1,1].RB.W1.data + h*dW
     G0.CL[1,1].C.v1.data = Gini.CL[1,1].C.v1.data + h*dv
@@ -281,6 +286,8 @@ end
 
 
 ########################################### Test with split_scales = true N = (nx,ny) and summary network #########################
+Random.seed!(3);
+
 # Invertibility
 sum_net = ResNet(n_cond, 16, 3; norm=nothing) # make sure it doesnt have any weird normalizations
 
@@ -324,6 +331,7 @@ function loss_sum(G, X, Cond)
 end
 
 # Gradient test w.r.t. input
+Random.seed!(4);
 X = rand(Float32, N..., n_in, batchsize) |> device;
 Cond = rand(Float32, N..., n_cond, batchsize) |> device;
 X0 = rand(Float32, N..., n_in, batchsize) |> device;
@@ -351,6 +359,7 @@ end
 
 
 # Gradient test w.r.t. parameters
+Random.seed!(5);
 X = rand(Float32, N..., n_in, batchsize) |> device
 flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N)) |> device
 G0 = SummarizedNet(flow0, sum_net) |> device
@@ -366,7 +375,7 @@ maxiter = 4
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 
-print("\nGradient test glow: input\n")
+print("\nGradient test glow: params\n")
 for j=1:maxiter
     G0.cond_net.CL[1,1].RB.W1.data = Gini.cond_net.CL[1,1].RB.W1.data + h*dW
     G0.cond_net.CL[1,1].C.v1.data = Gini.cond_net.CL[1,1].C.v1.data + h*dv
@@ -384,6 +393,8 @@ end
 
 N = (nx,ny,nz)
 ########################################### Test with split_scales = true N = (nx,ny,nz) #########################
+Random.seed!(3);
+
 # Invertibility
 
 # Network and input
@@ -418,6 +429,7 @@ end
 
 
 # Gradient test w.r.t. input
+Random.seed!(4);
 G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
 X = rand(Float32, N..., n_in, batchsize) |> device
 Cond = rand(Float32, N..., n_cond, batchsize) |> device
@@ -446,6 +458,7 @@ end
 
 
 # Gradient test w.r.t. parameters
+Random.seed!(5);
 X = rand(Float32, N..., n_in, batchsize) |> device
 G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
 G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N)) |> device
@@ -461,7 +474,7 @@ maxiter = 4
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 
-print("\nGradient test glow: input\n")
+print("\nGradient test glow: params\n")
 for j=1:maxiter
     G0.CL[1,1].RB.W1.data = Gini.CL[1,1].RB.W1.data + h*dW
     G0.CL[1,1].C.v1.data = Gini.CL[1,1].C.v1.data + h*dv
@@ -478,6 +491,8 @@ end
 
 
 ########################################### Test with split_scales = true N = (nx,ny,nz) and Summary network #########################
+Random.seed!(3);
+
 # Invertibility
 sum_net_3d = ResNet(n_cond, 16, 3; ndims=3, norm=nothing)  |> device# make sure it doesnt have any weird normalizati8ons
 
@@ -515,6 +530,7 @@ end
 
 
 # Gradient test w.r.t. input
+Random.seed!(4);
 X = rand(Float32, N..., n_in, batchsize) |> device;
 Cond = rand(Float32, N..., n_cond, batchsize) |> device;
 X0 = rand(Float32, N..., n_in, batchsize) |> device;
@@ -541,6 +557,7 @@ end
 @test isapprox(err2[end] / (err2[1]/4^(maxiter-1)), 1f0; atol=1f0)
 
 # Gradient test w.r.t. parameters
+Random.seed!(5);
 X = rand(Float32, N..., n_in, batchsize) |> device
 flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N)) |> device
 G0 = SummarizedNet(flow0, sum_net_3d) |> device
@@ -556,7 +573,7 @@ maxiter = 4
 err3 = zeros(Float32, maxiter)
 err4 = zeros(Float32, maxiter)
 
-print("\nGradient test glow: input\n")
+print("\nGradient test glow: params\n")
 for j=1:maxiter
     G0.cond_net.CL[1,1].RB.W1.data = Gini.cond_net.CL[1,1].RB.W1.data + h*dW
     G0.cond_net.CL[1,1].C.v1.data = Gini.cond_net.CL[1,1].C.v1.data + h*dv
@@ -570,4 +587,3 @@ end
 
 @test isapprox(err3[end] / (err3[1]/2^(maxiter-1)), 1f0; atol=1f0)
 @test isapprox(err4[end] / (err4[1]/4^(maxiter-1)), 1f0; atol=1f0)
-

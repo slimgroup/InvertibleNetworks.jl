@@ -76,7 +76,7 @@ function grad_test_X(nx, ny, n_channel, batchsize, logdet, squeeze_type, split_s
     f0, gX, gY = loss(CH, X0, Y0)[1:3]
 
     maxiter = 5
-    h = 0.1f0 
+    h = 5f-2
     err1 = zeros(Float32, maxiter)
     err2 = zeros(Float32, maxiter)
 
