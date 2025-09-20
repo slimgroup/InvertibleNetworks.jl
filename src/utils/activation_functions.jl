@@ -19,6 +19,18 @@ struct ActivationFunction
     backward::Function
 end
 
+function backward(Δy::AbstractArray{T, N}, x::AbstractArray{T, N}, y::AbstractArray{T, N}, activation::ActivationFunction) where {T, N}
+    backward_activation(activation.backward, activation.inverse, Δy, x, y)
+end
+
+function backward_activation(back::Function, inverse::Nothing, Δy::AbstractArray{T, N}, x::AbstractArray{T, N}, y::AbstractArray{T, N}) where {T, N}
+    back(Δy, x)
+end
+
+function backward_activation(back::Function, inverse::Function, Δy::AbstractArray{T, N}, x::AbstractArray{T, N}, y::AbstractArray{T, N}) where {T, N}
+    back(Δy, y)
+end
+
 function ReLUlayer()
     return ActivationFunction(ReLU, nothing, ReLUgrad)
 end
@@ -46,7 +58,7 @@ function GaLUlayer()
 end
 
 function ExpClampLayer()
-    return ActivationFunction(x -> ExpClamp(x), y -> ExpClampInv(y/2f0), (Δy, y) -> ExpClampGrad(Δy*2f0, y/2f0))
+    return ActivationFunction(x -> 2 * ExpClamp(x), y -> ExpClampInv(y/2f0), (Δy, y) -> ExpClampGrad(Δy*2f0, y/2f0))
 end
 
 

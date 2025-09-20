@@ -127,14 +127,14 @@ function inverse(Y::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalL
     X_ = tensor_cat(X1, X2)
     X = L.C.inverse(X_)
 
-    save == true ? (return X, X1, X2, Sm) : (return X)
+    save == true ? (return X, X1, X2, logS, Sm) : (return X)
 end
 
 # Backward pass: Input (ΔY, Y), Output (ΔX, X)
 function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::AbstractArray{T, N}, L::ConditionalLayerGlow;) where {T,N}
 
     # Recompute forward state
-    X, X1, X2, S = inverse(Y, C, L; save=true)
+    X, X1, X2, logS, S = inverse(Y, C, L; save=true)
 
     # Backpropagate residual
     ΔY1, ΔY2 = tensor_split(ΔY)
@@ -147,7 +147,7 @@ function backward(ΔY::AbstractArray{T, N}, Y::AbstractArray{T, N}, C::AbstractA
     end
 
     # Backpropagate RB
-    ΔX2_ΔC = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), (tensor_cat(X2, C)))
+    ΔX2_ΔC = L.RB.backward(tensor_cat(backward(ΔS, logS, S, L.activation), ΔT), (tensor_cat(X2, C)))
     ΔX2, ΔC = tensor_split(ΔX2_ΔC; split_index=size(ΔY2)[N-1])
     ΔX2 += ΔY2
 

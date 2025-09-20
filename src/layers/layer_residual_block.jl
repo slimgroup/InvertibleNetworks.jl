@@ -127,10 +127,10 @@ function forward(X1::AbstractArray{T, N}, RB::ResidualBlock; save=false) where {
 
     cdims3 = DCDims(X1, RB.W3.data; stride=RB.strides[1], padding=RB.pad[1])
     Y3 = ∇conv_data(X3, RB.W3.data, cdims3)
-    # Return if only recomputing state
-    save && (return Y1, Y2, Y3)
-    # Finish forward
-    RB.fan == true ? (return RB.activation.forward(Y3)) : (return GaLU(Y3))
+
+    X4 = RB.fan == true ? RB.activation.forward(Y3) : GaLU(Y3)
+    save && (return Y1, Y2, Y3, X2, X3, X4)
+    return X4
 end
 
 # Backward
@@ -140,25 +140,25 @@ function backward(ΔX4::AbstractArray{T, N}, X1::AbstractArray{T, N},
     dims = collect(1:N-1); dims[end] +=1
 
     # Recompute forward states from input X
-    Y1, Y2, Y3 = forward(X1, RB; save=true)
+    Y1, Y2, Y3, X2, X3, X4 = forward(X1, RB; save=true)
 
     # Cdims
     cdims2 = DenseConvDims(Y2, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
     cdims3 = DCDims(X1, RB.W3.data;  stride=RB.strides[1], padding=RB.pad[1])
 
     # Backpropagate residual ΔX4 and compute gradients
-    RB.fan == true ? (ΔY3 = RB.activation.backward(ΔX4, Y3)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
+    RB.fan == true ? (ΔY3 = backward(ΔX4, Y3, X4, RB.activation)) : (ΔY3 = GaLUgrad(ΔX4, Y3))
     ΔX3 = conv(ΔY3, RB.W3.data, cdims3)
     ΔW3 = ∇conv_filter(ΔY3, RB.activation.forward(Y2), cdims3)
 
-    ΔY2 = RB.activation.backward(ΔX3, Y2)
+    ΔY2 = backward(ΔX3, Y2, X3, RB.activation)
     ΔX2 = ∇conv_data(ΔY2, RB.W2.data, cdims2) + ΔY2
     ΔW2 = ∇conv_filter(RB.activation.forward(Y1), ΔY2, cdims2)
     Δb2 = sum(ΔY2, dims=dims)[inds...]
 
     cdims1 = DenseConvDims(X1, RB.W1.data; stride=RB.strides[1], padding=RB.pad[1])
 
-    ΔY1 = RB.activation.backward(ΔX2, Y1)
+    ΔY1 = backward(ΔX2, Y1, X2, RB.activation)
     ΔX1 = ∇conv_data(ΔY1, RB.W1.data, cdims1)
     ΔW1 = ∇conv_filter(X1, ΔY1, cdims1)
     Δb1 = sum(ΔY1, dims=dims)[inds...]
@@ -187,21 +187,21 @@ function jacobian(ΔX1::AbstractArray{T, N}, Δθ::Array{Parameter, 1},
     Y1 = conv(X1, RB.W1.data, cdims1) .+ reshape(RB.b1.data, inds...)
     ΔY1 = conv(ΔX1, RB.W1.data, cdims1) + conv(X1, Δθ[1].data, cdims1) .+ reshape(Δθ[4].data, inds...)
     X2 = RB.activation.forward(Y1)
-    ΔX2 = RB.activation.backward(ΔY1, Y1)
+    ΔX2 = backward(ΔY1, Y1, X2, RB.activation)
 
     cdims2 = DenseConvDims(X2, RB.W2.data; stride=RB.strides[2], padding=RB.pad[2])
 
     Y2 = X2 + conv(X2, RB.W2.data, cdims2) .+ reshape(RB.b2.data, inds...)
     ΔY2 = ΔX2 + conv(ΔX2, RB.W2.data, cdims2) + conv(X2, Δθ[2].data, cdims2) .+ reshape(Δθ[5].data, inds...)
     X3 = RB.activation.forward(Y2)
-    ΔX3 = RB.activation.backward(ΔY2, Y2)
+    ΔX3 = backward(ΔY2, Y2, X3, RB.activation)
 
     cdims3 = DCDims(X1, RB.W3.data; nc=2*size(X1, N-1), stride=RB.strides[1], padding=RB.pad[1])
     Y3 = ∇conv_data(X3, RB.W3.data, cdims3)
     ΔY3 = ∇conv_data(ΔX3, RB.W3.data, cdims3) + ∇conv_data(X3, Δθ[3].data, cdims3)
     if RB.fan == true
         X4 = RB.activation.forward(Y3)
-        ΔX4 = RB.activation.backward(ΔY3, Y3)
+        ΔX4 = backward(ΔY3, Y3, X4, RB.activation)
     else
         ΔX4, X4 = GaLUjacobian(ΔY3, Y3)
     end

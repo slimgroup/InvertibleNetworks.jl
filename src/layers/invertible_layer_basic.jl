@@ -96,9 +96,9 @@ function forward(X1::AbstractArray{T, N}, X2::AbstractArray{T, N}, L::CouplingLa
     Y2 = S.*X2 + logS_T2
 
     if logdet
-        save ? (return X1, Y2, coupling_logdet_forward(S), S) : (return X1, Y2, coupling_logdet_forward(S))
+        save ? (return X1, Y2, coupling_logdet_forward(S), logS_T1, S) : (return X1, Y2, coupling_logdet_forward(S))
     else
-        save ? (return X1, Y2, S) : (return X1, Y2)
+        save ? (return X1, Y2, logS_T1, S) : (return X1, Y2)
     end
 end
 
@@ -112,9 +112,9 @@ function inverse(Y1::AbstractArray{T, N}, Y2::AbstractArray{T, N}, L::CouplingLa
     X2 = (Y2 - logS_T2) ./ (S .+ eps(T)) # add epsilon to avoid division by 0
 
     if logdet
-        save == true ? (return Y1, X2, -coupling_logdet_forward(S), S) : (return Y1, X2, -coupling_logdet_forward(S))
+        save == true ? (return Y1, X2, -coupling_logdet_forward(S), logS_T1, S) : (return Y1, X2, -coupling_logdet_forward(S))
     else
-        save == true ? (return Y1, X2, S) : (return Y1, X2)
+        save == true ? (return Y1, X2, logS_T1, S) : (return Y1, X2)
     end
 end
 
@@ -122,7 +122,7 @@ end
 function backward(ΔY1::AbstractArray{T, N}, ΔY2::AbstractArray{T, N}, Y1::AbstractArray{T, N}, Y2::AbstractArray{T, N}, L::CouplingLayerBasic; set_grad::Bool=true) where {T, N}
 
     # Recompute forward state
-    X1, X2, S = inverse(Y1, Y2, L; save=true, logdet=false)
+    X1, X2, logS_T1, S = inverse(Y1, Y2, L; save=true, logdet=false)
 
     # Backpropagate residual
     ΔT = copy(ΔY2)
@@ -132,11 +132,11 @@ function backward(ΔY1::AbstractArray{T, N}, ΔY2::AbstractArray{T, N}, Y1::Abst
     end
     ΔX2 = ΔY2 .* S
     if set_grad
-        ΔX1 = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), X1) + ΔY1
+        ΔX1 = L.RB.backward(tensor_cat(backward(ΔS, logS_T1, S, L.activation), ΔT), X1) + ΔY1
     else
-        ΔX1, Δθ = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), X1; set_grad=set_grad)
+        ΔX1, Δθ = L.RB.backward(tensor_cat(backward(ΔS, logS_T1, S, L.activation), ΔT), X1; set_grad=set_grad)
         if L.logdet
-            _, ∇logdet = L.RB.backward(tensor_cat(L.activation.backward(coupling_logdet_backward(S), S), 0 .*ΔT), X1; set_grad=set_grad)
+            _, ∇logdet = L.RB.backward(tensor_cat(backward(coupling_logdet_backward(S), logS_T1, S, L.activation), 0 .*ΔT), X1; set_grad=set_grad)
         end
         ΔX1 += ΔY1
     end
@@ -152,7 +152,7 @@ end
 function backward_inv(ΔX1::AbstractArray{T, N}, ΔX2::AbstractArray{T, N}, X1::AbstractArray{T, N}, X2::AbstractArray{T, N}, L::CouplingLayerBasic; set_grad::Bool=true) where {T, N}
 
     # Recompute inverse state
-    Y1, Y2, S = forward(X1, X2, L; save=true, logdet=false)
+    Y1, Y2, logS_T1, S = forward(X1, X2, L; save=true, logdet=false)
 
     # Backpropagate residual
     ΔT = -ΔX2 ./ S
@@ -161,9 +161,9 @@ function backward_inv(ΔX1::AbstractArray{T, N}, ΔX2::AbstractArray{T, N}, X1::
         set_grad ? (ΔS += coupling_logdet_backward(S)) : (∇logdet = -coupling_logdet_backward(S))
     end
     if set_grad
-        ΔY1 = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), Y1) + ΔX1
+        ΔY1 = L.RB.backward(tensor_cat(backward(ΔS, logS_T1, S, L.activation), ΔT), Y1) + ΔX1
     else
-        ΔY1, Δθ = L.RB.backward(tensor_cat(L.activation.backward(ΔS, S), ΔT), Y1; set_grad=set_grad)
+        ΔY1, Δθ = L.RB.backward(tensor_cat(backward(ΔS, logS_T1, S, L.activation), ΔT), Y1; set_grad=set_grad)
         ΔY1 += ΔX1
     end
     ΔY2 = - ΔT
@@ -187,14 +187,14 @@ function jacobian(ΔX1::AbstractArray{T, N}, ΔX2::AbstractArray{T, N}, Δθ::Ab
     logS_T1, logS_T2 = tensor_split(L.RB.forward(X1))
     ΔlogS_T1, ΔlogS_T2 = tensor_split(jacobian(ΔX1, Δθ, X1, L.RB)[1])
     S = L.activation.forward(logS_T1)
-    ΔS = L.activation.backward(ΔlogS_T1, S)
+    ΔS = backward(ΔlogS_T1, logS_T1, S, L.activation)
     Y2 = S.*X2 + logS_T2
     ΔY2 = ΔS.*X2 + S.*ΔX2 + ΔlogS_T2
 
     if logdet
         # Gauss-Newton approximation of logdet terms
         JΔθ = tensor_split(L.RB.jacobian(zeros(Float32, size(ΔX1)), Δθ, X1)[1])[1]
-        GNΔθ = -L.RB.adjointJacobian(tensor_cat(L.activation.backward(JΔθ, S), zeros(Float32, size(S))), X1)[2]
+        GNΔθ = -L.RB.adjointJacobian(tensor_cat(backward(JΔθ, logS_T1, S, L.activation), zeros(Float32, size(S))), X1)[2]
         
         save ? (return ΔX1, ΔY2, X1, Y2, coupling_logdet_forward(S), GNΔθ, S) : (return ΔX1, ΔY2, X1, Y2, coupling_logdet_forward(S), GNΔθ)
     else
