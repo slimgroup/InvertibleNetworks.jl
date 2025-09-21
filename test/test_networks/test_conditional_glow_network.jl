@@ -24,7 +24,7 @@ N = (nx,ny)
 # Invertibility
 
 # Network and input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device
 X = rand(Float32, N..., n_in, batchsize)  |> device
 Cond = rand(Float32, N..., n_cond, batchsize)  |> device
 
@@ -67,7 +67,7 @@ N = (nx,ny)
 # Invertibility
 
 # Network and input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device
 X = rand(Float32, N..., n_in, batchsize)  |> device
 Cond = rand(Float32, N..., n_cond, batchsize)  |> device
 
@@ -106,7 +106,7 @@ end
 
 
 # Gradient test w.r.t. input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer())  |> device
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer())  |> device
 X = rand(Float32, N..., n_in, batchsize)  |> device
 Cond = rand(Float32, N..., n_cond, batchsize)  |> device
 X0 = rand(Float32, N..., n_in, batchsize)  |> device
@@ -135,8 +135,8 @@ end
 
 # Gradient test w.r.t. parameters
 X = rand(Float32, N..., n_in, batchsize) |> device
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device
-G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device
+G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device
 Gini = deepcopy(G0)
 
 # Test one parameter from residual block and 1x1 conv
@@ -171,7 +171,7 @@ end
 sum_net = ResNet(n_cond, 16, 3; norm=nothing) # make sure it doesnt have any weird normalizations
 
 # Network and input
-flow = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer())
+flow = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer())
 G = SummarizedNet(flow, sum_net)  |> device
 
 X = rand(Float32, N..., n_in, batchsize) |> device;
@@ -238,7 +238,7 @@ end
 
 # Gradient test w.r.t. parameters
 X = rand(Float32, N..., n_in, batchsize) |> device
-flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device
+flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device
 G0 = SummarizedNet(flow0, sum_net) |> device
 Gini = deepcopy(G0)
 
@@ -273,7 +273,7 @@ N = (nx,ny,nz)
 # Invertibility
 
 # Network and input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device
 X = rand(Float32, N..., n_in, batchsize) |> device
 Cond = rand(Float32, N..., n_cond, batchsize) |> device
 
@@ -304,7 +304,7 @@ end
 
 
 # Gradient test w.r.t. input
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device
 X = rand(Float32, N..., n_in, batchsize) |> device
 Cond = rand(Float32, N..., n_cond, batchsize) |> device
 X0 = rand(Float32, N..., n_in, batchsize) |> device
@@ -333,8 +333,8 @@ end
 
 # Gradient test w.r.t. parameters
 X = rand(Float32, N..., n_in, batchsize) |> device
-G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device
-G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device
+G = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device
+G0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K;split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device
 Gini = deepcopy(G0)
 
 # Test one parameter from residual block and 1x1 conv
@@ -368,7 +368,7 @@ end
 sum_net_3d = ResNet(n_cond, 16, 3; ndims=3, norm=nothing)  |> device# make sure it doesnt have any weird normalizati8ons
 
 # Network and input
-flow = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device;
+flow = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device;
 G = SummarizedNet(flow, sum_net_3d) |> device
 
 X = rand(Float32, N..., n_in, batchsize) |> device;
@@ -428,7 +428,7 @@ end
 
 # Gradient test w.r.t. parameters
 X = rand(Float32, N..., n_in, batchsize) |> device
-flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N), rb_activation=SigmoidLayer()) |> device
+flow0 = NetworkConditionalGlow(n_in, n_cond, n_hidden, L, K; split_scales=split_scales,ndims=length(N), rb_activation=LeakyReLUlayer()) |> device
 G0 = SummarizedNet(flow0, sum_net_3d) |> device
 Gini = deepcopy(G0)
 
